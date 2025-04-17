@@ -1,0 +1,88 @@
+# --- Secrets ---
+# Ignora i file .env specifici dell'ambiente (mantieni .env.example!)
+**/.env
+# Ignora completamente la directory dei segreti
+.secrets/
+
+# --- Dependencies ---
+# Node.js dependencies (Frontend)
+**/node_modules/
+# Python virtual environments (se create localmente)
+venv/
+env/
+.venv/
+# Python caches
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Build Artifacts ---
+# Frontend build output (Vite/CRA)
+**/dist/
+**/build/
+# Python build artifacts
+*.egg-info/
+dist/
+build/
+wheels/
+*.egg
+
+# --- Runtime Data / User Uploads ---
+# File multimediali caricati o generati dai servizi backend
+# Ignora le directory mediafiles in ogni servizio
+**/mediafiles/
+# Database locali usati per sviluppo/test (es. SQLite)
+*.sqlite3
+dummy_db.sqlite3
+
+# --- Logs ---
+*.log
+logs/
+*.log.*
+
+# --- OS / IDE Specific ---
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+# Windows
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+# Linux
+*~
+# IDEs
+.idea/
+.vscode/ # Puoi commentare questa riga se vuoi condividere le impostazioni di VS Code
+*.sublime-project
+*.sublime-workspace
+nbproject/
+# NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+# VS Code
+.history/
+
+# --- Other ---
+# File temporanei
+*.swp
+*.swo
+*.tmp
+*.bak
+
+# File di Coverage (se usi test di coverage)
+coverage/
+.coverage
+.coverage.*
+htmlcov/
+
+# --- Docker ---
+# Non ignorare Dockerfile, .dockerignore, docker-compose.yml
+# Ma potresti voler ignorare context/tarballs specifici se li generi
+# *.tar.gz

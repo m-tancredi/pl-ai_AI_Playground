@@ -1,0 +1,9 @@
+Django>=4.0,<5.0
+djangorestframework>=3.14,<3.16
+djangorestframework-simplejwt[crypto]>=5.2,<5.4 # [crypto] is needed for blacklist
+django-cors-headers>=3.13,<4.4
+gunicorn>=20.1,<22.0
+python-dotenv>=0.20,<1.1
+psycopg2-binary>=2.9,<2.10 # Even if starting with SQLite, include for easy switch
+requests>=2.28,<2.32 # Often useful, good to include
+dj-database-url>=1.0,<2.2 # For parsing DATABASE_URL easily

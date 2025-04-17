@@ -1,0 +1,13 @@
+Django>=4.0,<5.0
+djangorestframework>=3.14,<3.16
+djangorestframework-simplejwt[crypto]>=5.2,<5.4 # Per validazione
+django-cors-headers>=3.13,<4.4
+gunicorn>=20.1,<22.0
+python-dotenv>=0.20,<1.1
+psycopg2-binary>=2.9,<2.10 # Driver PostgreSQL
+dj-database-url>=1.0,<2.2 # Opzionale, per parsing DATABASE_URL
+requests>=2.28,<2.32
+
+# Nuove dipendenze per questo servizio
+pandas>=1.5,<2.3
+scikit-learn>=1.1,<1.5

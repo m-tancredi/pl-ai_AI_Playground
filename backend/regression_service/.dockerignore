@@ -1,0 +1,30 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE folders
+.idea/
+.vscode/
+
+# Environment
+.env
+venv/
+env/
+*.env.*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Django specific
+*.log
+# db.sqlite3 # Non usiamo più SQLite qui
+static/
+mediafiles/ # Aggiunto qui se non vuoi che i media locali vengano copiati nell'immagine
+            # Ma il volume docker li gestirà al runtime

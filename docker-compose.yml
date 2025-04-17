@@ -1,0 +1,182 @@
+# pl-ai/docker-compose.yml
+
+version: '3.8' # Rimuovere se si usa docker compose V2
+
+networks:
+  pl-ai-network:
+    driver: bridge
+
+volumes:
+  postgres_data: # Per auth_db
+  regression_db_data: # <-- NUOVO volume per il DB di regression
+  regression_media_data: # <-- NUOVO volume per i file media di regression
+  image_generator_media:
+
+secrets:
+  openai_api_key_secret:
+    file: ./.secrets/openai_api_key.txt
+  stability_api_key_secret:
+    file: ./.secrets/stability_api_key.txt
+
+services:
+  # --- Servizi Esistenti (Auth DB, Auth Service, Frontend) ---
+  auth_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-auth-db # Nome consistente
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: plai_user
+      POSTGRES_PASSWORD: plai_password # Usa la password da auth_service/.env
+      POSTGRES_DB: plai_db
+    expose:
+      - "5432"
+    ports: # Manteniamo la porta esposta per pgAdmin se serve
+      - "5433:5432"
+    networks:
+      - pl-ai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plai_user -d plai_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  auth_service:
+    build:
+      context: ./backend/auth_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-auth-service
+    env_file:
+      - ./backend/auth_service/.env
+    volumes:
+      - ./backend/auth_service:/app
+    expose:
+      - "8000"
+    networks:
+      - pl-ai-network
+    depends_on:
+      auth_db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  frontend: # Invariato
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pl-ai-frontend
+    expose:
+      - "3000"
+    networks:
+      - pl-ai-network
+    restart: unless-stopped
+
+  # --- NUOVI Servizi per Regression ---
+
+  # Database PostgreSQL per il servizio di regressione
+  regression_service_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-regression-db
+    volumes:
+      - regression_db_data:/var/lib/postgresql/data # Usa il nuovo volume
+    environment:
+      POSTGRES_USER: regression_user # Utente specifico per questo DB
+      POSTGRES_PASSWORD: regression_password # Password da regression_service/.env
+      POSTGRES_DB: regression_db # Nome DB da regression_service/.env
+    expose:
+      - "5432" # Esposto solo alla rete interna
+    ports: # Non esponiamo questo DB all'host di default, a meno che non serva per debug
+      - "5434:5432" # Esempio se volessi esporlo su porta diversa
+    networks:
+      - pl-ai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U regression_user -d regression_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Backend Regression Microservice
+  pl_ai_regression_service: # Nome del servizio aggiornato
+    build:
+      context: ./backend/regression_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-regression-service
+    env_file:
+      - ./backend/regression_service/.env # Carica le sue variabili d'ambiente
+    volumes:
+      - ./backend/regression_service:/app # Mount codice per dev
+      - regression_media_data:/app/mediafiles # Mount volume per i file CSV caricati
+    expose:
+      - "8001" # Porta interna per questo servizio
+    networks:
+      - pl-ai-network
+    depends_on:
+      regression_service_db: # Dipende dal SUO database
+        condition: service_healthy
+    healthcheck:
+      # Usa un endpoint semplice (es. admin login o un endpoint API pubblico se esistesse)
+      test: ["CMD-SHELL", "curl --fail http://localhost:8001/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 70s # Dagli un po' più di tempo per migrazioni dati iniziali
+    restart: unless-stopped
+
+    # --- NUOVO Servizio Image Generator ---
+  pl_ai_image_generator_service:
+    build:
+      context: ./backend/image_generator_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-image-generator-service
+    env_file:
+      - ./backend/image_generator_service/.env
+    volumes:
+      - ./backend/image_generator_service:/app # Mount codice per dev
+      - image_generator_media:/app/mediafiles # Mount volume per media persistenti
+    secrets: # <-- Mappa i segreti definiti sopra
+      - openai_api_key_secret
+      - stability_api_key_secret
+    expose:
+      - "8002" # Porta interna
+    networks:
+      - pl-ai-network
+    # depends_on: # Non ha dipendenze DB dirette inizialmente
+    # Healthcheck opzionale (es. su un endpoint admin se aggiunto, o API base)
+    # healthcheck:
+    #   test: ["CMD-SHELL", "curl --fail http://localhost:8002/api/qualche/endpoint/ping || exit 1"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 30s
+    restart: unless-stopped
+
+
+  # --- Nginx Reverse Proxy (Aggiornato) ---
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: pl-ai-nginx
+    ports:
+      - "8080:80"
+    networks:
+      - pl-ai-network
+    volumes:
+      # Monta il volume dei media di regression in Nginx per servirli direttamente
+      - regression_media_data:/media_regression:ro # Read-only è più sicuro per Nginx
+      - image_generator_media:/media_images:ro   # <-- Aggiunto mount per image_generator_media
+    depends_on:
+      auth_service: # Dipende da auth_service
+        condition: service_healthy
+      pl_ai_regression_service: # <-- AGGIUNTA Dipendenza dal nuovo servizio
+         condition: service_healthy
+      frontend: # Dipende da frontend
+        condition: service_started
+    restart: unless-stopped
