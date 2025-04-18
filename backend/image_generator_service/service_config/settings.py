@@ -15,31 +15,26 @@ ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STRING.split(',') if hos
 
 # --- RIPRISTINA INSTALLED_APPS FONDAMENTALI ---
 INSTALLED_APPS = [
-    # App Django standard necessarie per DRF/Auth/ContentTypes
-    'django.contrib.auth',
+    'django.contrib.admin', # Riabilita se vuoi l'admin per il nuovo modello
+    'django.contrib.auth', # Necessario per admin
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # 'django.contrib.admin', # Puoi ancora ometterlo se non lo usi
-
-    # App di terze parti
     'rest_framework',
     'corsheaders',
-
-    # La tua app
     'generator_api.apps.GeneratorApiConfig',
 ]
 
 # --- RIPRISTINA MIDDLEWARE FONDAMENTALI ---
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware', # Necessario per messages e auth
+    'django.contrib.sessions.middleware.SessionMiddleware', # Per admin
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware', # Necessario per auth e messages
-    'django.contrib.messages.middleware.MessageMiddleware', # Necessario per messages
+    'django.contrib.auth.middleware.AuthenticationMiddleware', # Per admin
+    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -63,13 +58,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'service_config.wsgi.application'
 
-# Database - Dummy SQLite (ora necessario per le tabelle delle app Django core)
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'dummy_db.sqlite3',
+DB_NAME = os.getenv('IMAGE_GEN_DB_NAME', 'imagegen_db')
+DB_USER = os.getenv('IMAGE_GEN_DB_USER', 'imagegen_user')
+DB_PASSWORD = os.getenv('IMAGE_GEN_DB_PASSWORD', 'password')
+DB_HOST = os.getenv('IMAGE_GEN_DB_HOST', 'localhost')
+DB_PORT = os.getenv('IMAGE_GEN_DB_PORT', '5432')
+
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+if DATABASE_URL:
+    DATABASES = {'default': dj_database_url.parse(DATABASE_URL)}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql', # <-- Engine PostgreSQL
+            'NAME': DB_NAME,
+            'USER': DB_USER,
+            'PASSWORD': DB_PASSWORD,
+            'HOST': DB_HOST,
+            'PORT': DB_PORT,
+        }
     }
-}
 
 # Password validation - NECESSARIO ora che 'auth' è installato
 AUTH_PASSWORD_VALIDATORS = [
@@ -78,6 +87,8 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+AUTH_USER_MODEL = 'auth.User'
+
 # --- Il resto delle impostazioni (Internationalization, Static, Media, REST_FRAMEWORK, SIMPLE_JWT, CORS, Secrets, API URLs) rimane invariato rispetto alla versione precedente ---
 # ... (assicurati che siano presenti) ...
 LANGUAGE_CODE = 'en-us'
@@ -85,8 +96,10 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = 'static/'
+
 MEDIA_ROOT = BASE_DIR / 'mediafiles'
 MEDIA_URL = '/media/'
+TEMP_IMAGE_DIR = 'temp_generated'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
@@ -109,3 +122,6 @@ OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 STABILITY_API_BASE_URL = "https://api.stability.ai/v1"
 TEMP_IMAGE_DIR = 'temp_generated'
 SAVED_IMAGE_DIR_FORMAT = 'saved_images/user_{user_id}'
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True # Importante per includere la porta :8080
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') # Se userai HTTPS in futuro

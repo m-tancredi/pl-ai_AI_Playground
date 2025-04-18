@@ -5,34 +5,29 @@ ENV PYTHONUNBUFFERED 1
 
 WORKDIR /app
 
-# Installa dipendenze di sistema
-# Pillow potrebbe necessitare di libjpeg-dev, zlib1g-dev etc.
-# Aggiungili se pip install Pillow fallisce.
+# Installa dipendenze di sistema (aggiunto libpq-dev per psycopg2)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     netcat-openbsd \
     curl \
     libjpeg-dev \
     zlib1g-dev \
-    # Aggiungere altre dipendenze immagine se necessario
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Installa dipendenze Python
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia il codice del progetto
+# Copia codice
 COPY . /app/
 
-# Copia entrypoint script e rendilo eseguibile
+# Entrypoint
 COPY ./entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Crea directory per media e file temporanei (anche se montate da volume)
-RUN mkdir -p /app/mediafiles/temp_generated
+# Directory media
+RUN mkdir -p /app/mediafiles/temp_generated # Dir temporanea (quella saved verrà creata dinamicamente)
 
-# Esponi la porta 8002
 EXPOSE 8002
-
-# Esegui entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"]

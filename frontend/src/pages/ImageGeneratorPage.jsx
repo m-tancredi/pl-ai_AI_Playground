@@ -3,24 +3,38 @@ import {
     generateTextToImage,
     generateImageToImage,
     enhancePrompt,
-    saveImage
-} from '../services/imageGeneratorService'; // Assicurati che il percorso sia corretto
+} from '../services/imageGeneratorService'; // Assicurati che il path sia corretto
+import {
+    saveGeneratedImage,
+    listUserGalleryImages,
+    updateImageMetadata,
+    deleteGalleryImage,
+} from '../services/imageGalleryService'; // Servizio galleria
+import { useAuth } from '../context/AuthContext'; // Importa hook per autenticazione
 
-// --- Componenti UI Semplici (Riutilizza o migliora) ---
-const Spinner = () => (
-    <div className="inline-block animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-indigo-500 mr-2 align-middle"></div>
+// Importa i componenti UI necessari
+import ImageCard from '../components/ImageCard';
+import ImageDetailModal from '../components/ImageDetailModal';
+import ImageEditModal from '../components/ImageEditModal';
+
+// --- Componenti UI Semplici (Spinner, Alert) ---
+const Spinner = ({ small = false }) => (
+    <div className={`inline-block animate-spin rounded-full border-t-2 border-b-2 border-indigo-500 ${small ? 'h-4 w-4 mr-1' : 'h-5 w-5 mr-2'} align-middle`}></div>
 );
 
 const Alert = ({ type = 'error', message, onClose }) => {
-    const bgColor = type === 'error' ? 'bg-red-100 border-red-400 text-red-700' : 'bg-green-100 border-green-400 text-green-700';
+    const baseStyle = 'border px-4 py-3 rounded relative mb-4 shadow-sm';
+    const typeStyle = type === 'error'
+        ? 'bg-red-100 border-red-400 text-red-700'
+        : 'bg-green-100 border-green-400 text-green-700';
     if (!message) return null;
     return (
-        <div className={`border px-4 py-3 rounded relative mb-4 ${bgColor}`} role="alert">
+        <div className={`${baseStyle} ${typeStyle}`} role="alert">
             <span className="block sm:inline">{message}</span>
             {onClose && (
-                <button onClick={onClose} className="absolute top-0 bottom-0 right-0 px-4 py-3">
-                     <svg className="fill-current h-6 w-6 text-red-500 hover:text-red-700" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.818l-2.651 3.031a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
-                </button>
+                 <button onClick={onClose} className="absolute top-0 bottom-0 right-0 px-4 py-3" aria-label="Close alert">
+                     <svg className="fill-current h-6 w-6 opacity-50 hover:opacity-100" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.818l-2.651 3.031a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
+                 </button>
             )}
         </div>
     );
@@ -28,181 +42,221 @@ const Alert = ({ type = 'error', message, onClose }) => {
 // --- Fine Componenti UI ---
 
 const ImageGeneratorPage = () => {
-    // Input State
+    // Ottieni stato autenticazione dal contesto
+    const { isAuthenticated } = useAuth();
+
+    // Stati Input
     const [prompt, setPrompt] = useState('');
     const [style, setStyle] = useState('');
-    const [model, setModel] = useState('dalle'); // 'dalle' o 'stability'
+    const [model, setModel] = useState('dalle');
     const [aspectRatio, setAspectRatio] = useState('1:1');
-    const [selectedFile, setSelectedFile] = useState(null); // Per img2img
-    const [imageStrength, setImageStrength] = useState(0.35); // Per img2img
-    const [imagePreview, setImagePreview] = useState(null); // URL preview per img2img
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [imageStrength, setImageStrength] = useState(0.35);
+    const [imagePreview, setImagePreview] = useState(null); // URL Blob per preview locale
 
-    // Output/Result State
-    // Rimosso: const [enhancedPrompt, setEnhancedPrompt] = useState('');
-    const [generatedImageUrl, setGeneratedImageUrl] = useState(null); // URL temporaneo
-    const [savedImageUrl, setSavedImageUrl] = useState(null);
-    const [lastUsedPrompt, setLastUsedPrompt] = useState(''); // Per salvare l'immagine
-    const [lastUsedModel, setLastUsedModel] = useState('');   // Per salvare l'immagine
+    // Stati Output/Risultati
+    // Memorizza i dati dell'ultima immagine generata (URL relativo!)
+    const [generatedImageData, setGeneratedImageData] = useState(null); // { relative_url, prompt, model, style }
 
-    // UI State
+    // Stati UI
     const [isEnhancing, setIsEnhancing] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    const fileInputRef = useRef(null);
+    // Stati Galleria
+    const [galleryImages, setGalleryImages] = useState([]); // Conterrà oggetti con url relativo
+    const [isLoadingGallery, setIsLoadingGallery] = useState(false);
+    const [galleryError, setGalleryError] = useState('');
+    const [showGallery, setShowGallery] = useState(false);
+    const [deletingImageId, setDeletingImageId] = useState(null);
 
-    // Cleanup per image preview URL
+    // Stati Modali Galleria
+    const [showDetailModal, setShowDetailModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [selectedImageForModal, setSelectedImageForModal] = useState(null);
+
+    const fileInputRef = useRef(null);
+    
+    const API_GATEWAY_ORIGIN = 'http://localhost:8080'; // Definisci la base corretta
+    // Funzione Helper per costruire URL completo (essenziale)
+    const buildFullImageUrl = useCallback((relativeUrl) => {
+        if (!relativeUrl || typeof relativeUrl !== 'string' || !relativeUrl.startsWith('/media/')) {
+            return null;
+        }
+        const cleanRelativeUrl = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`;
+        return `${API_GATEWAY_ORIGIN}${cleanRelativeUrl}`; // Usa la base hardcodata
+    }, []);
+
+    // Cleanup preview blob URL
     useEffect(() => {
-        return () => {
-            if (imagePreview) {
-                URL.revokeObjectURL(imagePreview);
-            }
-        };
+        return () => { if (imagePreview) URL.revokeObjectURL(imagePreview); };
     }, [imagePreview]);
+
+    // Fetch Galleria
+    const fetchGallery = useCallback(async () => {
+        if (!isAuthenticated) return;
+        setIsLoadingGallery(true);
+        setGalleryError('');
+        try {
+            const images = await listUserGalleryImages();
+            console.log("Fetched Gallery Images (raw response):", images); // DEBUG
+            setGalleryImages(images || []); // Assicura sia un array
+        } catch (err) {
+            setGalleryError('Failed to load gallery. Please try refreshing.');
+            console.error("Gallery fetch error:", err);
+        } finally {
+            setIsLoadingGallery(false);
+        }
+    }, [isAuthenticated]); // Ricarica solo se cambia stato auth
+
+    // Carica galleria all'apertura (se vuota)
+    useEffect(() => {
+        if (showGallery && galleryImages.length === 0 && !isLoadingGallery) {
+            fetchGallery();
+        }
+    }, [showGallery, galleryImages.length, isLoadingGallery, fetchGallery]);
 
     // Gestione cambio file
     const handleFileChange = (event) => {
         const file = event.target.files[0];
+        setError(''); setSuccess(''); // Pulisci messaggi
+        setGeneratedImageData(null); // Resetta immagine generata precedente
         if (file && (file.type === 'image/png' || file.type === 'image/jpeg')) {
-             setSelectedFile(file);
-             setError('');
-             if (imagePreview) URL.revokeObjectURL(imagePreview);
-             setImagePreview(URL.createObjectURL(file));
-             setGeneratedImageUrl(null);
-             setSavedImageUrl(null);
-        } else if (file) {
-            setError('Invalid file type. Please upload a PNG or JPEG image.');
+            setSelectedFile(file);
+            if (imagePreview) URL.revokeObjectURL(imagePreview);
+            setImagePreview(URL.createObjectURL(file));
+        } else {
             setSelectedFile(null);
             if (imagePreview) URL.revokeObjectURL(imagePreview);
             setImagePreview(null);
-            event.target.value = '';
-        } else {
-             setSelectedFile(null);
-             if (imagePreview) URL.revokeObjectURL(imagePreview);
-             setImagePreview(null);
+            if (file) setError('Invalid file type. Please upload PNG or JPEG.');
+            if(fileInputRef.current) fileInputRef.current.value = '';
         }
     };
 
-    // Reset dello stato principale
-    const resetForm = () => {
-        setPrompt('');
-        setStyle('');
-        setModel('dalle');
-        setAspectRatio('1:1');
-        setSelectedFile(null);
-        setImageStrength(0.35);
+    // Reset Form
+    const resetForm = useCallback(() => {
+        setPrompt(''); setStyle(''); setModel('dalle'); setAspectRatio('1:1');
+        setSelectedFile(null); setImageStrength(0.35);
         if (imagePreview) URL.revokeObjectURL(imagePreview);
         setImagePreview(null);
-        // Rimosso: setEnhancedPrompt('');
-        setGeneratedImageUrl(null);
-        setSavedImageUrl(null);
-        setLastUsedPrompt('');
-        setLastUsedModel('');
-        setError('');
-        setSuccess('');
+        setGeneratedImageData(null);
+        setError(''); setSuccess('');
         if (fileInputRef.current) fileInputRef.current.value = '';
-    };
+    }, [imagePreview]); // Dipende solo da imagePreview per il cleanup
 
-    // Enhance Prompt - Aggiornato per modificare direttamente 'prompt'
+    // Enhance Prompt
     const handleEnhance = async () => {
-        if (!prompt) {
-            setError('Please enter a prompt to enhance.');
-            return;
-        }
-        setIsEnhancing(true);
-        setError('');
-        setSuccess('');
-        // Rimosso: setEnhancedPrompt('');
-
+        if (!prompt) return setError('Please enter a prompt to enhance.');
+        setIsEnhancing(true); setError(''); setSuccess('');
         try {
             const result = await enhancePrompt({ prompt });
-            setPrompt(result.enhanced_prompt); // <-- Aggiorna stato prompt principale
-            setSuccess('Prompt enhanced successfully!');
-        } catch (err) {
-            setError(err.response?.data?.error || err.message || 'Failed to enhance prompt.');
-        } finally {
-            setIsEnhancing(false);
-        }
+            setPrompt(result.enhanced_prompt); // Aggiorna prompt principale
+            setSuccess('Prompt enhanced!');
+        } catch (err) { setError(err.response?.data?.error || err.message || 'Failed to enhance prompt.');
+        } finally { setIsEnhancing(false); }
     };
 
-    // Generate Image (Text-to-Image o Image-to-Image)
+    // Generate Image
     const handleGenerate = async () => {
-        if (!prompt) {
-            setError('A prompt is required to generate an image.');
-            return;
-        }
-        setIsGenerating(true);
-        setError('');
-        setSuccess('');
-        setGeneratedImageUrl(null);
-        setSavedImageUrl(null);
+        if (!prompt) return setError('A prompt is required.');
+        setIsGenerating(true); setError(''); setSuccess(''); setGeneratedImageData(null);
 
         const currentFormattedPrompt = style ? `${prompt}, style: ${style}` : prompt;
-        setLastUsedPrompt(currentFormattedPrompt);
-        setLastUsedModel(selectedFile ? 'stability_img2img' : model);
+        const modelToUse = selectedFile ? 'stability_img2img' : model;
 
         try {
             let result;
-            if (selectedFile) {
+            if (selectedFile) { // Image-to-Image
                 const formData = new FormData();
-                formData.append('prompt', prompt);
-                formData.append('image', selectedFile);
+                formData.append('prompt', prompt); formData.append('image', selectedFile);
                 if (style) formData.append('style', style);
                 formData.append('image_strength', imageStrength.toString());
                 result = await generateImageToImage(formData);
-                setSuccess('Image-to-Image generation successful!');
-            } else {
+            } else { // Text-to-Image
                 const data = { prompt, model, aspect_ratio: aspectRatio };
                 if (style) data.style = style;
                 result = await generateTextToImage(data);
-                setSuccess('Text-to-Image generation successful!');
             }
-            // Log per Debug URL Immagine
-            console.log("API Response Image URL:", result?.image_url);
-            setGeneratedImageUrl(result.image_url);
-
+            console.log("API Response (raw result):", result); // DEBUG
+            // Verifica che image_url sia presente e sia una stringa relativa
+            // --- CORREZIONE QUI ---
+            // Verifica che result.image_url sia l'URL relativo atteso
+            if (result?.image_url && typeof result.image_url === 'string' && result.image_url.startsWith('/media/')) {
+                // Imposta lo stato con l'oggetto strutturato
+                setGeneratedImageData({
+                    relative_url: result.image_url, // Salva URL relativo qui
+                    prompt: currentFormattedPrompt, // Usa il prompt formattato
+                    model: modelToUse,            // Usa il modello corretto
+                    style: style || null,         // Salva lo stile usato
+                });
+                setSuccess('Image generated successfully!');
+           } else {
+                console.error("Invalid or missing relative 'image_url' in API response:", result);
+                throw new Error("Received invalid image data from server.");
+           }
+           // --- FINE CORREZIONE ---
         } catch (err) {
             setError(err.response?.data?.error || err.message || 'Image generation failed.');
             console.error("Generation error details:", err.response?.data || err);
-        } finally {
-            setIsGenerating(false);
-        }
+        } finally { setIsGenerating(false); }
     };
 
     // Save Image
-    const handleSave = async () => {
-        if (!generatedImageUrl) {
-            setError('No generated image available to save.');
+    const handleSaveToGallery = async () => {
+        console.log("handleSaveToGallery - Start. generatedImageData:", generatedImageData);
+        if (!generatedImageData || !generatedImageData.relative_url || typeof generatedImageData.relative_url !== 'string' || !generatedImageData.relative_url.startsWith('/media/')) { // Controllo più robusto
+            const errorMsg = `Cannot save: Invalid generatedImageData state. URL: ${generatedImageData?.relative_url}`;
+            console.error(errorMsg);
+            setError('Internal Error: Cannot save generated image data.'); // Messaggio utente generico
             return;
         }
-        setIsSaving(true);
-        setError('');
-        setSuccess('');
+        setIsSaving(true); setError(''); setSuccess('');
         try {
-            const urlObject = new URL(generatedImageUrl);
-            const relativeTempUrl = urlObject.pathname;
-
-            const data = {
-                image_url: relativeTempUrl,
-                prompt: lastUsedPrompt,
-                model: lastUsedModel,
-                style: style,
+            const relativeTempUrl = generatedImageData.relative_url; // Usa URL relativo dallo stato
+            console.log("handleSaveToGallery - Using relative URL:", relativeTempUrl);
+    
+            const dataToSave = {
+                image_url: relativeTempUrl, // Passa URL relativo all'API
+                prompt: generatedImageData.prompt,
+                model: generatedImageData.model,
+                style: generatedImageData.style,
             };
-            const result = await saveImage(data);
-            setSavedImageUrl(result.saved_url);
-            setGeneratedImageUrl(null); // Rimuovi temp dopo salvataggio
-            setSuccess(result.message || 'Image saved successfully!');
+            console.log("handleSaveToGallery - Calling saveGeneratedImage with:", dataToSave);
+            const savedImage = await saveGeneratedImage(dataToSave);
+            console.log("API Save Response:", savedImage);
+            setSuccess(`Image (ID: ${savedImage.id}) saved to gallery!`);
+            setGeneratedImageData(null); // Rimuovi temp dopo salvataggio
+            // Aggiungi/aggiorna la galleria UI
+            setGalleryImages(prev => [savedImage, ...prev.filter(img => img.id !== savedImage.id)]);
         } catch (err) {
-            setError(err.response?.data?.error || err.message || 'Failed to save image.');
-        } finally {
-            setIsSaving(false);
-        }
+            let errorMsg = 'Failed to save image.'; /* ... (logica gestione errori come prima) ... */
+            setError(errorMsg); console.error("Save error details:", err.response?.data || err);
+        } finally { setIsSaving(false); }
     };
 
-    // Log per Debug Stato Immagine nel Rendering
-    console.log("Rendering - generatedImageUrl State:", generatedImageUrl);
+    // --- Funzioni Callback per Galleria ---
+    const handleViewDetails = (image) => { setSelectedImageForModal(image); setShowDetailModal(true); };
+    const handleEditImage = (image) => { setSelectedImageForModal(image); setShowEditModal(true); };
+    const handleDeleteImage = async (imageId) => {
+        if (!window.confirm(`Delete image ID ${imageId}?`)) return;
+        setDeletingImageId(imageId); setGalleryError('');
+        try {
+            await deleteGalleryImage(imageId);
+            setSuccess(`Image ID ${imageId} deleted.`);
+            setGalleryImages(prev => prev.filter(img => img.id !== imageId));
+        } catch (err) { setGalleryError(err.response?.data?.error || err.message || `Failed to delete image ID ${imageId}.`);
+        } finally { setDeletingImageId(null); }
+    };
+     const handleUpdateImage = async (imageId, metadata) => {
+         try {
+            const updatedImage = await updateImageMetadata(imageId, metadata);
+            setGalleryImages(prev => prev.map(img => img.id === imageId ? updatedImage : img));
+            setShowEditModal(false); setSuccess(`Image ID ${imageId} updated.`); return true;
+         } catch (err) { console.error("Update error in page:", err); return false; }
+     };
 
     return (
         <div className="container mx-auto px-4 py-8 space-y-8">
@@ -212,203 +266,155 @@ const ImageGeneratorPage = () => {
              {error && <Alert type="error" message={error} onClose={() => setError('')} />}
              {success && <Alert type="success" message={success} onClose={() => setSuccess('')} />}
 
-             {/* Form Principale */}
+             {/* Form + Output */}
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Colonna Input */}
-                <div className="bg-white p-6 rounded shadow space-y-4">
-                     <h2 className="text-xl font-semibold border-b pb-2 mb-4">Generation Parameters</h2>
-
-                     {/* Prompt */}
-                    <div>
-                        <label htmlFor="prompt" className="block text-sm font-medium text-gray-700">Prompt:</label>
-                        <textarea
-                            id="prompt"
-                            rows="4"
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            placeholder="Describe the image you want to create..."
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2"
-                        />
-                         <button
-                            onClick={handleEnhance}
-                            disabled={isEnhancing || !prompt}
-                            className="mt-2 px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 disabled:opacity-50 flex items-center"
-                         >
-                             {isEnhancing && <Spinner />} Enhance Prompt (AI)
+                 {/* Colonna Input */}
+                 <div className="bg-white p-6 rounded-lg shadow-lg space-y-4 border border-gray-200">
+                     <h2 className="text-xl font-semibold border-b pb-2 mb-4 text-gray-700">Generation Parameters</h2>
+                     {/* Prompt & Enhance Button */}
+                     <div>
+                         <label htmlFor="prompt" className="block text-sm font-medium text-gray-700">Prompt:</label>
+                         <textarea id="prompt" rows="4" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe the image..." className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"/>
+                         <button onClick={handleEnhance} disabled={isEnhancing || !prompt} className="mt-2 px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded hover:bg-gray-200 disabled:opacity-50 flex items-center">
+                             {isEnhancing && <Spinner small />} Enhance Prompt (AI)
                          </button>
-                    </div>
-
-                    {/* Style */}
-                    <div>
-                        <label htmlFor="style" className="block text-sm font-medium text-gray-700">Style (Optional):</label>
-                        <input
-                            type="text"
-                            id="style"
-                            value={style}
-                            onChange={(e) => setStyle(e.target.value)}
-                            placeholder="e.g., cinematic, anime art, photorealistic, cyberpunk"
-                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2"
-                        />
-                    </div>
-
-                    {/* Selettore Modello (solo per text-to-image) */}
+                     </div>
+                     {/* Style */}
+                     <div>
+                         <label htmlFor="style" className="block text-sm font-medium text-gray-700">Style (Optional):</label>
+                         <input type="text" id="style" value={style} onChange={(e) => setStyle(e.target.value)} placeholder="e.g., cinematic, anime art..." className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"/>
+                     </div>
+                     {/* Model (Text-to-Image only) */}
                      {!selectedFile && (
                          <div>
-                             <label htmlFor="model" className="block text-sm font-medium text-gray-700">Generation Model:</label>
-                             <select
-                                id="model"
-                                value={model}
-                                onChange={(e) => setModel(e.target.value)}
-                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 bg-white"
-                             >
+                             <label htmlFor="model" className="block text-sm font-medium text-gray-700">Model:</label>
+                             <select id="model" value={model} onChange={(e) => setModel(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 bg-white">
                                  <option value="dalle">DALL-E 3</option>
                                  <option value="stability">Stability AI (XL)</option>
                              </select>
                          </div>
                      )}
-
-                     {/* Selettore Aspect Ratio (solo per text-to-image) */}
+                      {/* Aspect Ratio (Text-to-Image only) */}
                      {!selectedFile && (
                          <div>
-                             <label htmlFor="aspectRatio" className="block text-sm font-medium text-gray-700">Aspect Ratio:</label>
-                             <select
-                                id="aspectRatio"
-                                value={aspectRatio}
-                                onChange={(e) => setAspectRatio(e.target.value)}
-                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 bg-white"
-                                disabled={model === 'dalle' && !['1:1', '16:9', '9:16'].includes(aspectRatio) && setAspectRatio('1:1')} // Reset per DALL-E se non supportato
-                             >
-                                 <option value="1:1">1:1 (Square)</option>
-                                 <option value="16:9">16:9 (Widescreen)</option>
-                                 <option value="9:16">9:16 (Portrait)</option>
+                              <label htmlFor="aspectRatio" className="block text-sm font-medium text-gray-700">Aspect Ratio:</label>
+                              <select id="aspectRatio" value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 bg-white">
+                                 <option value="1:1">1:1</option>
+                                 <option value="16:9">16:9</option>
+                                 <option value="9:16">9:16</option>
                                  {model === 'stability' && <option value="4:3">4:3</option>}
-                                 {model === 'stability' && <option value="3:4">3:4</option>}
-                                 {model === 'stability' && <option value="3:2">3:2</option>}
-                                 {model === 'stability' && <option value="2:3">2:3</option>}
-                             </select>
-                              {model === 'dalle' && !['1:1', '16:9', '9:16'].includes(aspectRatio) && <p className="text-xs text-red-600 mt-1">DALL-E 3 only supports 1:1, 16:9, 9:16. Defaulting to 1:1.</p>}
+                                 {/* ... altre opzioni stability ... */}
+                              </select>
                          </div>
                      )}
-
-                     {/* Input Image-to-Image */}
+                     {/* Image-to-Image Input */}
                      <div className="border-t pt-4 mt-4 space-y-4">
-                          <h3 className="text-md font-semibold text-gray-600">Or Generate from Image (Image-to-Image):</h3>
+                         <h3 className="text-md font-semibold text-gray-600">Or Use Image-to-Image (Stability):</h3>
                          <div>
-                            <label htmlFor="imageFile" className="block text-sm font-medium text-gray-700">Upload Initial Image (PNG/JPEG):</label>
-                            <input
-                                type="file"
-                                id="imageFile"
-                                accept="image/png, image/jpeg"
-                                ref={fileInputRef}
-                                onChange={handleFileChange}
-                                className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
-                            />
-                            {imagePreview && (
-                                <div className="mt-2 border rounded p-2 inline-block">
-                                    <img src={imagePreview} alt="Image preview" className="max-h-40 rounded" />
-                                </div>
-                            )}
+                             <label htmlFor="imageFile" className="block text-sm font-medium text-gray-700 mb-1">Initial Image (PNG/JPEG):</label>
+                             <input type="file" id="imageFile" accept="image/png, image/jpeg" ref={fileInputRef} onChange={handleFileChange} className="..."/>
+                             {imagePreview && (<div className="mt-2 ..."><img src={imagePreview} alt="Preview" className="max-h-40 rounded" /></div>)}
                          </div>
                          {selectedFile && (
-                             <div>
-                                <label htmlFor="imageStrength" className="block text-sm font-medium text-gray-700">Image Strength (0.0 - 1.0):</label>
-                                <input
-                                    type="range"
-                                    id="imageStrength"
-                                    min="0" max="1" step="0.01"
-                                    value={imageStrength}
-                                    onChange={(e) => setImageStrength(parseFloat(e.target.value))}
-                                    className="mt-1 block w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                                />
-                                <span className="text-sm text-gray-500">{imageStrength.toFixed(2)}</span>
-                                <p className="text-xs text-gray-500">Lower values adhere more to the initial image, higher values more to the prompt.</p>
-                             </div>
+                              <div>
+                                 <label htmlFor="imageStrength" className="block text-sm font-medium text-gray-700">Image Strength:</label>
+                                 <input type="range" id="imageStrength" min="0" max="1" step="0.01" value={imageStrength} onChange={(e) => setImageStrength(parseFloat(e.target.value))} className="..."/>
+                                 <span className="text-sm text-gray-500">{imageStrength.toFixed(2)}</span>
+                              </div>
                          )}
                      </div>
+                     {/* Generate Button */}
+                     <div className="border-t pt-4 mt-4">
+                          <button onClick={handleGenerate} disabled={isGenerating || !prompt} className="w-full ...">
+                              {isGenerating && <Spinner />} {selectedFile ? 'Generate from Image' : 'Generate from Text'}
+                          </button>
+                     </div>
+                     <button onClick={resetForm} className="text-xs text-gray-500 hover:underline mt-2">Reset Form</button>
+                 </div>
 
-                     {/* Bottone Genera */}
-                    <div className="border-t pt-4 mt-4">
-                        <button
-                            onClick={handleGenerate}
-                            disabled={isGenerating || !prompt}
-                            className="w-full px-6 py-3 bg-indigo-600 text-white font-semibold rounded-md shadow hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center text-lg"
-                        >
-                            {isGenerating && <Spinner />}
-                            {selectedFile ? 'Generate Image from Image' : 'Generate Image from Text'}
-                        </button>
-                    </div>
-                     {/* Bottone Reset */}
-                      <button onClick={resetForm} className="text-xs text-gray-500 hover:underline mt-2">Reset Form</button>
-
-                </div>
-
-                {/* Colonna Output */}
-                <div className="bg-gray-50 p-6 rounded shadow space-y-4 min-h-[400px] flex flex-col items-center justify-center"> {/* Aggiunto min-h e flex per centrare in caso di no-img */}
-                     <h2 className="text-xl font-semibold border-b pb-2 mb-4 w-full text-center">Result</h2>
-
-                     {isGenerating && (
-                        <div className="text-center py-10">
-                            <Spinner />
-                            <p className="text-gray-600 mt-2">Generating image... this may take a moment.</p>
-                        </div>
-                     )}
+                 {/* Colonna Output */}
+                 <div className="bg-gray-50 p-6 rounded-lg shadow-lg space-y-4 min-h-[400px] flex flex-col items-center justify-center border border-gray-200">
+                     <h2 className="text-xl font-semibold border-b pb-2 mb-4 w-full text-center text-gray-700">Result</h2>
+                     {isGenerating && (<div className="text-center py-10"><Spinner /><p className="text-gray-600 mt-2">Generating...</p></div>)}
 
                      {/* Immagine Generata (Temporanea) */}
-                     {generatedImageUrl && !isGenerating && (
-                         <div className="space-y-3 text-center">
-                            <h3 className="font-semibold">Generated Image (Temporary):</h3>
-                            <img
-                                src={generatedImageUrl}
-                                alt="AI Generated Image"
-                                className="max-w-full h-auto mx-auto rounded shadow border" // Aggiunto bordo per visibilità
-                                onError={(e) => { // Aggiunto gestione errore caricamento immagine
-                                     console.error("Error loading generated image URL:", generatedImageUrl);
-                                     setError("Failed to load the generated image. Check the URL or network connection.");
-                                     setGeneratedImageUrl(null); // Resetta URL se non caricabile
-                                 }}
-                             />
-                            <button
-                                onClick={handleSave}
-                                disabled={isSaving}
-                                className="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 flex items-center justify-center mx-auto"
-                            >
-                                 {isSaving && <Spinner />} Save This Image
-                            </button>
-                            <p className="text-xs text-gray-500">Saving will move the image to a persistent location.</p>
-                         </div>
-                     )}
-
-                      {/* Immagine Salvata */}
-                     {savedImageUrl && !isSaving && (
-                         <div className="space-y-3 text-center border-t pt-4 mt-4">
-                            <h3 className="font-semibold text-green-700">Image Saved Successfully!</h3>
+                     {generatedImageData && !isGenerating && (
+                         <div className="space-y-3 text-center w-full">
+                             <h3 className="font-semibold text-gray-800">Generated Image (Preview):</h3>
                              <img
-                                src={savedImageUrl}
-                                alt="Saved AI Generated Image"
-                                className="max-w-full h-auto mx-auto rounded shadow border-2 border-green-500"
-                                onError={(e) => {
-                                     console.error("Error loading saved image URL:", savedImageUrl);
-                                     setError("Failed to load the saved image.");
-                                     setSavedImageUrl(null);
-                                 }}
+                                 // Costruisci l'URL completo per la visualizzazione
+                                 src={buildFullImageUrl(generatedImageData.relative_url)}
+                                 alt="AI Generated Preview"
+                                 className="max-w-full h-auto mx-auto rounded shadow-md border"
+                                 onError={(e) => { console.error("Error loading generated image URL:", buildFullImageUrl(generatedImageData.relative_url)); setError("Failed to load generated image preview."); setGeneratedImageData(null); }}
                              />
-                             <p className="text-sm">Persistent URL:</p>
-                             <input
-                                type="text"
-                                readOnly
-                                value={savedImageUrl}
-                                className="w-full text-xs text-gray-600 bg-gray-100 p-1 border rounded"
-                                onFocus={(e) => e.target.select()}
-                            />
+                             <button onClick={handleSaveToGallery} disabled={isSaving} className="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 flex items-center justify-center mx-auto">
+                                  {isSaving && <Spinner small />} Save to My Gallery
+                             </button>
                          </div>
                      )}
 
-                     {/* Messaggio Placeholder */}
-                     {!generatedImageUrl && !savedImageUrl && !isGenerating && (
-                        <p className="text-center text-gray-500 py-10">Generated image will appear here.</p>
-                     )}
-                </div>
-            </div>
+                     {/* Placeholder */}
+                     {!generatedImageData && !isGenerating && ( <p className="text-center text-gray-500 py-10 italic">Generated image will appear here.</p> )}
+                 </div>
+             </div>
+
+             {/* --- Sezione Galleria Utente --- */}
+             {/* La condizione isAuthenticated assicura che venga mostrata solo a utenti loggati */}
+             {isAuthenticated && (
+                 <div className="mt-12 pt-8 border-t border-gray-300">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-bold text-gray-800">My Image Gallery</h2>
+                        {/* Bottone Show/Hide */}
+                        <button onClick={() => setShowGallery(!showGallery)} className="px-4 py-2 bg-white border border-gray-300 text-indigo-600 rounded-md shadow-sm hover:bg-gray-50 text-sm font-medium">
+                            {showGallery ? 'Hide Gallery' : 'Show Gallery'}
+                        </button>
+                    </div>
+
+                    {/* Contenuto Galleria (mostrato condizionalmente) */}
+                    {showGallery && (
+                        <div className="bg-gray-100 p-4 rounded-lg border">
+                            {galleryError && <Alert type="error" message={galleryError} onClose={() => setGalleryError('')}/>}
+                            {isLoadingGallery ? (
+                                <div className="text-center py-6"><Spinner /> Loading gallery...</div>
+                            ) : galleryImages.length > 0 ? (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                                    {/* Mappa le immagini e passa buildFullImageUrl a ImageCard */}
+                                    {galleryImages.map(image => (
+                                        <ImageCard
+                                            key={image.id}
+                                            image={image}
+                                            buildFullUrl={buildFullImageUrl} // Passa la funzione helper
+                                            onViewDetails={handleViewDetails}
+                                            onEdit={handleEditImage}
+                                            onDelete={handleDeleteImage}
+                                            isDeleting={deletingImageId === image.id}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-center text-gray-500 py-6 italic">Your gallery is empty.</p>
+                            )}
+                        </div>
+                    )}
+                 </div>
+             )}
+
+             {/* --- Modali Galleria --- */}
+             <ImageDetailModal
+                isOpen={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                image={selectedImageForModal}
+                buildFullUrl={buildFullImageUrl} // Passa helper
+             />
+            <ImageEditModal
+                isOpen={showEditModal}
+                onClose={() => setShowEditModal(false)}
+                image={selectedImageForModal}
+                onSave={handleUpdateImage}
+                buildFullUrl={buildFullImageUrl} // Passa helper
+             />
+
         </div>
     );
 };

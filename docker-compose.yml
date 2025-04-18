@@ -11,6 +11,7 @@ volumes:
   regression_db_data: # <-- NUOVO volume per il DB di regression
   regression_media_data: # <-- NUOVO volume per i file media di regression
   image_generator_media:
+  image_generator_db_data:
 
 secrets:
   openai_api_key_secret:
@@ -138,23 +139,45 @@ services:
     env_file:
       - ./backend/image_generator_service/.env
     volumes:
-      - ./backend/image_generator_service:/app # Mount codice per dev
-      - image_generator_media:/app/mediafiles # Mount volume per media persistenti
-    secrets: # <-- Mappa i segreti definiti sopra
+      - ./backend/image_generator_service:/app
+      - image_generator_media:/app/mediafiles
+    secrets:
       - openai_api_key_secret
       - stability_api_key_secret
     expose:
-      - "8002" # Porta interna
+      - "8002"
     networks:
       - pl-ai-network
-    # depends_on: # Non ha dipendenze DB dirette inizialmente
-    # Healthcheck opzionale (es. su un endpoint admin se aggiunto, o API base)
-    # healthcheck:
-    #   test: ["CMD-SHELL", "curl --fail http://localhost:8002/api/qualche/endpoint/ping || exit 1"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
-    #   start_period: 30s
+    depends_on: # <-- Aggiunta dipendenza dal DB
+      image_generator_db:
+        condition: service_healthy
+    healthcheck: # <-- Aggiunto healthcheck (opzionale)
+       test: ["CMD-SHELL", "curl --fail http://localhost:8002/admin/login/ || exit 1"] # Richiede admin abilitato
+       interval: 30s
+       timeout: 10s
+       retries: 5
+       start_period: 45s # Tempo per connessione DB e avvio leggero
+    restart: unless-stopped
+
+      # --- NUOVO DB per Image Generator ---
+  image_generator_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-image-generator-db
+    volumes:
+      - image_generator_db_data:/var/lib/postgresql/data # Nuovo volume
+    environment:
+      POSTGRES_USER: imagegen_user # Default se non in .env
+      POSTGRES_PASSWORD: imagegen_password # Default se non in .env
+      POSTGRES_DB: imagegen_db # Default se non in .env
+    expose:
+      - "5432"
+    networks:
+      - pl-ai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U imagegen_user -d imagegen_db"] # Usa $$ per escape $
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
 
@@ -177,6 +200,8 @@ services:
         condition: service_healthy
       pl_ai_regression_service: # <-- AGGIUNTA Dipendenza dal nuovo servizio
          condition: service_healthy
+      pl_ai_image_generator_service:
+        condition: service_healthy # <-- Attende che sia healthy (se healthcheck definito)   
       frontend: # Dipende da frontend
         condition: service_started
     restart: unless-stopped
