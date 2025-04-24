@@ -48,7 +48,7 @@ class ImageSaveRequestSerializer(serializers.Serializer):
     image_url = serializers.CharField(required=True, help_text="Temporary local URL (relative to MEDIA_URL) of the image to save")
     prompt = serializers.CharField(required=False, allow_blank=True)
     model = serializers.CharField(required=False, allow_blank=True)
-    style = serializers.CharField(required=False, allow_blank=True)
+    style = serializers.CharField(required=False, allow_blank=True, allow_null=True)  # <-- Aggiungi allow_null=True
     name = serializers.CharField(required=False, allow_blank=True, max_length=255, help_text="Optional name for the saved image")
     description = serializers.CharField(required=False, allow_blank=True, help_text="Optional description for the saved image")
 

@@ -12,6 +12,9 @@ volumes:
   regression_media_data: # <-- NUOVO volume per i file media di regression
   image_generator_media:
   image_generator_db_data:
+  resource_db_data: # <-- NUOVO: Volume per DB Resource Manager
+  resource_media_data: # <-- NUOVO: Volume per file Resource Manager
+  rabbitmq_data: # <-- NUOVO: Volume per dati RabbitMQ (opzionale ma consigliato)
 
 secrets:
   openai_api_key_secret:
@@ -180,28 +183,120 @@ services:
       retries: 5
     restart: unless-stopped
 
+  resource_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-resource-db
+    volumes:
+      - resource_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${RESOURCE_DB_USER:-resource_user}
+      POSTGRES_PASSWORD: ${RESOURCE_DB_PASSWORD:-resource_password}
+      POSTGRES_DB: ${RESOURCE_DB_NAME:-resource_db}
+    expose:
+      - "5432"
+    ports: # Manteniamo la porta esposta per pgAdmin se serve
+      - "5435:5432"
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-resource_user} -d $${POSTGRES_DB:-resource_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # --- NUOVO Broker Messaggi ---
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine # Immagine con interfaccia di gestione
+    container_name: pl-ai-rabbitmq
+    volumes:
+       - rabbitmq_data:/var/lib/rabbitmq/ # Volume per persistenza (opzionale)
+    ports:
+      # Espone interfaccia di gestione su host (accedi a http://localhost:15672, user/pass: guest/guest)
+      - "15672:15672"
+      # La porta 5672 è usata internamente da Celery, non serve esporla di default
+      # - "5672:5672"
+    environment:
+      # Default user/pass è guest/guest, puoi cambiarli se necessario
+      # RABBITMQ_DEFAULT_USER: user
+      # RABBITMQ_DEFAULT_PASS: password
+      RABBITMQ_DEFAULT_VHOST: "/" # Vhost di default
+    networks: [pl-ai-network]
+    healthcheck:
+        test: ["CMD", "rabbitmq-diagnostics", "check_running", "-q"]
+        interval: 30s
+        timeout: 10s
+        retries: 5
+    restart: unless-stopped
+
+  resource_manager_service:
+    build:
+      context: ./backend/resource_manager_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-resource-manager-service
+    env_file:
+      - ./backend/resource_manager_service/.env
+    # Imposta la variabile per avviare solo il processo web
+    environment:
+      - SERVICE_PROCESS_TYPE=web
+    volumes:
+      - ./backend/resource_manager_service:/app
+      - resource_media_data:/app/mediafiles # Volume per i file gestiti
+    expose: ["8003"] # Porta per Gunicorn/runserver
+    networks: [pl-ai-network]
+    depends_on:
+      resource_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy } # Dipende anche dal broker
+    healthcheck:
+       test: ["CMD-SHELL", "curl --fail http://localhost:8003/admin/login/ || exit 1"] # Se admin abilitato
+       interval: 30s
+       timeout: 10s
+       retries: 5
+       start_period: 45s
+    restart: unless-stopped
+
+  # --- NUOVO Resource Manager Service (Worker Celery - Consigliato) ---
+  resource_manager_worker:
+    build: # Usa la stessa immagine del servizio web
+      context: ./backend/resource_manager_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-resource-manager-worker
+    entrypoint: ""
+    env_file: # Usa le stesse variabili d'ambiente
+      - ./backend/resource_manager_service/.env
+    # Imposta la variabile per avviare solo il worker
+    # environment:
+    #  - SERVICE_PROCESS_TYPE=worker # O usa direttamente il comando sotto
+    command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO"]
+    volumes: # Deve accedere al codice e ai file media!
+      - ./backend/resource_manager_service:/app
+      - resource_media_data:/app/mediafiles
+    networks: [pl-ai-network]
+    depends_on:
+      resource_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      # Opzionale: Dipende dal web service solo se usa segnali o logica condivisa complessa
+      # resource_manager_service: { condition: service_started }
+    restart: unless-stopped
+    # Nessuna porta esposta per il worker
 
   # --- Nginx Reverse Proxy (Aggiornato) ---
+  # --- Nginx Reverse Proxy ---
   nginx:
     build:
       context: ./nginx
       dockerfile: Dockerfile
     container_name: pl-ai-nginx
-    ports:
-      - "8080:80"
-    networks:
-      - pl-ai-network
+    ports: ["8080:80"]
+    networks: [pl-ai-network]
     volumes:
-      # Monta il volume dei media di regression in Nginx per servirli direttamente
-      - regression_media_data:/media_regression:ro # Read-only è più sicuro per Nginx
-      - image_generator_media:/media_images:ro   # <-- Aggiunto mount per image_generator_media
+      # Monta tutti i volumi media necessari
+      - regression_media_data:/media_regression:ro
+      - image_generator_media:/media_images:ro
+      - resource_media_data:/media_resources:ro # <-- NUOVO Mount per Resource Manager
     depends_on:
-      auth_service: # Dipende da auth_service
-        condition: service_healthy
-      pl_ai_regression_service: # <-- AGGIUNTA Dipendenza dal nuovo servizio
-         condition: service_healthy
-      pl_ai_image_generator_service:
-        condition: service_healthy # <-- Attende che sia healthy (se healthcheck definito)   
-      frontend: # Dipende da frontend
-        condition: service_started
+      auth_service: { condition: service_healthy }
+      pl_ai_regression_service: { condition: service_healthy }
+      pl_ai_image_generator_service: { condition: service_healthy } # O service_started
+      resource_manager_service: { condition: service_healthy } # <-- Dipende dal web service
+      frontend: { condition: service_started }
     restart: unless-stopped

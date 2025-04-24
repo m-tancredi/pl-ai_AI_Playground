@@ -1,0 +1,27 @@
+# Stesso contenuto degli altri .dockerignore
+# Git, Python cache, IDE folders, .env, venv, OS files, logs, mediafiles, *.sqlite3
+.git
+.gitignore
+__pycache__/
+*.py[cod]
+*.so
+.idea/
+.vscode/
+*.env
+venv/
+env/
+.venv/
+*.log
+logs/
+*.log.*
+mediafiles/ # Importante!
+*.sqlite3
+# Build artifacts
+*.egg-info/
+dist/
+build/
+wheels/
+*.egg
+# OS generated
+.DS_Store
+Thumbs.db

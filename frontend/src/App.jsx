@@ -8,8 +8,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import RegressionPage from './pages/RegressionPage';
-// Importa la nuova pagina
-import ImageGeneratorPage from './pages/ImageGeneratorPage'; // <-- NUOVO IMPORT
+import ImageGeneratorPage from './pages/ImageGeneratorPage';
+import ResourceManagerPage from './pages/ResourceManagerPage';
 
 function App() {
   return (
@@ -27,7 +27,8 @@ function App() {
           <Route element={<ProtectedRoute />}>
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/regression" element={<RegressionPage />} />
-                <Route path="/image-generator" element={<ImageGeneratorPage />} /> {/* <-- NUOVA ROUTE */}
+                <Route path="/image-generator" element={<ImageGeneratorPage />} />
+                <Route path="/resources" element={<ResourceManagerPage />} />
              </Route>
 
           {/* Fallback route */}

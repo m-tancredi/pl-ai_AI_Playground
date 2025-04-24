@@ -43,6 +43,8 @@ const Navbar = () => {
               <>
                 {/* Add other main links for logged-in users here */}
                 <Link to="/regression" className="hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">Regression</Link>
+                <Link to="/image-generator" className="hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">Image Gen</Link>
+                <Link to="/resources" className="hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">Resources</Link> {/* <-- NUOVO LINK */}
               </>
             )}
           </div>

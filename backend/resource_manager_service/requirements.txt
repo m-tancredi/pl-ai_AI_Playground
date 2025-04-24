@@ -1,0 +1,17 @@
+Django>=4.0,<5.0
+djangorestframework>=3.14,<3.16
+djangorestframework-simplejwt[crypto]>=5.2,<5.4
+django-cors-headers>=3.13,<4.4
+gunicorn>=20.1,<22.0
+python-dotenv>=0.20,<1.1
+psycopg2-binary>=2.9,<2.10
+requests>=2.28,<2.32
+Pillow>=9.0,<10.3
+python-magic>=0.4,<0.5
+celery>=5.3,<5.4
+# librabbitmq>=2.0,<3.0 # O py-amqp se hai scelto quello
+# django-celery-results>=2.5,<2.6 # Se usato
+
+dj-database-url>=1.0,<2.2 # <-- AGGIUNGI QUESTA RIGA (o versione compatibile)
+
+# django-storages[boto3]>=1.14,<1.15 # Se usi S3
