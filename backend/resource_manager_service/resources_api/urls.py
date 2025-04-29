@@ -1,24 +1,24 @@
+# pl-ai/backend/resource_manager_service/resources_api/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
 
-# Router per il ViewSet principale delle risorse
 router = DefaultRouter()
-router.register(r'resources', views.ResourceViewSet, basename='resource')
+# Il basename rimane 'resource', il prefisso URL è vuoto qui ('')
+router.register(r'', views.ResourceViewSet, basename='resource')
 # Questo crea:
-# GET /api/resources/ -> Lista (filtrata per utente)
-# GET /api/resources/{pk}/ -> Dettaglio
-# PATCH /api/resources/{pk}/ -> Aggiorna (nome/descrizione)
-# DELETE /api/resources/{pk}/ -> Elimina
-# GET /api/resources/{pk}/download/ -> Azione custom download
+# GET '' -> Lista (diventa /api/resources/ in totale)
+# GET '{pk}/' -> Dettaglio (diventa /api/resources/{pk}/)
+# PATCH '{pk}/' -> Aggiorna
+# DELETE '{pk}/' -> Elimina
+# GET '{pk}/download/' -> Azione download
 
 urlpatterns = [
-    # Endpoint per l'upload iniziale
-    path('resources/upload/', views.UploadView.as_view(), name='resource-upload'),
+    # Rimuovi 'resources/' da questi path
+    path('upload/', views.UploadView.as_view(), name='resource-upload'),
+    path('storage-info/', views.UserStorageInfoView.as_view(), name='storage-info'),
+    path('internal/<int:resource_id>/content/', views.InternalContentView.as_view(), name='internal-resource-content'),
 
-    # Endpoint interno per accedere al contenuto (usare con cautela)
-    path('internal/resources/<int:resource_id>/content/', views.InternalContentView.as_view(), name='internal-resource-content'),
-
-    # Include le URL generate dal router (devono venire dopo le view specifiche se ci sono conflitti di path)
+    # Include le URL del router (relative a '')
     path('', include(router.urls)),
 ]

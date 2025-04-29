@@ -86,6 +86,15 @@ export const deleteResource = async (resourceId) => {
     }
 };
 
+export const getStorageInfo = async () => {
+    try {
+        const response = await apiClient.get(`${API_RESOURCES_URL}/storage-info/`);
+        return response.data; // { storage_used: bytes, storage_limit: bytes }
+    } catch (error) {
+        console.error("API Error getting storage info:", error.response?.data || error.message);
+        throw error;
+    }
+};
 // Note: Download functionality is often handled by a direct link (`<a>` tag)
 // to the download URL provided by the API (e.g., /api/resources/{id}/download/)
 // rather than an Axios call, unless you need to handle the blob in JS.

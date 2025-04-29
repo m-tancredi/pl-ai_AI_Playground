@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404
 from django.http import FileResponse, Http404
 from django.conf import settings
 from django.core.files.storage import default_storage
+from django.db.models import Sum
 
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.response import Response
@@ -140,3 +141,26 @@ class InternalContentView(views.APIView):
         except Exception as e:
             print(f"Error serving internal content for resource {resource_id}: {e}")
             return Response({"error": "Could not serve file content."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class UserStorageInfoView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTCustomAuthentication]
+
+    def get(self, request, *args, **kwargs):
+        user_id = request.user.id
+        # Calcola somma size per risorse completate dell'utente
+        usage_agg = Resource.objects.filter(
+            owner_id=user_id,
+            status=Resource.Status.COMPLETED
+        ).aggregate(total_size=Sum('size'))
+
+        used_bytes = usage_agg.get('total_size') or 0
+
+        # Limite - Per ora fisso, potrebbe venire da settings o profilo utente
+        limit_bytes = 1 * 1024 * 1024 * 1024 # 1 GB
+
+        data = {
+            "storage_used": used_bytes,
+            "storage_limit": limit_bytes,
+        }
+        return Response(data, status=status.HTTP_200_OK)
