@@ -1,124 +1,131 @@
-import React from 'react';
-import { DocumentTextIcon, PhotoIcon, TableCellsIcon, QuestionMarkCircleIcon, ArrowDownTrayIcon, PencilIcon, TrashIcon, ClockIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'; // Usa Heroicons per icone
+import React, { useState } from 'react';
+import { FaFileImage, FaFilePdf, FaFileCsv, FaFileWord, FaFileAlt, FaEdit, FaTrashAlt, FaDownload, FaInfoCircle, FaSpinner } from 'react-icons/fa'; // Example icons
 
-// Spinner semplice
-const MiniSpinner = () => <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-indigo-500"></div>;
-
-// Helper per determinare l'icona basata sul MIME type
-const getIconForMimeType = (mimeType) => {
-    if (!mimeType) return <QuestionMarkCircleIcon className="h-12 w-12 text-gray-400" />;
-    if (mimeType.startsWith('image/')) return <PhotoIcon className="h-12 w-12 text-blue-500" />;
-    if (mimeType.includes('csv')) return <TableCellsIcon className="h-12 w-12 text-green-500" />;
-    if (mimeType.includes('pdf')) return <DocumentTextIcon className="h-12 w-12 text-red-500" />; // Esempio PDF
-    // Aggiungi altre icone per tipi comuni (word, excel, zip, etc.)
-    return <DocumentTextIcon className="h-12 w-12 text-gray-500" />; // Default
+// Helper per ottenere icona basata su MIME type
+const getFileIcon = (mimeType) => {
+    if (!mimeType) return <FaFileAlt className="text-gray-400" />;
+    if (mimeType.startsWith('image/')) return <FaFileImage className="text-blue-500" />;
+    if (mimeType === 'application/pdf') return <FaFilePdf className="text-red-500" />;
+    if (mimeType === 'text/csv') return <FaFileCsv className="text-green-500" />;
+    if (mimeType.includes('wordprocessingml') || mimeType === 'application/msword') return <FaFileWord className="text-blue-700" />;
+    // Aggiungere altri tipi se necessario
+    return <FaFileAlt className="text-gray-500" />;
 };
 
-const ResourceCard = ({ resource, onEdit, onDelete, isDeleting, buildFullUrl }) => {
+// Helper per formattare dimensione file
+const formatBytes = (bytes, decimals = 2) => {
+    if (bytes === 0 || !bytes) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
+// Spinner piccolo
+const MiniSpinner = () => <FaSpinner className="inline-block animate-spin h-3 w-3 text-indigo-500" />;
+
+const ResourceCard = ({ resource, buildFullUrl, onEdit, onDelete, isDeleting }) => {
+    const [thumbLoadError, setThumbLoadError] = useState(false);
+
     if (!resource) return null;
 
-    const handleEditClick = (e) => {
-        e.stopPropagation(); // Impedisce di triggerare altri eventi sulla card
-        onEdit(resource);
-    };
+    const fullThumbnailUrl = resource.thumbnail_url ? buildFullUrl(resource.thumbnail_url) : null;
+    const fullDownloadUrl = resource.file_url ? `${window.location.origin}/api/resources/${resource.id}/download/` : '#'; // Costruisce URL download API
+    const fileIcon = getFileIcon(resource.mime_type);
+    const isProcessing = resource.status === 'PROCESSING';
+    const isFailed = resource.status === 'FAILED';
+    const isCompleted = resource.status === 'COMPLETED';
 
-    const handleDeleteClick = (e) => {
-        e.stopPropagation();
-        onDelete(resource); // Passa l'intero oggetto resource per il modale di conferma
-    };
-
-    const handleDownloadClick = (e) => {
-        e.stopPropagation();
-        // L'URL per il download punta all'endpoint API, non direttamente al file
-        const downloadUrl = `${window.location.origin}/api/resources/${resource.id}/download/`;
-        window.open(downloadUrl, '_blank'); // Apri in nuova scheda per iniziare download
-    }
-
-    // Determina lo stile e l'icona basati sullo stato
-    let statusIndicator;
-    let cardBorderColor = 'border-gray-200';
-    let isActionable = resource.status === 'COMPLETED'; // Azioni disponibili solo se completato
-
-    switch (resource.status) {
-        case 'PROCESSING':
-            statusIndicator = <span className="flex items-center text-xs text-blue-600"><MiniSpinner /> Processing...</span>;
-            cardBorderColor = 'border-blue-300 animate-pulse';
-            isActionable = false;
-            break;
-        case 'FAILED':
-            statusIndicator = <span className="flex items-center text-xs text-red-600"><ExclamationCircleIcon className="h-4 w-4 mr-1" /> Failed</span>;
-            cardBorderColor = 'border-red-400';
-            isActionable = false; // O permetti eliminazione? Dipende dai requisiti
-            break;
-        case 'COMPLETED':
-             statusIndicator = <span className="text-xs text-green-600">Ready</span>;
-             cardBorderColor = 'border-green-300';
-             break;
-        default:
-            statusIndicator = <span className="text-xs text-gray-500">{resource.status || 'Unknown'}</span>;
-    }
-
-    const thumbnailUrl = resource.thumbnail_url ? buildFullUrl(resource.thumbnail_url) : null;
+    const handleThumbError = () => setThumbLoadError(true);
 
     return (
-        <div className={`bg-white rounded-lg shadow border ${cardBorderColor} p-4 flex flex-col justify-between hover:shadow-md transition-shadow`}>
-            <div>
-                {/* Anteprima o Icona */}
-                <div className="h-24 flex items-center justify-center mb-3 bg-gray-50 rounded">
-                    {thumbnailUrl && resource.status === 'COMPLETED' ? (
-                        <img src={thumbnailUrl} alt="Thumbnail" className="max-h-full max-w-full object-contain" />
-                    ) : (
-                        getIconForMimeType(resource.mime_type)
-                    )}
-                </div>
-
-                {/* Nome e Info */}
-                <h3 className="font-semibold text-sm text-gray-800 truncate mb-1" title={resource.name || resource.original_filename}>
-                    {resource.name || resource.original_filename}
-                </h3>
-                <p className="text-xs text-gray-500 truncate" title={resource.mime_type}>{resource.mime_type || 'N/A'}</p>
-                 <p className="text-xs text-gray-400 mt-1">
-                     Uploaded: {new Date(resource.created_at).toLocaleDateString()}
-                </p>
-                 {/* Status Indicator */}
-                 <div className="mt-2">
-                     {statusIndicator}
-                     {resource.status === 'FAILED' && resource.error_message && (
-                         <p className="text-xs text-red-500 mt-1 truncate" title={resource.error_message}>Error: {resource.error_message}</p>
-                     )}
-                 </div>
+        <div className={`bg-white rounded-lg shadow border hover:shadow-md transition-shadow relative overflow-hidden ${isProcessing ? 'opacity-70' : ''} ${isFailed ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+            {/* Area Immagine/Icona */}
+            <div className="h-32 bg-gray-100 flex items-center justify-center p-2 relative">
+                {isProcessing && (
+                     <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center text-white z-10">
+                         <FaSpinner className="animate-spin h-6 w-6 mb-1" />
+                         <span className="text-xs font-medium">Processing...</span>
+                     </div>
+                 )}
+                 {isFailed && (
+                     <div className="absolute inset-0 bg-red-700 bg-opacity-80 flex flex-col items-center justify-center text-white z-10 p-2">
+                         <FaInfoCircle className="h-6 w-6 mb-1" />
+                         <span className="text-xs font-medium text-center">Processing Failed</span>
+                         {resource.error_message && <p className="text-xs mt-1 text-red-200 truncate" title={resource.error_message}>({resource.error_message})</p>}
+                     </div>
+                 )}
+                 {/* Mostra thumbnail se disponibile e completato/non fallito */}
+                 {isCompleted && fullThumbnailUrl && !thumbLoadError ? (
+                    <img
+                        src={fullThumbnailUrl}
+                        alt={`Thumbnail for ${resource.name || resource.original_filename}`}
+                        className="max-h-full max-w-full object-contain"
+                        loading="lazy"
+                        onError={handleThumbError}
+                     />
+                 ) : (
+                    // Mostra icona grande se non c'è thumbnail o errore
+                    <div className="text-4xl opacity-50">{fileIcon}</div>
+                 )}
             </div>
 
-            {/* Azioni (in basso) */}
-            <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end space-x-2">
-                 {isActionable && ( // Mostra solo se COMPLETED
-                    <button
-                        onClick={handleDownloadClick}
-                        title="Download File"
-                        className="p-1 text-gray-500 hover:text-blue-600 disabled:opacity-50"
-                        aria-label="Download"
-                        disabled={!isActionable}
-                    >
-                        <ArrowDownTrayIcon className="h-5 w-5" />
-                    </button>
+            {/* Dettagli Testuali */}
+            <div className="p-3 space-y-1">
+                <p className="text-sm font-semibold text-gray-800 truncate" title={resource.name || resource.original_filename}>
+                    {resource.name || resource.original_filename}
+                </p>
+                <div className="flex items-center text-xs text-gray-500 space-x-2">
+                    <span className="flex items-center">{React.cloneElement(fileIcon, {className: "mr-1 h-3 w-3"})} {resource.mime_type || 'Unknown type'}</span>
+                    <span>|</span>
+                    <span>{formatBytes(resource.size)}</span>
+                </div>
+                 <p className="text-xs text-gray-400">
+                    Uploaded: {new Date(resource.created_at).toLocaleDateString()}
+                 </p>
+                  {/* Badge Stato (se non Processing/Failed mostrati sopra) */}
+                 {isCompleted && (
+                     <span className="inline-block bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded">
+                        Completed
+                    </span>
                  )}
-                 <button
-                    onClick={handleEditClick}
-                    title="Edit Name/Description"
-                    className="p-1 text-gray-500 hover:text-yellow-600 disabled:opacity-50"
+            </div>
+
+            {/* Azioni (Footer) */}
+            <div className="border-t border-gray-100 px-3 py-2 flex justify-end space-x-2">
+                <button
+                    onClick={() => onEdit(resource)}
+                    disabled={isProcessing || isDeleting}
+                    title="Edit Metadata"
+                    className="p-1 text-gray-400 hover:text-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label="Edit"
-                    disabled={!isActionable || isDeleting} // Disabilita anche durante l'eliminazione
                 >
-                    <PencilIcon className="h-5 w-5" />
+                    <FaEdit className="h-4 w-4"/>
                 </button>
-                 <button
-                    onClick={handleDeleteClick}
+                {/* Link/Bottone Download */}
+                 <a
+                    href={isCompleted ? fullDownloadUrl : undefined}
+                    download={isCompleted ? resource.original_filename : undefined}
+                    target="_blank" // Apre in nuova scheda se browser non forza download
+                    rel="noopener noreferrer"
+                    title={isCompleted ? "Download File" : "File is processing/failed"}
+                    aria-disabled={!isCompleted}
+                    // Stile condizionale per disabilitato
+                    className={`p-1 ${isCompleted ? 'text-gray-400 hover:text-blue-600' : 'text-gray-300 cursor-not-allowed'}`}
+                    // Impedisci click se non completato (anche se href è undefined)
+                    onClick={(e) => !isCompleted && e.preventDefault()}
+                 >
+                    <FaDownload className="h-4 w-4"/>
+                 </a>
+                <button
+                    onClick={() => onDelete(resource)}
+                    disabled={isDeleting || isProcessing} // Non cancellare mentre si processa
                     title="Delete Resource"
-                    className={`p-1 text-gray-500 hover:text-red-600 ${isDeleting ? 'opacity-50 cursor-wait' : ''}`}
+                    className={`p-1 text-gray-400 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed ${isDeleting ? 'text-indigo-500' : ''}`}
                     aria-label="Delete"
-                    disabled={isDeleting || resource.status === 'PROCESSING'} // Non permettere eliminazione durante processing
                 >
-                     {isDeleting ? <MiniSpinner /> : <TrashIcon className="h-5 w-5" />}
+                    {isDeleting ? <MiniSpinner /> : <FaTrashAlt className="h-4 w-4"/>}
                 </button>
             </div>
         </div>

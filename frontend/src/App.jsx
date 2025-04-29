@@ -9,7 +9,8 @@ import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import RegressionPage from './pages/RegressionPage';
 import ImageGeneratorPage from './pages/ImageGeneratorPage';
-import ResourceManagerPage from './pages/ResourceManagerPage';
+// Importa la nuova pagina
+import ResourceManagerPage from './pages/ResourceManagerPage'; // <-- NUOVO IMPORT
 
 function App() {
   return (
@@ -23,21 +24,18 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
 
           {/* Protected Routes */}
-          {/* Assicurati che il wrapper ProtectedRoute sia configurato correttamente */}
           <Route element={<ProtectedRoute />}>
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/regression" element={<RegressionPage />} />
                 <Route path="/image-generator" element={<ImageGeneratorPage />} />
-                <Route path="/resources" element={<ResourceManagerPage />} />
+                <Route path="/resources" element={<ResourceManagerPage />} /> {/* <-- NUOVA ROUTE */}
              </Route>
 
           {/* Fallback route */}
           <Route path="*" element={<div>404 Not Found</div>} />
         </Routes>
       </main>
-      <footer className="bg-gray-800 text-white text-center p-4 mt-auto">
-        © {new Date().getFullYear()} PL-AI Platform
-      </footer>
+      {/* ... Footer ... */}
     </div>
   );
 }

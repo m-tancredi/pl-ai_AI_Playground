@@ -1,5 +1,6 @@
 import os
 import magic # python-magic
+import pandas as pd
 from io import BytesIO
 from PIL import Image as PillowImage # Rinomina per evitare conflitto con modello
 from celery import shared_task
@@ -7,6 +8,7 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.conf import settings
 from django.db import transaction
+
 
 from .models import Resource
 

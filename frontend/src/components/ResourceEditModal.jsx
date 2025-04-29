@@ -17,26 +17,30 @@ const ResourceEditModal = ({ isOpen, onClose, resource, onSave }) => {
 
     // Popola il form quando la risorsa o la visibilità cambiano
     useEffect(() => {
+        // Usa 'resource' qui
         if (resource && isOpen) {
-            setName(resource.name || ''); // Usa nome personalizzato o vuoto
+            setName(resource.name || '');
             setDescription(resource.description || '');
             setError('');
         }
-        // Non resettare alla chiusura per evitare flash se riaperto subito
+        // La dipendenza diventa 'resource'
     }, [resource, isOpen]);
 
     if (!isOpen || !resource) return null;
 
+    // In ResourceEditModal.jsx
     const handleSaveClick = async () => {
         setIsSaving(true);
         setError('');
-        // Passa solo i campi modificabili all'API
+        console.log(`Edit modal save clicked. Calling onSave for ID: ${resource.id} with data:`, { name, description }); // Usa image.id (corretto)
+        // La funzione 'onSave' (cioè handleSaveChanges) riceve (image.id, { name, description })
         const success = await onSave(resource.id, { name, description });
+        console.log("onSave returned:", success);
         setIsSaving(false);
         if (!success) {
             setError('Failed to save changes. Please check console or try again.');
         }
-        // La pagina parente chiuderà il modale se success è true
+        // onClose verrà chiamato da ResourceManagerPage se success è true
     };
 
     const handleClose = () => {
