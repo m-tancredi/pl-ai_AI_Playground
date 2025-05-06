@@ -1,20 +1,21 @@
-# pl-ai/docker-compose.yml
-
-version: '3.8' # Rimuovere se si usa docker compose V2
+# Rimuovi 'version: '3.8'' se usi docker compose V2+
 
 networks:
   pl-ai-network:
     driver: bridge
 
 volumes:
-  postgres_data: # Per auth_db
-  regression_db_data: # <-- NUOVO volume per il DB di regression
-  regression_media_data: # <-- NUOVO volume per i file media di regression
-  image_generator_media:
-  image_generator_db_data:
-  resource_db_data: # <-- NUOVO: Volume per DB Resource Manager
-  resource_media_data: # <-- NUOVO: Volume per file Resource Manager
-  rabbitmq_data: # <-- NUOVO: Volume per dati RabbitMQ (opzionale ma consigliato)
+  # Database Volumes
+  postgres_data:           # Auth Service DB
+  # RIMOSSO: regression_db_data:
+  image_generator_db_data: # Image Generator Service DB
+  resource_db_data:        # Resource Manager Service DB
+  # Media Volumes
+  # RIMOSSO: regression_media_data:
+  image_generator_media:   # Image Generator Service Media
+  resource_media_data:     # Resource Manager Service Media
+  # Broker Volume
+  rabbitmq_data:
 
 secrets:
   openai_api_key_secret:
@@ -23,161 +24,42 @@ secrets:
     file: ./.secrets/stability_api_key.txt
 
 services:
-  # --- Servizi Esistenti (Auth DB, Auth Service, Frontend) ---
+
+  # --- Databases ---
   auth_db:
     image: postgres:15-alpine
-    container_name: pl-ai-auth-db # Nome consistente
+    container_name: pl-ai-auth-db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_USER: plai_user
-      POSTGRES_PASSWORD: plai_password # Usa la password da auth_service/.env
-      POSTGRES_DB: plai_db
-    expose:
-      - "5432"
-    ports: # Manteniamo la porta esposta per pgAdmin se serve
-      - "5433:5432"
-    networks:
-      - pl-ai-network
+      POSTGRES_USER: ${AUTH_DB_USER:-plai_user}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-plai_password}
+      POSTGRES_DB: ${AUTH_DB_NAME:-plai_db}
+    expose: ["5432"]
+    ports: ["5433:5432"]
+    networks: [pl-ai-network]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U plai_user -d plai_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-plai_user} -d $${POSTGRES_DB:-plai_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
-  auth_service:
-    build:
-      context: ./backend/auth_service
-      dockerfile: Dockerfile
-    container_name: pl-ai-auth-service
-    env_file:
-      - ./backend/auth_service/.env
-    volumes:
-      - ./backend/auth_service:/app
-    expose:
-      - "8000"
-    networks:
-      - pl-ai-network
-    depends_on:
-      auth_db:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    restart: unless-stopped
+  # --- RIMOSSO Servizio regression_service_db ---
 
-  frontend: # Invariato
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: pl-ai-frontend
-    expose:
-      - "3000"
-    networks:
-      - pl-ai-network
-    restart: unless-stopped
-
-  # --- NUOVI Servizi per Regression ---
-
-  # Database PostgreSQL per il servizio di regressione
-  regression_service_db:
-    image: postgres:15-alpine
-    container_name: pl-ai-regression-db
-    volumes:
-      - regression_db_data:/var/lib/postgresql/data # Usa il nuovo volume
-    environment:
-      POSTGRES_USER: regression_user # Utente specifico per questo DB
-      POSTGRES_PASSWORD: regression_password # Password da regression_service/.env
-      POSTGRES_DB: regression_db # Nome DB da regression_service/.env
-    expose:
-      - "5432" # Esposto solo alla rete interna
-    ports: # Non esponiamo questo DB all'host di default, a meno che non serva per debug
-      - "5434:5432" # Esempio se volessi esporlo su porta diversa
-    networks:
-      - pl-ai-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U regression_user -d regression_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # Backend Regression Microservice
-  pl_ai_regression_service: # Nome del servizio aggiornato
-    build:
-      context: ./backend/regression_service
-      dockerfile: Dockerfile
-    container_name: pl-ai-regression-service
-    env_file:
-      - ./backend/regression_service/.env # Carica le sue variabili d'ambiente
-    volumes:
-      - ./backend/regression_service:/app # Mount codice per dev
-      - regression_media_data:/app/mediafiles # Mount volume per i file CSV caricati
-    expose:
-      - "8001" # Porta interna per questo servizio
-    networks:
-      - pl-ai-network
-    depends_on:
-      regression_service_db: # Dipende dal SUO database
-        condition: service_healthy
-    healthcheck:
-      # Usa un endpoint semplice (es. admin login o un endpoint API pubblico se esistesse)
-      test: ["CMD-SHELL", "curl --fail http://localhost:8001/admin/login/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 70s # Dagli un po' più di tempo per migrazioni dati iniziali
-    restart: unless-stopped
-
-    # --- NUOVO Servizio Image Generator ---
-  pl_ai_image_generator_service:
-    build:
-      context: ./backend/image_generator_service
-      dockerfile: Dockerfile
-    container_name: pl-ai-image-generator-service
-    env_file:
-      - ./backend/image_generator_service/.env
-    volumes:
-      - ./backend/image_generator_service:/app
-      - image_generator_media:/app/mediafiles
-    secrets:
-      - openai_api_key_secret
-      - stability_api_key_secret
-    expose:
-      - "8002"
-    networks:
-      - pl-ai-network
-    depends_on: # <-- Aggiunta dipendenza dal DB
-      image_generator_db:
-        condition: service_healthy
-    healthcheck: # <-- Aggiunto healthcheck (opzionale)
-       test: ["CMD-SHELL", "curl --fail http://localhost:8002/admin/login/ || exit 1"] # Richiede admin abilitato
-       interval: 30s
-       timeout: 10s
-       retries: 5
-       start_period: 45s # Tempo per connessione DB e avvio leggero
-    restart: unless-stopped
-
-      # --- NUOVO DB per Image Generator ---
   image_generator_db:
     image: postgres:15-alpine
     container_name: pl-ai-image-generator-db
     volumes:
-      - image_generator_db_data:/var/lib/postgresql/data # Nuovo volume
+      - image_generator_db_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_USER: imagegen_user # Default se non in .env
-      POSTGRES_PASSWORD: imagegen_password # Default se non in .env
-      POSTGRES_DB: imagegen_db # Default se non in .env
-    expose:
-      - "5432"
-    networks:
-      - pl-ai-network
+      POSTGRES_USER: ${IMAGE_GEN_DB_USER:-imagegen_user}
+      POSTGRES_PASSWORD: ${IMAGE_GEN_DB_PASSWORD:-imagegen_password}
+      POSTGRES_DB: ${IMAGE_GEN_DB_NAME:-imagegen_db}
+    expose: ["5432"]
+    networks: [pl-ai-network]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U imagegen_user -d imagegen_db"] # Usa $$ per escape $
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-imagegen_user} -d $${POSTGRES_DB:-imagegen_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -192,10 +74,8 @@ services:
       POSTGRES_USER: ${RESOURCE_DB_USER:-resource_user}
       POSTGRES_PASSWORD: ${RESOURCE_DB_PASSWORD:-resource_password}
       POSTGRES_DB: ${RESOURCE_DB_NAME:-resource_db}
-    expose:
-      - "5432"
-    ports: # Manteniamo la porta esposta per pgAdmin se serve
-      - "5435:5432"
+    expose: ["5432"]
+    ports: ["5435:5432"] # Mantenuto per debug se necessario
     networks: [pl-ai-network]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-resource_user} -d $${POSTGRES_DB:-resource_db}"]
@@ -204,22 +84,13 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # --- NUOVO Broker Messaggi ---
+  # --- Message Broker ---
   rabbitmq:
-    image: rabbitmq:3.12-management-alpine # Immagine con interfaccia di gestione
+    image: rabbitmq:3.12-management-alpine
     container_name: pl-ai-rabbitmq
-    volumes:
-       - rabbitmq_data:/var/lib/rabbitmq/ # Volume per persistenza (opzionale)
-    ports:
-      # Espone interfaccia di gestione su host (accedi a http://localhost:15672, user/pass: guest/guest)
-      - "15672:15672"
-      # La porta 5672 è usata internamente da Celery, non serve esporla di default
-      # - "5672:5672"
-    environment:
-      # Default user/pass è guest/guest, puoi cambiarli se necessario
-      # RABBITMQ_DEFAULT_USER: user
-      # RABBITMQ_DEFAULT_PASS: password
-      RABBITMQ_DEFAULT_VHOST: "/" # Vhost di default
+    volumes: [rabbitmq_data:/var/lib/rabbitmq/]
+    ports: ["15672:15672"]
+    expose: ["5672"]
     networks: [pl-ai-network]
     healthcheck:
         test: ["CMD", "rabbitmq-diagnostics", "check_running", "-q"]
@@ -228,75 +99,115 @@ services:
         retries: 5
     restart: unless-stopped
 
-  resource_manager_service:
-    build:
-      context: ./backend/resource_manager_service
-      dockerfile: Dockerfile
-    container_name: pl-ai-resource-manager-service
-    env_file:
-      - ./backend/resource_manager_service/.env
-    # Imposta la variabile per avviare solo il processo web
-    environment:
-      - SERVICE_PROCESS_TYPE=web
-    volumes:
-      - ./backend/resource_manager_service:/app
-      - resource_media_data:/app/mediafiles # Volume per i file gestiti
-    expose: ["8003"] # Porta per Gunicorn/runserver
+  # --- Backend Services ---
+  auth_service:
+    build: { context: ./backend/auth_service }
+    container_name: pl-ai-auth-service
+    env_file: [./backend/auth_service/.env]
+    volumes: ['./backend/auth_service:/app']
+    expose: ["8000"]
     networks: [pl-ai-network]
-    depends_on:
-      resource_db: { condition: service_healthy }
-      rabbitmq: { condition: service_healthy } # Dipende anche dal broker
+    depends_on: { auth_db: { condition: service_healthy } }
     healthcheck:
-       test: ["CMD-SHELL", "curl --fail http://localhost:8003/admin/login/ || exit 1"] # Se admin abilitato
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  pl_ai_regression_service: # --- Aggiornato ---
+    build: { context: ./backend/regression_service }
+    container_name: pl-ai-regression-service
+    env_file: [./backend/regression_service/.env]
+    volumes:
+      - ./backend/regression_service:/app # Solo codice
+      # RIMOSSO volume media
+    expose: ["8001"]
+    networks: [pl-ai-network]
+    # RIMOSSA dipendenza da DB
+    depends_on: # Dipende da resource manager per chiamate interne
+      resource_manager_service: { condition: service_started } # O healthy se ha healthcheck affidabile
+    # RIMOSSO healthcheck basato su /admin (o sostituire con uno valido)
+    restart: unless-stopped
+
+  pl_ai_image_generator_service:
+    build: { context: ./backend/image_generator_service }
+    container_name: pl-ai-image-generator-service
+    env_file: [./backend/image_generator_service/.env]
+    volumes:
+      - ./backend/image_generator_service:/app
+      - image_generator_media:/app/mediafiles
+    secrets: [openai_api_key_secret, stability_api_key_secret]
+    expose: ["8002"]
+    networks: [pl-ai-network]
+    depends_on: { image_generator_db: { condition: service_healthy } }
+    healthcheck:
+       test: ["CMD-SHELL", "curl --fail http://localhost:8002/admin/login/ || exit 1"]
        interval: 30s
        timeout: 10s
        retries: 5
        start_period: 45s
     restart: unless-stopped
 
-  # --- NUOVO Resource Manager Service (Worker Celery - Consigliato) ---
-  resource_manager_worker:
-    build: # Usa la stessa immagine del servizio web
-      context: ./backend/resource_manager_service
-      dockerfile: Dockerfile
+  resource_manager_service: # Web
+    build: { context: ./backend/resource_manager_service }
+    container_name: pl-ai-resource-manager-web
+    env_file: [./backend/resource_manager_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=web]
+    volumes:
+      - ./backend/resource_manager_service:/app
+      - resource_media_data:/app/mediafiles
+    expose: ["8003"]
+    networks: [pl-ai-network]
+    depends_on:
+      resource_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+       test: ["CMD-SHELL", "curl --fail http://localhost:8003/admin/login/ || exit 1"]
+       interval: 30s
+       timeout: 10s
+       retries: 5
+       start_period: 45s
+    restart: unless-stopped
+
+  resource_manager_worker: # Celery
+    build: { context: ./backend/resource_manager_service }
     container_name: pl-ai-resource-manager-worker
     entrypoint: ""
-    env_file: # Usa le stesse variabili d'ambiente
-      - ./backend/resource_manager_service/.env
-    # Imposta la variabile per avviare solo il worker
-    # environment:
-    #  - SERVICE_PROCESS_TYPE=worker # O usa direttamente il comando sotto
     command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO"]
-    volumes: # Deve accedere al codice e ai file media!
+    env_file: [./backend/resource_manager_service/.env]
+    volumes:
       - ./backend/resource_manager_service:/app
       - resource_media_data:/app/mediafiles
     networks: [pl-ai-network]
     depends_on:
       resource_db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
-      # Opzionale: Dipende dal web service solo se usa segnali o logica condivisa complessa
-      # resource_manager_service: { condition: service_started }
     restart: unless-stopped
-    # Nessuna porta esposta per il worker
 
-  # --- Nginx Reverse Proxy (Aggiornato) ---
-  # --- Nginx Reverse Proxy ---
+  # --- Frontend Service ---
+  frontend:
+    build: { context: ./frontend }
+    container_name: pl-ai-frontend
+    expose: ["3000"]
+    networks: [pl-ai-network]
+    restart: unless-stopped
+
+  # --- API Gateway / Reverse Proxy ---
   nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
+    build: { context: ./nginx }
     container_name: pl-ai-nginx
     ports: ["8080:80"]
     networks: [pl-ai-network]
     volumes:
-      # Monta tutti i volumi media necessari
-      - regression_media_data:/media_regression:ro
+      # Rimosso mount regression_media_data
       - image_generator_media:/media_images:ro
-      - resource_media_data:/media_resources:ro # <-- NUOVO Mount per Resource Manager
+      - resource_media_data:/media_resources:ro
     depends_on:
       auth_service: { condition: service_healthy }
-      pl_ai_regression_service: { condition: service_healthy }
-      pl_ai_image_generator_service: { condition: service_healthy } # O service_started
-      resource_manager_service: { condition: service_healthy } # <-- Dipende dal web service
+      pl_ai_regression_service: { condition: service_started } # Aggiornato a started
+      pl_ai_image_generator_service: { condition: service_healthy } # O started
+      resource_manager_service: { condition: service_healthy }
       frontend: { condition: service_started }
     restart: unless-stopped

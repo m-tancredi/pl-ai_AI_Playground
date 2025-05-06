@@ -5,16 +5,20 @@ from django.http import FileResponse, Http404
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.db.models import Sum
+from rest_framework.renderers import BaseRenderer # <-- IMPORTA
 
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
+from django.http import Http404, HttpResponse # Importa HttpResponse
+
 from .models import Resource
 from .serializers import ResourceSerializer, UploadRequestSerializer, UploadResponseSerializer
 from .authentication import JWTCustomAuthentication
 from .tasks import process_uploaded_resource # Importa il task Celery
+from .permissions import AllowInternalOnly # <-- Importa il nuovo permesso
 
 class UploadView(views.APIView):
     """Gestisce l'upload iniziale dei file."""
@@ -112,36 +116,70 @@ class ResourceViewSet(viewsets.ModelViewSet): # <-- CAMBIA DA ReadOnlyModelViewS
             print(f"Error serving file download for resource {pk}: {e}")
             return Response({"error": "Could not serve the file."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# --- Vista Interna (Esempio, da proteggere ulteriormente se necessario) ---
+class PassthroughRenderer(BaseRenderer):
+    """
+    A custom renderer that does not actually render the data
+    but returns it as is. Needed for binary file responses via APIView.
+    """
+    media_type = '*/*' # Accetta qualsiasi media type
+    format = None # Nessun formato specifico
+    charset = None
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        # Se i dati sono già bytes (come da HttpResponse), restituiscili
+        if isinstance(data, bytes):
+            return data
+        # Se è un oggetto HttpResponse (come nel nostro caso), restituisci il suo contenuto
+        if isinstance(data, HttpResponse):
+             # Potremmo voler copiare gli header da HttpResponse a DRF Response?
+             # Per ora, restituiamo solo il contenuto.
+             return data.content
+        # Altrimenti, non fare nulla (o solleva errore se non previsto)
+        return data
+
 class InternalContentView(views.APIView):
     """
-    Endpoint INTERNO per altri microservizi per ottenere il contenuto raw.
-    Richiede meccanismi di autenticazione/autorizzazione interni (es. API key, IP check).
-    PER ORA, usa la stessa autenticazione JWT per semplicità, ma NON è ideale.
+    Endpoint INTERNO per ottenere il contenuto raw.
+    Usa un renderer pass-through per evitare problemi di content negotiation.
     """
-    permission_classes = [permissions.IsAuthenticated] # SOLO PER TEST INIZIALE
+    permission_classes = [AllowInternalOnly] # <-- Deve usare il permesso corretto
     authentication_classes = [JWTCustomAuthentication]
+    renderer_classes = [PassthroughRenderer] # <-- SPECIFICA IL RENDERER
 
     def get(self, request, resource_id, *args, **kwargs):
-        # NON filtrare per utente qui, assume che il servizio chiamante sia autorizzato
         resource = get_object_or_404(Resource, pk=resource_id)
 
         if resource.status != Resource.Status.COMPLETED:
-            return Response({"error": "Resource not processed."}, status=status.HTTP_409_CONFLICT)
+            # Restituisci un errore DRF standard (verrà renderizzato come JSON se il client lo accetta)
+            return Response({"error": f"Resource not processed (status: {resource.status})."},
+                            status=status.HTTP_409_CONFLICT)
 
         if not resource.file or not default_storage.exists(resource.file.name):
-             raise Http404("Resource file not found.")
+             return Response({"error": "Resource file not found."},
+                             status=status.HTTP_404_NOT_FOUND)
 
         try:
-            response = FileResponse(default_storage.open(resource.file.name, 'rb'))
-            if resource.mime_type: response['Content-Type'] = resource.mime_type
+            with default_storage.open(resource.file.name, 'rb') as f:
+                file_content = f.read()
+
+            content_type = resource.mime_type or 'application/octet-stream'
+
+            # --- Usa ANCORA HttpResponse per impostare Content-Type e Disposition ---
+            # Il PassthroughRenderer estrarrà il contenuto da questo oggetto
+            response = HttpResponse(file_content, content_type=content_type)
+            response['Content-Disposition'] = f'inline; filename="{resource.original_filename}"'
             try: response['Content-Length'] = default_storage.size(resource.file.name)
             except NotImplementedError: pass
+
+            # Restituisci l'oggetto HttpResponse. Il renderer lo gestirà.
             return response
+            # --- FINE MODIFICA ---
+
         except Exception as e:
             print(f"Error serving internal content for resource {resource_id}: {e}")
-            return Response({"error": "Could not serve file content."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+            return Response({"error": "Could not serve file content."},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class UserStorageInfoView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
     authentication_classes = [JWTCustomAuthentication]
