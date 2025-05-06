@@ -1,37 +1,122 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+// src/pages/RegressionPage.jsx
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
-import Papa from 'papaparse'; // Per convertire dati modificati in CSV per il save copy
-import { FaUpload, FaTable, FaSave, FaTimes } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
-import { listUserResources, uploadResource } from '../services/resourceManagerService'; // Importa funzioni Resource Manager
-import { runRegression, predictValue } from '../services/regressionService'; // Importa funzioni Regression Service
+import Papa from 'papaparse'; // Assicurati sia installato: npm install papaparse
+import { FaUpload, FaTable, FaSave, FaTimes, FaSpinner, FaInfoCircle, FaFileImage, FaFilePdf, FaFileCsv, FaFileWord, FaFileAlt, FaEdit, FaTrashAlt, FaDownload, FaTags, FaBrain, FaChartLine, FaListOl } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext'; // Verifica path
+import { listUserResources, uploadResource, getResourceDetails, deleteResource as deleteResourceManagerResource } from '../services/resourceManagerService'; // Verifica path
+import { runRegression, predictValue } from '../services/regressionService'; // Verifica path
 
-// --- Componenti UI ---
-const Spinner = ({ small = false }) => ( <div className={`inline-block animate-spin rounded-full border-t-2 border-b-2 border-indigo-500 ${small ? 'h-4 w-4 mr-1' : 'h-5 w-5 mr-2'} align-middle`}></div> );
-const Alert = ({ type = 'error', message, onClose }) => { /* ... (implementazione come prima) ... */ };
-const ProgressBar = ({ value }) => ( <div className="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700 overflow-hidden"><div className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${value}%` }}></div></div> );
-const formatBytes = (bytes, decimals = 1) => { /* ... (implementazione come prima) ... */ };
-// --- Fine UI ---
+// Importa componenti esterni (se estratti)
+import ResourceCard from '../components/ResourceCard'; // Verifica path
+// import ResourceEditModal from '../components/ResourceEditModal'; // Non usato qui
 
-// Tabella Editabile Semplice (Potresti usare una libreria come react-table per funzionalità avanzate)
+// --- Componenti UI Base (Definiti qui per autocontenimento) ---
+
+const Spinner = ({ small = false }) => (
+    <div className={`inline-block animate-spin rounded-full border-t-2 border-b-2 border-indigo-500 ${small ? 'h-4 w-4 mr-1' : 'h-5 w-5 mr-2'} align-middle`}></div>
+);
+
+const Alert = ({ type = 'error', message, onClose }) => {
+    const baseStyle = 'border px-4 py-3 rounded relative mb-4 shadow-sm';
+    let typeStyle = '';
+    let iconColor = '';
+
+    switch (type) {
+        case 'success':
+            typeStyle = 'bg-green-100 border-green-300 text-green-700';
+            iconColor = 'text-green-500 hover:text-green-700';
+            break;
+        case 'warning':
+             typeStyle = 'bg-yellow-100 border-yellow-300 text-yellow-700';
+             iconColor = 'text-yellow-500 hover:text-yellow-700';
+             break;
+        case 'error':
+        default:
+            typeStyle = 'bg-red-100 border-red-300 text-red-700';
+            iconColor = 'text-red-500 hover:text-red-700';
+            break;
+    }
+
+    if (!message) return null;
+    return (
+        <div className={`${baseStyle} ${typeStyle}`} role="alert">
+            <span className="block sm:inline mr-6">{message}</span>
+            {onClose && (
+                 <button onClick={onClose} className="absolute top-0 bottom-0 right-0 px-4 py-3 focus:outline-none" aria-label="Close">
+                     <svg className={`fill-current h-5 w-5 ${iconColor}`} role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.818l-2.651 3.031a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
+                 </button>
+            )}
+        </div>
+    );
+};
+
+const ProgressBar = ({ value }) => (
+    <div className="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700 overflow-hidden">
+        <div className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300 ease-out" style={{ width: `${value}%` }}></div>
+    </div>
+);
+
+// Funzione formatBytes
+const formatBytes = (bytes, decimals = 1) => {
+    if (bytes === 0 || !bytes || isNaN(bytes)) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const unitIndex = i < sizes.length ? i : sizes.length - 1;
+    const value = parseFloat((bytes / Math.pow(k, unitIndex)).toFixed(dm));
+    return value + ' ' + sizes[unitIndex];
+};
+
+
+const StorageUsageBar = ({ used = 0, limit = 1, label }) => {
+    const safeUsed = Number(used) || 0;
+    const safeLimit = Number(limit) || 1; // Evita divisione per zero
+    const percent = safeLimit > 0 ? Math.min(100, (safeUsed / safeLimit) * 100) : 0;
+    const usageText = `${formatBytes(safeUsed)} / ${formatBytes(safeLimit)}`;
+    const color = percent > 90 ? 'bg-red-600' : percent > 75 ? 'bg-yellow-500' : 'bg-indigo-600';
+
+    return (
+        <div className="my-4 p-4 bg-white rounded-md shadow border border-gray-200">
+             <div className="flex justify-between mb-1 text-sm font-medium text-gray-700">
+                <span className="font-semibold">{label || 'Storage Usage'}</span>
+                <span>{usageText} ({percent.toFixed(1)}%)</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700 overflow-hidden"> {/* Leggermente più alta */}
+                <div className={`${color} h-3 rounded-full transition-all duration-300`} style={{ width: `${percent}%` }}></div>
+            </div>
+        </div>
+    );
+};
+
+
+// Tabella Editabile Semplice
 const EditableTable = ({ headers, data, onDataChange }) => {
-    if (!data || data.length === 0) return <p className="text-center text-gray-500 py-4">No data loaded for editing.</p>;
+    if (!data || data.length === 0) return <p className="text-center text-gray-500 py-4 italic">No data loaded or available for editing.</p>;
 
     const handleCellChange = (rowIndex, header, value) => {
-        const newData = [...data];
-        // Prova a convertire in numero se possibile, altrimenti mantieni stringa
-        const numericValue = Number(value);
-        newData[rowIndex] = { ...newData[rowIndex], [header]: isNaN(numericValue) ? value : numericValue };
+        const newData = data.map((row, idx) => {
+            if (idx === rowIndex) {
+                const numericValue = Number(value); // Tenta la conversione
+                return {
+                    ...row,
+                    // Mantieni stringa se non numero valido o vuoto, altrimenti usa numero
+                    [header]: isNaN(numericValue) || value === '' ? value : numericValue
+                };
+            }
+            return row;
+        });
         onDataChange(newData);
     };
 
     return (
-        <div className="overflow-x-auto max-h-96 border rounded shadow-sm">
+        <div className="overflow-x-auto max-h-96 border rounded shadow-sm bg-white">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50 sticky top-0">
+                <thead className="bg-gray-100 sticky top-0 z-10">
                     <tr>
                         {headers.map(header => (
-                            <th key={header} scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                            <th key={header} scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider whitespace-nowrap">
                                 {header}
                             </th>
                         ))}
@@ -39,14 +124,15 @@ const EditableTable = ({ headers, data, onDataChange }) => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                     {data.map((row, rowIndex) => (
-                        <tr key={rowIndex} className="hover:bg-gray-50">
+                        <tr key={rowIndex} className="hover:bg-indigo-50">
                             {headers.map(header => (
-                                <td key={`${rowIndex}-${header}`} className="px-1 py-0.5 whitespace-nowrap">
+                                <td key={`${rowIndex}-${header}`} className="px-1 py-0 whitespace-nowrap">
                                     <input
                                         type={typeof row[header] === 'number' ? 'number' : 'text'}
-                                        value={row[header] ?? ''} // Gestisci null/undefined
+                                        value={row[header] ?? ''} // Gestisci null/undefined come stringa vuota
                                         onChange={(e) => handleCellChange(rowIndex, header, e.target.value)}
                                         className="w-full border-none focus:ring-1 focus:ring-indigo-300 p-1 rounded bg-transparent focus:bg-white text-sm"
+                                        step={typeof row[header] === 'number' ? 'any' : undefined} // Permetti decimali
                                     />
                                 </td>
                             ))}
@@ -57,28 +143,30 @@ const EditableTable = ({ headers, data, onDataChange }) => {
         </div>
     );
 };
+// --- Fine UI ---
 
 
 const RegressionPage = () => {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
 
-    // Stato Selezione/Dati Risorsa
-    const [availableResources, setAvailableResources] = useState([]); // Risorse CSV dal Resource Manager
-    const [selectedResourceId, setSelectedResourceId] = useState('');
-    const [selectedResourceHeaders, setSelectedResourceHeaders] = useState([]); // Headers della risorsa selezionata
-    const [currentData, setCurrentData] = useState(null); // Dati CSV parsati per visualizzazione/modifica
+    // Stato Risorse
+    const [availableResources, setAvailableResources] = useState([]);
+    const [selectedResource, setSelectedResource] = useState(null);
     const [isLoadingResources, setIsLoadingResources] = useState(false);
     const [resourceError, setResourceError] = useState('');
 
-    // Stato Upload (come in ResourceManagerPage)
-    const [uploadFilesInfo, setUploadFilesInfo] = useState([]); // Traccia upload in corso
+    // Stato Dati Correnti
+    const [currentData, setCurrentData] = useState(null);
+    const [currentHeaders, setCurrentHeaders] = useState([]);
+    const [isLoadingData, setIsLoadingData] = useState(false);
 
-    // Stato Parametri Regressione
+    // Stato Upload
+    const [uploadFilesInfo, setUploadFilesInfo] = useState([]); // { fileId, file, progress, status, error, resourceId }
+
+    // Stato Parametri/Risultati Regressione
     const [selectedFeatureCol, setSelectedFeatureCol] = useState('');
     const [selectedTargetCol, setSelectedTargetCol] = useState('');
-
-    // Stato Risultati
-    const [regressionResult, setRegressionResult] = useState(null); // { slope, intercept, ... }
+    const [regressionResult, setRegressionResult] = useState(null);
     const [predictValueInput, setPredictValueInput] = useState('');
     const [predictionResult, setPredictionResult] = useState(null);
 
@@ -86,122 +174,158 @@ const RegressionPage = () => {
     const [isTraining, setIsTraining] = useState(false);
     const [isPredicting, setIsPredicting] = useState(false);
     const [isSavingCopy, setIsSavingCopy] = useState(false);
-    const [error, setError] = useState(''); // Errori specifici della pagina
+    const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [warning, setWarning] = useState('');
 
-    // --- Fetch Risorse CSV ---
-    const fetchCsvResources = useCallback(async () => {
+    // Stato Storage (preso da user context o default)
+     const [storageInfo, setStorageInfo] = useState({
+        used: user?.storage_used || 0, // Usa valore utente o 0
+        limit: user?.storage_limit || 1 * 1024 * 1024 * 1024 // Usa valore utente o 1GB
+    });
+
+    const pollingIntervals = useRef({});
+
+    // Helper URL
+    const buildFullImageUrl = useCallback((relativeUrl) => {
+         if (!relativeUrl) return null;
+         try {
+            if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+                 const urlObj = new URL(relativeUrl);
+                 if (urlObj.hostname === 'localhost' && !urlObj.port && window.location.port) {
+                     const path = urlObj.pathname + urlObj.search + urlObj.hash;
+                     return `${window.location.origin}${path}`;
+                 }
+                 return relativeUrl;
+            } else if (relativeUrl.startsWith('/')) {
+                 return `${window.location.origin}${relativeUrl}`;
+            } else { return `${window.location.origin}/${relativeUrl}`; }
+         } catch (e) { console.error("URL build failed:", e); return null; }
+    }, []);
+
+    // Aggiorna Storage Info da User Context
+     useEffect(() => {
+        // TODO: Implementa fetch storage info se non in user context
+        console.log("Fetched Storage Info (placeholder):", { used: user?.storage_used, limit: user?.storage_limit });
+        setStorageInfo({
+            used: user?.storage_used || 0, // Assumi 0 se non disponibile
+            limit: user?.storage_limit || 1 * 1024 * 1024 * 1024 // Default 1GB
+        });
+    }, [user]);
+
+    // Fetch Risorse CSV/Regressione
+    const fetchRegressionResources = useCallback(async () => {
         if (!isAuthenticated) return;
         setIsLoadingResources(true);
         setResourceError('');
         try {
-            // Filtra per CSV o per potential_use 'regression'
-            const resources = await listUserResources({ mime_type: 'text/csv' });
-            // const resources = await listUserResources({ 'metadata__potential_uses__contains': 'regression' }); // Alternativa se usi JSONField specifico in backend
-            setAvailableResources(Array.isArray(resources) ? resources : []);
+            // Filtra per risorse CSV completate e con potential_uses corretto
+            const resources = await listUserResources({
+                mime_type: 'text/csv',
+                status: 'COMPLETED', // Chiedi solo quelle completate
+            });
+            const regressionReady = (Array.isArray(resources) ? resources : []).filter(r =>
+                 Array.isArray(r.metadata?.potential_uses) &&
+                 (r.metadata.potential_uses.includes('regression') || r.metadata.potential_uses.includes('clustering'))
+             );
+            setAvailableResources(regressionReady);
         } catch (err) {
-            setResourceError('Failed to load available CSV resources.');
+            setResourceError('Failed to load suitable CSV resources.');
             setAvailableResources([]);
+            console.error("Fetch resources error:", err);
         } finally {
             setIsLoadingResources(false);
         }
     }, [isAuthenticated]);
 
     useEffect(() => {
-        fetchCsvResources();
-    }, [fetchCsvResources]);
+        fetchRegressionResources();
+    }, [fetchRegressionResources]);
 
-    // --- Gestione Selezione Risorsa ---
-    const handleResourceSelect = (event) => {
-        const resourceId = event.target.value;
-        setSelectedResourceId(resourceId);
-        // Resetta stati dipendenti
-        setCurrentData(null);
-        setSelectedResourceHeaders([]);
-        setSelectedFeatureCol('');
-        setSelectedTargetCol('');
-        setRegressionResult(null);
-        setPredictionResult(null);
-        setError('');
-        setSuccess('');
-
-        if (resourceId) {
-            const selected = availableResources.find(r => r.id.toString() === resourceId);
-            if (selected && selected.metadata?.headers) {
-                setSelectedResourceHeaders(selected.metadata.headers);
-            } else {
-                // Se mancano header nei metadati, potresti provare a fare GET details
-                // ma idealmente il Resource Manager li popola sempre per i CSV
-                setResourceError("Selected resource metadata doesn't contain headers.");
-            }
+    // Logica Polling
+    const startPolling = useCallback((resourceId) => {
+        if (pollingIntervals.current[resourceId]) {
+            clearInterval(pollingIntervals.current[resourceId]);
         }
-    };
+        console.log(`Polling: Start for ${resourceId}`);
+        pollingIntervals.current[resourceId] = setInterval(async () => {
+            console.log(`Polling: Check for ${resourceId}`);
+            try {
+                const details = await getResourceDetails(resourceId);
+                if (details.status !== 'PROCESSING') {
+                    console.log(`Polling: Complete for ${resourceId} (${details.status})`);
+                    clearInterval(pollingIntervals.current[resourceId]);
+                    delete pollingIntervals.current[resourceId];
+                    // Aggiorna stato upload
+                    setUploadFilesInfo(prev => prev.map(f => f.resourceId === resourceId ? {...f, status: details.status.toLowerCase(), error: details.error_message} : f));
 
-     // --- Caricamento Dati per Visualizzazione/Modifica (MANUALE) ---
-     // Questa funzione ora non viene chiamata automaticamente alla selezione
-     const loadDataForEditing = async () => {
-         if (!selectedResourceId) return setError("Please select a resource first.");
-         setError(''); setSuccess(''); setIsLoadingResources(true); // Riutilizza lo stato loading
-         setCurrentData(null); // Resetta dati precedenti
-         try {
-             // Usa l'endpoint di download per ottenere i dati grezzi
-             const downloadUrl = `${window.location.origin}/api/resources/${selectedResourceId}/download/`;
-             const response = await fetch(downloadUrl, {
-                 headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } // Aggiungi token!
-             });
-             if (!response.ok) { throw new Error(`Failed to download data: ${response.statusText}`); }
-             const csvText = await response.text();
+                    const isRegressionReady = details.status === 'COMPLETED' && Array.isArray(details.metadata?.potential_uses) &&
+                        (details.metadata.potential_uses.includes('regression') || details.metadata.potential_uses.includes('clustering'));
 
-             // Parsa con Papaparse
-             Papa.parse(csvText, {
-                 header: true, skipEmptyLines: true, dynamicTyping: true,
-                 complete: (results) => {
-                     if (results.errors.length) throw new Error(results.errors[0].message);
-                     if (results.data.length === 0) throw new Error("CSV appears empty.");
-                     setCurrentData(results.data);
-                     // Assicura che gli header siano aggiornati in caso di discrepanze
-                     setSelectedResourceHeaders(results.meta.fields || Object.keys(results.data[0]));
-                     setSuccess("Data loaded for viewing/editing.");
-                 },
-                 error: (err) => { throw new Error(`CSV Parsing failed: ${err.message}`); }
-             });
-         } catch (err) {
-             setError(err.message || 'Failed to load or parse resource data.');
-             setCurrentData(null);
-         } finally {
-            setIsLoadingResources(false);
-         }
-     };
+                    if (isRegressionReady) {
+                        // Aggiungi/Aggiorna lista risorse disponibili
+                        setAvailableResources(prev => {
+                            const index = prev.findIndex(r => r.id === details.id);
+                            if (index > -1) return prev.map(r => r.id === details.id ? details : r);
+                            else return [details, ...prev];
+                        });
+                         // Aggiorna storage solo se completato con successo
+                        setStorageInfo(prev => ({...prev, used: Math.max(0, prev.used + (details.size || 0))}));
+                        // Non mostrare warning se è adatto
+                    } else {
+                        // Rimuovi dalla lista se non adatto o fallito
+                        setAvailableResources(prev => prev.filter(r => r.id !== details.id));
+                        if (details.status === 'COMPLETED') {
+                             setWarning(`File "${details.name || details.original_filename}" processed, but may not be suitable for regression/clustering.`);
+                        } else if (details.status === 'FAILED') {
+                             setError(`Processing failed for "${details.name || details.original_filename}".`);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`Polling: Error for ${resourceId}:`, error);
+                const isNotFound = error.response?.status === 404;
+                clearInterval(pollingIntervals.current[resourceId]);
+                delete pollingIntervals.current[resourceId];
+                setUploadFilesInfo(prev => prev.map(f => f.resourceId === resourceId ? {...f, status: 'failed', error: isNotFound ? 'Resource not found' : 'Polling failed'} : f));
+                if (isNotFound) {
+                    setAvailableResources(prev => prev.filter(r => r.id !== resourceId));
+                }
+            }
+        }, 7000); // Intervallo polling
+    }, []); // Dipendenze vuote
 
-    // --- Gestione Upload (chiama Resource Manager) ---
+    useEffect(() => { // Cleanup Polling
+        const intervals = pollingIntervals.current;
+        return () => { Object.values(intervals).forEach(clearInterval); };
+    }, []);
+
+    // Gestione Upload
     const onDrop = useCallback((acceptedFiles, fileRejections) => {
-        // Logica simile a ResourceManagerPage, ma chiama uploadFile qui sotto
-         setError(''); setSuccess('');
-         let currentUploadErrors = [];
-         fileRejections.forEach((rej) => rej.errors.forEach(err => currentUploadErrors.push(`${rej.file.name}: ${err.message}`)));
-
-         const filesToUpload = [];
-         acceptedFiles.forEach(file => {
-             const fileId = `${file.name}-${file.size}-${file.lastModified}`;
-             const maxSize = 15 * 1024 * 1024;
-             if (file.size > maxSize) { currentUploadErrors.push(`${file.name}: Exceeds size limit.`); return; }
-             // TODO: Verifica spazio storage se necessario
-             filesToUpload.push({ fileId, file, progress: 0, status: 'pending', error: null });
-         });
-
-         if (currentUploadErrors.length > 0) setError(`Upload issues:\n- ${currentUploadErrors.join('\n- ')}`);
-         if (filesToUpload.length > 0) {
+        setError(''); setSuccess(''); setWarning('');
+        let currentUploadErrors = [];
+        fileRejections.forEach((rej) => rej.errors.forEach(err => currentUploadErrors.push(`${rej.file.name}: ${err.message}`)));
+        const filesToUpload = []; let cumulativeSize = 0;
+        acceptedFiles.forEach(file => {
+            const fileId = `${file.name}-${file.size}-${file.lastModified}`;
+            const maxSize = 15 * 1024 * 1024;
+            if (file.size > maxSize) { currentUploadErrors.push(`${file.name}: Exceeds size limit (${formatBytes(maxSize)}).`); return; }
+            // Rimuoviamo il check dello storage qui perché storageInfo.used potrebbe non essere aggiornato istantaneamente
+            // if (storageInfo.used + cumulativeSize + file.size > storageInfo.limit) { currentUploadErrors.push(`${file.name}: Upload exceeds available storage.`); return; }
+            cumulativeSize += file.size;
+            filesToUpload.push({ fileId, file, progress: 0, status: 'pending', error: null });
+        });
+        if (currentUploadErrors.length > 0) setError(`Upload issues:\n- ${currentUploadErrors.join('\n- ')}`);
+        if (filesToUpload.length > 0) {
              setUploadFilesInfo(prev => [...filesToUpload, ...prev]);
              filesToUpload.forEach(item => uploadFileToResourceManager(item));
-         }
-    }, [/* dipende da storageInfo se implementato */]);
+        }
+    }, [startPolling, storageInfo]); // Tolto storageInfo.used/limit dalle dipendenze dirette
 
     const uploadFileToResourceManager = async (uploadItem) => {
         const { fileId, file } = uploadItem;
-        const formData = new FormData();
-        formData.append('file', file); formData.append('name', file.name);
-
-         setUploadFilesInfo(prev => prev.map(f => f.fileId === fileId ? { ...f, status: 'uploading', progress: 0 } : f));
+        const formData = new FormData(); formData.append('file', file); formData.append('name', file.name);
+        setUploadFilesInfo(prev => prev.map(f => f.fileId === fileId ? { ...f, status: 'uploading', progress: 0 } : f));
         try {
             const response = await uploadResource(formData, (progressEvent) => {
                  if (progressEvent.total) {
@@ -210,13 +334,8 @@ const RegressionPage = () => {
                  }
             });
              setUploadFilesInfo(prev => prev.map(f => f.fileId === fileId ? { ...f, status: 'processing', progress: 100, resourceId: response.id, error: null } : f));
-             // Qui NON aggiungiamo a userResources, ma potremmo avviare un polling per sapere quando rifare fetchCsvResources
-             // O semplicemente dire all'utente di aggiornare la lista dopo un po'.
-             // Per semplicità, diciamo di aggiornare manualmente o aspettare il polling se implementato centralmente.
-             setSuccess(`File "${file.name}" uploaded (ID: ${response.id}). Processing in background. Refresh list later.`);
-             // Ricarica la lista dopo un po' o quando l'utente lo richiede
-             setTimeout(() => fetchCsvResources(currentFilter), 10000); // Esempio: ricarica dopo 10s
-
+             setSuccess(`File "${file.name}" uploaded (ID: ${response.id}). Processing...`);
+             startPolling(response.id);
         } catch (error) {
             const errorMsg = error.response?.data?.error || error.message || 'Upload failed';
              setUploadFilesInfo(prev => prev.map(f => f.fileId === fileId ? { ...f, status: 'failed', progress: 0, error: errorMsg } : f));
@@ -226,206 +345,235 @@ const RegressionPage = () => {
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: {'text/csv': ['.csv']}, maxSize: 15 * 1024 * 1024, multiple: true });
 
-
-    // --- Esecuzione Regressione ---
-    const handleRunRegression = async () => {
-        if (!selectedResourceId || !selectedFeatureCol || !selectedTargetCol) {
-            setError('Select a resource and specify Feature (X) and Target (Y) columns.'); return;
+    // Gestione Selezione Risorsa dalla Card
+    const handleResourceSelect = (resource) => {
+        if (resource.id === selectedResource?.id) { // Deseleziona
+             setSelectedResource(null); setCurrentData(null); setCurrentHeaders([]);
+             setSelectedFeatureCol(''); setSelectedTargetCol(''); setRegressionResult(null);
+        } else { // Seleziona
+            setSelectedResource(resource); setCurrentData(null);
+            setCurrentHeaders(resource.metadata?.headers || []);
+            setSelectedFeatureCol(''); setSelectedTargetCol(''); setRegressionResult(null);
+            setError(''); setSuccess(''); setWarning('');
         }
+    };
+
+    // Caricamento Dati per Modifica
+    const loadDataForEditing = async () => {
+        if (!selectedResource) return setError("Select a resource first.");
+        setError(''); setSuccess(''); setWarning(''); setIsLoadingData(true); setCurrentData(null);
+        try {
+            const downloadUrl = `${window.location.origin}/api/resources/${selectedResource.id}/download/`;
+            const token = localStorage.getItem('accessToken');
+            if (!token) throw new Error("Auth token not found.");
+            const response = await fetch(downloadUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) throw new Error(`Download failed (Status: ${response.status}) ${await response.text()}`);
+            const csvText = await response.text();
+            Papa.parse(csvText, {
+                 header: true, skipEmptyLines: true, dynamicTyping: true,
+                 complete: (results) => {
+                     if (results.errors.length) throw new Error(results.errors.map(e=>e.message).join(', '));
+                     if (!results.data || results.data.length === 0) throw new Error("CSV file is empty or could not be parsed correctly.");
+                     setCurrentData(results.data); setCurrentHeaders(results.meta.fields || (results.data.length > 0 ? Object.keys(results.data[0]) : []));
+                     setSuccess("Data loaded successfully.");
+                 }, error: (err) => { throw new Error(`CSV Parsing error: ${err.message}`); }
+            });
+        } catch (err) { setError(err.message || 'Failed to load or parse resource data.'); setCurrentData(null); setCurrentHeaders([]);
+        } finally { setIsLoadingData(false); }
+    };
+
+    // Esecuzione Regressione
+    const handleRunRegression = async () => {
+        if (!selectedResource || !selectedFeatureCol || !selectedTargetCol) { setError('Select resource & columns.'); return; }
         setIsTraining(true); setError(''); setSuccess(''); setRegressionResult(null); setPredictionResult(null);
         try {
-            const result = await runRegression({
-                resource_id: parseInt(selectedResourceId, 10), // Assicura sia numero
-                feature_column: selectedFeatureCol,
-                target_column: selectedTargetCol,
-            });
-            setRegressionResult(result);
-            setSuccess(result.message || 'Regression successful!');
-        } catch (err) {
-            setError(err.response?.data?.error || err.message || 'Failed to run regression.');
+            const result = await runRegression({ resource_id: selectedResource.id, feature_column: selectedFeatureCol, target_column: selectedTargetCol });
+            setRegressionResult(result); setSuccess(result.message || 'Regression successful!');
+        } catch (err) { setError(err.response?.data?.error || err.message || 'Regression failed.');
         } finally { setIsTraining(false); }
     };
 
-    // --- Predizione ---
+    // Predizione
     const handlePredict = async () => {
-         if (!regressionResult || predictValueInput === '' || isNaN(parseFloat(predictValueInput))) {
-             setError('Run regression first and enter a valid numeric X value.'); return;
-         }
+         if (!regressionResult || predictValueInput === '' || isNaN(parseFloat(predictValueInput))) { setError('Run regression & enter numeric X value.'); return; }
          setIsPredicting(true); setError(''); setPredictionResult(null);
          try {
-             const result = await predictValue({
-                 slope: regressionResult.slope, intercept: regressionResult.intercept,
-                 feature_value: parseFloat(predictValueInput),
-             });
+             const result = await predictValue({ slope: regressionResult.slope, intercept: regressionResult.intercept, feature_value: parseFloat(predictValueInput) });
              setPredictionResult(result.predicted_value);
          } catch (err) { setError(err.response?.data?.error || 'Prediction failed.');
          } finally { setIsPredicting(false); }
      };
 
-    // --- Salvataggio Copia Modificata ---
+    // Salvataggio Copia Modificata
     const handleSaveCopy = async () => {
-        if (!currentData || !selectedResourceId) {
-             setError('No modified data to save or original resource not selected.'); return;
-        }
-        const originalResource = availableResources.find(r => r.id.toString() === selectedResourceId);
-        if (!originalResource) { setError('Original resource not found.'); return; }
-
+        if (!currentData || !selectedResource) { setError('No modified data to save.'); return; }
+        const originalResource = selectedResource;
         setIsSavingCopy(true); setError(''); setSuccess('');
         try {
-            // 1. Converti dati modificati (currentData) in stringa CSV
             const csvString = Papa.unparse(currentData, { header: true });
-            // 2. Crea oggetto File
-            const newFileName = `${originalResource.name || 'resource'}_modified.csv`;
+            const newFileName = `${originalResource.name || 'resource'}_modified_${Date.now()}.csv`;
             const csvFile = new File([csvString], newFileName, { type: "text/csv" });
-            // 3. Crea FormData
             const formData = new FormData();
-            formData.append('file', csvFile);
-            formData.append('name', newFileName); // Suggerisci un nome
-            formData.append('description', `Modified copy of resource ID ${selectedResourceId}. Original name: ${originalResource.original_filename}`);
-            // 4. Chiama uploadResource del Resource Manager
-            const response = await uploadResource(formData); // Non tracciamo progresso qui per semplicità
-            setSuccess(`Modified copy uploaded as new resource (ID: ${response.id}). Processing...`);
-            // Resetta i dati modificati? O permetti altre modifiche?
-            // setCurrentData(null);
-            // Aggiorna la lista delle risorse disponibili dopo un po'
-            setTimeout(() => fetchCsvResources(currentFilter), 10000);
-        } catch (err) {
-             setError(err.response?.data?.error || 'Failed to save modified copy.');
+            formData.append('file', csvFile); formData.append('name', newFileName);
+            formData.append('description', `Modified copy of ${originalResource.original_filename} (ID: ${originalResource.id})`);
+            const response = await uploadResource(formData);
+            setSuccess(`Modified copy uploaded (ID: ${response.id}). Processing...`);
+            setCurrentData(null); // Resetta dati modificati dopo salvataggio
+            startPolling(response.id);
+        } catch (err) { setError(err.response?.data?.error || 'Failed to save modified copy.');
         } finally { setIsSavingCopy(false); }
     };
 
-
+    // --- Rendering ---
     return (
         <div className="container mx-auto px-4 py-8 space-y-6">
             <h1 className="text-3xl font-bold text-gray-800">Linear Regression</h1>
 
+            {/* Rimosso StorageUsageBar */}
+
             {error && <Alert type="error" message={error} onClose={() => setError('')} />}
+            {warning && <Alert type="warning" message={warning} onClose={() => setWarning('')} />}
             {success && <Alert type="success" message={success} onClose={() => setSuccess('')} />}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                {/* Colonna Sinistra: Selezione/Upload e Parametri */}
-                <div className="space-y-4">
-                    {/* Selezione Risorsa Esistente */}
-                    <div className="bg-white p-4 rounded shadow border">
-                        <label htmlFor="resourceSelect" className="block text-sm font-medium text-gray-700 mb-1">Select Existing CSV Resource:</label>
-                        {isLoadingResources ? <Spinner /> : resourceError ? <p className='text-xs text-red-500'>{resourceError}</p> : (
-                            <select
-                                id="resourceSelect"
-                                value={selectedResourceId}
-                                onChange={handleResourceSelect}
-                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white disabled:bg-gray-100"
-                                disabled={availableResources.length === 0}
-                            >
-                                <option value="">-- Select a resource --</option>
-                                {availableResources.map(r => (
-                                    <option key={r.id} value={r.id} disabled={r.status !== 'COMPLETED'}>
-                                        {r.name || r.original_filename} (ID: {r.id}) {r.status !== 'COMPLETED' ? `[${r.status}]` : ''}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
-                         {availableResources.length === 0 && !isLoadingResources && !resourceError && <p className="text-xs text-gray-500 mt-1">No completed CSV resources found. Upload a new one below.</p>}
-                    </div>
-
-                     {/* Upload Nuovo File (tramite Resource Manager) */}
-                    <div className="bg-white p-4 rounded shadow border">
-                         <h3 className="text-sm font-medium text-gray-700 mb-2">Or Upload New CSV:</h3>
+                {/* Colonna Sinistra: Selezione/Upload Risorse */}
+                <div className="lg:col-span-1 space-y-4">
+                    {/* Upload Nuovo File */}
+                     <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
+                         <h3 className="text-md font-semibold text-gray-700 mb-2">Upload New CSV</h3>
                          <div {...getRootProps()} className={`border-2 ${isDragActive ? 'border-indigo-500 bg-indigo-50' : 'border-dashed border-gray-300 hover:border-gray-400'} rounded-lg p-5 text-center cursor-pointer transition-colors`}>
                             <input {...getInputProps()} />
-                             <FaUpload className={`mx-auto h-8 w-8 ${isDragActive ? 'text-indigo-500' : 'text-gray-400'} mb-2`} />
+                            <FaUpload className={`mx-auto h-8 w-8 ${isDragActive ? 'text-indigo-500' : 'text-gray-400'} mb-2`} />
                              {isDragActive ? <p className="text-sm text-indigo-600">Drop CSV here...</p> : <p className="text-sm text-gray-600">Drag & drop or click</p>}
                              <p className="text-xs text-gray-500 mt-1">Max 15MB.</p>
                          </div>
                          {/* Lista Upload */}
-                          {(uploadFilesInfo.length > 0) && ( <div className="mt-3 space-y-1"> {/* ... (come in ResourceManagerPage) ... */} </div> )}
+                         {(uploadFilesInfo.length > 0) && (
+                             <div className="mt-3 space-y-1 max-h-40 overflow-y-auto pr-1">
+                                {uploadFilesInfo.map(f => (
+                                    <div key={f.fileId} className={`p-2 rounded border text-xs flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 ${f.status === 'failed' ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
+                                        <span className="font-medium truncate block sm:inline flex-grow" title={f.file.name}>{f.file.name}</span>
+                                        <div className="flex items-center gap-2 w-full sm:w-auto justify-between">
+                                            {(f.status === 'uploading') && (<div className='w-20 sm:w-24'><ProgressBar value={f.progress} /></div>)}
+                                            {(f.status === 'processing') && (<span className='text-blue-600 flex items-center'><Spinner small /> Processing...</span>)}
+                                            {(f.status === 'pending') && (<span className='text-gray-500'>Waiting...</span>)}
+                                            {(f.status === 'failed') && (<span className='text-red-700 truncate flex-shrink min-w-0' title={f.error}>Error: {f.error || 'Failed'}</span>)}
+                                            {/* Bottone per Rimuovere dalla lista UI */}
+                                             {(f.status === 'failed' || f.status === 'completed') && ( // Permetti rimozione se finito (anche fallito)
+                                                 <button onClick={() => setUploadFilesInfo(prev => prev.filter(item => item.fileId !== f.fileId))} className='text-gray-400 hover:text-red-500 ml-2' title="Dismiss"><FaTimes size={12}/></button>
+                                             )}
+                                        </div>
+                                    </div>
+                                ))}
+                             </div>
+                         )}
                      </div>
 
-                    {/* Selezione Colonne (se risorsa selezionata) */}
-                    {selectedResourceId && selectedResourceHeaders.length > 0 && (
-                         <div className="bg-white p-4 rounded shadow border space-y-3">
-                              <h3 className="text-sm font-medium text-gray-700 mb-1">Select Columns for Regression:</h3>
-                              <div>
-                                 <label htmlFor="featureCol" className="block text-xs font-medium text-gray-600">Feature (X):</label>
-                                 <select id="featureCol" value={selectedFeatureCol} onChange={(e) => setSelectedFeatureCol(e.target.value)} className="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm bg-white">
-                                     <option value="">-- Select --</option>
-                                     {selectedResourceHeaders.map(h => <option key={`f-${h}`} value={h}>{h}</option>)}
-                                 </select>
+                     {/* Selezione Risorse Esistenti */}
+                     <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
+                         <h3 className="text-md font-semibold text-gray-700 mb-3">Select Existing Resource</h3>
+                         {resourceError && <Alert type="error" message={resourceError} onClose={() => setResourceError('')}/>}
+                         {isLoadingResources ? ( <div className="text-center py-4"><Spinner /> Loading...</div> )
+                          : availableResources.length > 0 ? (
+                             <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                                 {availableResources.map(resource => (
+                                     <ResourceCard
+                                        key={resource.id}
+                                        resource={resource}
+                                        buildFullUrl={buildFullImageUrl}
+                                        onSelect={handleResourceSelect}
+                                        isSelected={selectedResource?.id === resource.id}
+                                        // Non passiamo onEdit/onDelete qui
+                                    />
+                                 ))}
                              </div>
-                              <div>
-                                 <label htmlFor="targetCol" className="block text-xs font-medium text-gray-600">Target (Y):</label>
-                                 <select id="targetCol" value={selectedTargetCol} onChange={(e) => setSelectedTargetCol(e.target.value)} className="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm bg-white">
-                                     <option value="">-- Select --</option>
-                                     {selectedResourceHeaders.filter(h => h !== selectedFeatureCol).map(h => <option key={`t-${h}`} value={h}>{h}</option>)}
-                                 </select>
-                              </div>
-                              <button onClick={handleRunRegression} disabled={!selectedFeatureCol || !selectedTargetCol || isTraining} className="w-full px-4 py-2 mt-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 flex items-center justify-center">
-                                {isTraining && <Spinner small />} Run Regression
-                             </button>
-                         </div>
-                    )}
+                          ) : ( <p className="text-sm text-gray-500 italic text-center py-4">No suitable CSV resources found.</p> )}
+                     </div>
                 </div>
 
-                {/* Colonna Destra: Risultati e Dati */}
-                <div className="space-y-4">
-                     {/* Risultati Regressione */}
+                {/* Colonna Destra: Configurazione, Risultati, Dati */}
+                <div className="lg:col-span-2 space-y-4">
+                    {/* Configurazione Regressione */}
+                    {selectedResource ? (
+                         <div className="bg-white p-4 rounded-lg shadow border border-gray-200 space-y-3">
+                            <h3 className="text-md font-semibold text-gray-700">Configure & Run Regression</h3>
+                            <p className="text-sm text-gray-600 pb-2 border-b">Selected: <span className='font-medium'>{selectedResource.name || selectedResource.original_filename}</span> (ID: {selectedResource.id})</p>
+                            {currentHeaders.length > 0 ? (
+                                <>
+                                    <div>
+                                        <label htmlFor="featureCol" className="block text-sm font-medium text-gray-700 mb-1">Feature (X) Column:</label>
+                                        <select id="featureCol" value={selectedFeatureCol} onChange={(e) => setSelectedFeatureCol(e.target.value)} className="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm bg-white focus:ring-indigo-500 focus:border-indigo-500">
+                                            <option value="">-- Select Feature --</option>
+                                            {currentHeaders.map(h => <option key={`f-${h}`} value={h}>{h}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="targetCol" className="block text-sm font-medium text-gray-700 mb-1">Target (Y) Column:</label>
+                                        <select id="targetCol" value={selectedTargetCol} onChange={(e) => setSelectedTargetCol(e.target.value)} className="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm bg-white focus:ring-indigo-500 focus:border-indigo-500">
+                                            <option value="">-- Select Target --</option>
+                                            {currentHeaders.filter(h => h !== selectedFeatureCol).map(h => <option key={`t-${h}`} value={h}>{h}</option>)}
+                                        </select>
+                                    </div>
+                                     <button onClick={handleRunRegression} disabled={!selectedFeatureCol || !selectedTargetCol || isTraining} className="w-full px-4 py-2 mt-3 bg-green-600 text-white rounded-md shadow hover:bg-green-700 disabled:opacity-50 flex items-center justify-center font-medium">
+                                         {isTraining && <Spinner small />} Run Regression
+                                     </button>
+                                </>
+                             ) : (<p className="text-sm text-red-500 italic">Headers not found in resource metadata. Cannot configure regression.</p>)}
+                         </div>
+                     ) : (
+                         <div className="bg-white p-6 rounded-lg shadow border border-gray-200 text-center text-gray-500 italic min-h-[150px] flex items-center justify-center">
+                             Select or upload a CSV resource to begin.
+                         </div>
+                      )}
+
+                    {/* Risultati Regressione */}
                      {regressionResult && (
-                         <div className="bg-white p-4 rounded shadow border">
-                            <h3 className="text-md font-semibold text-gray-700 mb-2 border-b pb-1">Regression Results</h3>
-                             <div className="grid grid-cols-2 gap-2 text-sm">
+                         <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
+                             <h3 className="text-md font-semibold text-gray-700 mb-2 border-b pb-1">Regression Results</h3>
+                             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
                                 <span>Slope (Coefficient):</span> <span className="font-mono text-right">{regressionResult.slope?.toFixed(5)}</span>
                                 <span>Intercept:</span> <span className="font-mono text-right">{regressionResult.intercept?.toFixed(5)}</span>
                                 <span>R-squared:</span> <span className="font-mono text-right">{regressionResult.r_squared?.toFixed(5)}</span>
                                 <span>Data Points Used:</span> <span className="font-mono text-right">{regressionResult.data_points_used}</span>
                              </div>
                              {/* Area Predizione */}
-                            <div className="border-t mt-4 pt-3 space-y-2">
-                                 <label htmlFor="predictValue" className="block text-sm font-medium text-gray-700">Predict {selectedTargetCol || 'Y'} for {selectedFeatureCol || 'X'} =</label>
+                            <div className="border-t mt-3 pt-3 space-y-2">
+                                 <label htmlFor="predictValue" className="block text-sm font-medium text-gray-700">Predict <span className='font-semibold'>{selectedTargetCol || 'Y'}</span> for <span className='font-semibold'>{selectedFeatureCol || 'X'}</span> =</label>
                                  <div className="flex items-center gap-2">
-                                    <input type="number" step="any" id="predictValue" value={predictValueInput} onChange={(e) => setPredictValueInput(e.target.value)} placeholder="Enter X value" className="flex-grow p-2 border border-gray-300 rounded-md shadow-sm"/>
-                                    <button onClick={handlePredict} disabled={isPredicting || predictValueInput === ''} className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center">
+                                    <input type="number" step="any" id="predictValue" value={predictValueInput} onChange={(e) => setPredictValueInput(e.target.value)} placeholder="Enter X value" className="flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"/>
+                                    <button onClick={handlePredict} disabled={isPredicting || predictValueInput === ''} className="px-4 py-2 bg-purple-600 text-white rounded-md shadow hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center">
                                          {isPredicting && <Spinner small />} Predict
                                      </button>
                                  </div>
-                                 {predictionResult !== null && (
-                                     <p className="text-md font-semibold text-indigo-700 mt-2">Predicted Value: <span className="font-mono">{predictionResult.toFixed(5)}</span></p>
-                                 )}
+                                 {predictionResult !== null && ( <p className="text-md font-semibold text-indigo-700 mt-2">Predicted Value: <span className="font-mono">{predictionResult.toFixed(5)}</span></p> )}
                             </div>
                          </div>
                      )}
 
                      {/* Area Dati e Modifica */}
-                     {selectedResourceId && (
-                         <div className="bg-white p-4 rounded shadow border">
-                             <div className="flex justify-between items-center mb-2">
-                                <h3 className="text-md font-semibold text-gray-700">Resource Data</h3>
-                                <button onClick={loadDataForEditing} disabled={isLoadingResources} className="text-sm text-indigo-600 hover:underline disabled:opacity-50 flex items-center">
-                                     {isLoadingResources && currentData === null && <Spinner small />} {currentData ? 'Reload' : 'Load'} Data for View/Edit
+                     {selectedResource && (
+                         <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
+                              <div className="flex justify-between items-center mb-3">
+                                 <h3 className="text-md font-semibold text-gray-700">Data Preview / Edit</h3>
+                                 <button onClick={loadDataForEditing} disabled={isLoadingData} className="text-sm text-indigo-600 hover:underline disabled:opacity-50 flex items-center font-medium">
+                                     {isLoadingData && <Spinner small />} {currentData ? 'Reload Data' : 'Load Data to Edit'}
                                  </button>
                              </div>
-                             {isLoadingResources && currentData === null && <p className='text-sm text-center py-4 text-gray-500'>Loading data...</p>}
+                              {isLoadingData && <p className='text-sm text-center py-4 text-gray-500'>Loading data...</p>}
                              {currentData ? (
                                  <>
-                                     <EditableTable headers={selectedResourceHeaders} data={currentData} onDataChange={setCurrentData} />
-                                      <button onClick={handleSaveCopy} disabled={isSavingCopy} className="w-full px-4 py-2 mt-3 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center">
-                                         {isSavingCopy && <Spinner small />} Save Modified Data as New Resource
+                                     <EditableTable headers={currentHeaders} data={currentData} onDataChange={setCurrentData} />
+                                      <button onClick={handleSaveCopy} disabled={isSavingCopy} className="w-full px-4 py-2 mt-3 bg-blue-600 text-white rounded-md shadow hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center font-medium">
+                                         {isSavingCopy && <Spinner small />} Save Modified as New Resource
                                      </button>
                                  </>
-                             ) : (
-                                 <p className="text-sm text-gray-500 italic text-center py-4">{!isLoadingResources && "Click 'Load Data' to view or edit."}</p>
-                             )}
+                             ) : ( <p className="text-sm text-gray-500 italic text-center py-4">{!isLoadingData && "Click 'Load Data' to view or edit the table."}</p> )}
                          </div>
                      )}
-
-                     {/* Placeholder se nessuna risorsa selezionata */}
-                      {!selectedResourceId && !isLoadingResources && availableResources.length > 0 && (
-                         <div className="bg-white p-4 rounded shadow border text-center text-gray-500 italic">
-                             Select a resource from the list to view its headers and run regression.
-                         </div>
-                      )}
-
                 </div>
             </div>
+             {/* Modali non necessari qui */}
         </div>
     );
 };
