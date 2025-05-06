@@ -1,15 +1,41 @@
 // src/pages/RegressionPage.jsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
-import Papa from 'papaparse'; // Assicurati sia installato: npm install papaparse
-import { FaUpload, FaTable, FaSave, FaTimes, FaSpinner, FaInfoCircle, FaFileImage, FaFilePdf, FaFileCsv, FaFileWord, FaFileAlt, FaEdit, FaTrashAlt, FaDownload, FaTags, FaBrain, FaChartLine, FaListOl } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext'; // Verifica path
-import { listUserResources, uploadResource, getResourceDetails, deleteResource as deleteResourceManagerResource } from '../services/resourceManagerService'; // Verifica path
-import { runRegression, predictValue } from '../services/regressionService'; // Verifica path
+import Papa from 'papaparse';
+import { FaUpload, FaTable, FaSave, FaTimes, FaSpinner, FaInfoCircle, FaChartLine, FaFileImage, FaFilePdf, FaFileCsv, FaFileWord, FaFileAlt, FaEdit, FaTrashAlt, FaDownload, FaTags, FaBrain, FaListOl } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext';
+import { listUserResources, uploadResource, getResourceDetails, deleteResource as deleteResourceManagerResource } from '../services/resourceManagerService';
+import { runRegression, predictValue } from '../services/regressionService';
+import ResourceCard from '../components/ResourceCard';
 
-// Importa componenti esterni (se estratti)
-import ResourceCard from '../components/ResourceCard'; // Verifica path
-// import ResourceEditModal from '../components/ResourceEditModal'; // Non usato qui
+// --- IMPORT PER IL GRAFICO (AGGIORNATI) ---
+import { Scatter } from 'react-chartjs-2';
+import {
+    Chart as ChartJS,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Tooltip,
+    Legend,
+    Title,
+    ScatterController, // <-- AGGIUNTO
+    LineController     // <-- AGGIUNTO
+} from 'chart.js';
+
+// Registra i componenti Chart.js necessari (AGGIORNATO)
+ChartJS.register(
+    LinearScale,
+    PointElement,
+    LineElement,
+    Tooltip,
+    Legend,
+    Title,
+    ScatterController, // <-- AGGIUNTO
+    LineController     // <-- AGGIUNTO
+);
+
+// --- FINE IMPORT GRAFICO ---
+
 
 // --- Componenti UI Base (Definiti qui per autocontenimento) ---
 
@@ -69,28 +95,6 @@ const formatBytes = (bytes, decimals = 1) => {
     return value + ' ' + sizes[unitIndex];
 };
 
-
-const StorageUsageBar = ({ used = 0, limit = 1, label }) => {
-    const safeUsed = Number(used) || 0;
-    const safeLimit = Number(limit) || 1; // Evita divisione per zero
-    const percent = safeLimit > 0 ? Math.min(100, (safeUsed / safeLimit) * 100) : 0;
-    const usageText = `${formatBytes(safeUsed)} / ${formatBytes(safeLimit)}`;
-    const color = percent > 90 ? 'bg-red-600' : percent > 75 ? 'bg-yellow-500' : 'bg-indigo-600';
-
-    return (
-        <div className="my-4 p-4 bg-white rounded-md shadow border border-gray-200">
-             <div className="flex justify-between mb-1 text-sm font-medium text-gray-700">
-                <span className="font-semibold">{label || 'Storage Usage'}</span>
-                <span>{usageText} ({percent.toFixed(1)}%)</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700 overflow-hidden"> {/* Leggermente più alta */}
-                <div className={`${color} h-3 rounded-full transition-all duration-300`} style={{ width: `${percent}%` }}></div>
-            </div>
-        </div>
-    );
-};
-
-
 // Tabella Editabile Semplice
 const EditableTable = ({ headers, data, onDataChange }) => {
     if (!data || data.length === 0) return <p className="text-center text-gray-500 py-4 italic">No data loaded or available for editing.</p>;
@@ -98,12 +102,8 @@ const EditableTable = ({ headers, data, onDataChange }) => {
     const handleCellChange = (rowIndex, header, value) => {
         const newData = data.map((row, idx) => {
             if (idx === rowIndex) {
-                const numericValue = Number(value); // Tenta la conversione
-                return {
-                    ...row,
-                    // Mantieni stringa se non numero valido o vuoto, altrimenti usa numero
-                    [header]: isNaN(numericValue) || value === '' ? value : numericValue
-                };
+                const numericValue = Number(value);
+                return { ...row, [header]: isNaN(numericValue) || value === '' ? value : numericValue };
             }
             return row;
         });
@@ -129,10 +129,10 @@ const EditableTable = ({ headers, data, onDataChange }) => {
                                 <td key={`${rowIndex}-${header}`} className="px-1 py-0 whitespace-nowrap">
                                     <input
                                         type={typeof row[header] === 'number' ? 'number' : 'text'}
-                                        value={row[header] ?? ''} // Gestisci null/undefined come stringa vuota
+                                        value={row[header] ?? ''}
                                         onChange={(e) => handleCellChange(rowIndex, header, e.target.value)}
                                         className="w-full border-none focus:ring-1 focus:ring-indigo-300 p-1 rounded bg-transparent focus:bg-white text-sm"
-                                        step={typeof row[header] === 'number' ? 'any' : undefined} // Permetti decimali
+                                        step={typeof row[header] === 'number' ? 'any' : undefined}
                                     />
                                 </td>
                             ))}
@@ -156,8 +156,8 @@ const RegressionPage = () => {
     const [resourceError, setResourceError] = useState('');
 
     // Stato Dati Correnti
-    const [currentData, setCurrentData] = useState(null);
-    const [currentHeaders, setCurrentHeaders] = useState([]);
+    const [currentData, setCurrentData] = useState(null); // Dati CSV parsati (array di oggetti {x, y} per plot dopo regressione)
+    const [currentHeaders, setCurrentHeaders] = useState([]); // Headers della risorsa selezionata o dati caricati
     const [isLoadingData, setIsLoadingData] = useState(false);
 
     // Stato Upload
@@ -166,7 +166,7 @@ const RegressionPage = () => {
     // Stato Parametri/Risultati Regressione
     const [selectedFeatureCol, setSelectedFeatureCol] = useState('');
     const [selectedTargetCol, setSelectedTargetCol] = useState('');
-    const [regressionResult, setRegressionResult] = useState(null);
+    const [regressionResult, setRegressionResult] = useState(null); // { slope, intercept, ... }
     const [predictValueInput, setPredictValueInput] = useState('');
     const [predictionResult, setPredictionResult] = useState(null);
 
@@ -174,15 +174,9 @@ const RegressionPage = () => {
     const [isTraining, setIsTraining] = useState(false);
     const [isPredicting, setIsPredicting] = useState(false);
     const [isSavingCopy, setIsSavingCopy] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    const [warning, setWarning] = useState('');
-
-    // Stato Storage (preso da user context o default)
-     const [storageInfo, setStorageInfo] = useState({
-        used: user?.storage_used || 0, // Usa valore utente o 0
-        limit: user?.storage_limit || 1 * 1024 * 1024 * 1024 // Usa valore utente o 1GB
-    });
+    const [error, setError] = useState(''); // Errori generici pagina
+    const [success, setSuccess] = useState(''); // Messaggi successo generici
+    const [warning, setWarning] = useState(''); // Avvisi
 
     const pollingIntervals = useRef({});
 
@@ -203,27 +197,13 @@ const RegressionPage = () => {
          } catch (e) { console.error("URL build failed:", e); return null; }
     }, []);
 
-    // Aggiorna Storage Info da User Context
-     useEffect(() => {
-        // TODO: Implementa fetch storage info se non in user context
-        console.log("Fetched Storage Info (placeholder):", { used: user?.storage_used, limit: user?.storage_limit });
-        setStorageInfo({
-            used: user?.storage_used || 0, // Assumi 0 se non disponibile
-            limit: user?.storage_limit || 1 * 1024 * 1024 * 1024 // Default 1GB
-        });
-    }, [user]);
-
     // Fetch Risorse CSV/Regressione
     const fetchRegressionResources = useCallback(async () => {
         if (!isAuthenticated) return;
         setIsLoadingResources(true);
         setResourceError('');
         try {
-            // Filtra per risorse CSV completate e con potential_uses corretto
-            const resources = await listUserResources({
-                mime_type: 'text/csv',
-                status: 'COMPLETED', // Chiedi solo quelle completate
-            });
+            const resources = await listUserResources({ mime_type: 'text/csv', status: 'COMPLETED' });
             const regressionReady = (Array.isArray(resources) ? resources : []).filter(r =>
                  Array.isArray(r.metadata?.potential_uses) &&
                  (r.metadata.potential_uses.includes('regression') || r.metadata.potential_uses.includes('clustering'))
@@ -242,11 +222,9 @@ const RegressionPage = () => {
         fetchRegressionResources();
     }, [fetchRegressionResources]);
 
-    // Logica Polling
+    // Logica Polling (Aggiorna availableResources e mostra warning/error)
     const startPolling = useCallback((resourceId) => {
-        if (pollingIntervals.current[resourceId]) {
-            clearInterval(pollingIntervals.current[resourceId]);
-        }
+        if (pollingIntervals.current[resourceId]) clearInterval(pollingIntervals.current[resourceId]);
         console.log(`Polling: Start for ${resourceId}`);
         pollingIntervals.current[resourceId] = setInterval(async () => {
             console.log(`Polling: Check for ${resourceId}`);
@@ -254,46 +232,34 @@ const RegressionPage = () => {
                 const details = await getResourceDetails(resourceId);
                 if (details.status !== 'PROCESSING') {
                     console.log(`Polling: Complete for ${resourceId} (${details.status})`);
-                    clearInterval(pollingIntervals.current[resourceId]);
-                    delete pollingIntervals.current[resourceId];
-                    // Aggiorna stato upload
+                    clearInterval(pollingIntervals.current[resourceId]); delete pollingIntervals.current[resourceId];
                     setUploadFilesInfo(prev => prev.map(f => f.resourceId === resourceId ? {...f, status: details.status.toLowerCase(), error: details.error_message} : f));
 
                     const isRegressionReady = details.status === 'COMPLETED' && Array.isArray(details.metadata?.potential_uses) &&
                         (details.metadata.potential_uses.includes('regression') || details.metadata.potential_uses.includes('clustering'));
 
-                    if (isRegressionReady) {
-                        // Aggiungi/Aggiorna lista risorse disponibili
+                    if(isRegressionReady) {
                         setAvailableResources(prev => {
                             const index = prev.findIndex(r => r.id === details.id);
                             if (index > -1) return prev.map(r => r.id === details.id ? details : r);
                             else return [details, ...prev];
                         });
-                         // Aggiorna storage solo se completato con successo
-                        setStorageInfo(prev => ({...prev, used: Math.max(0, prev.used + (details.size || 0))}));
-                        // Non mostrare warning se è adatto
+                        // TODO: Aggiorna storage info
                     } else {
-                        // Rimuovi dalla lista se non adatto o fallito
-                        setAvailableResources(prev => prev.filter(r => r.id !== details.id));
-                        if (details.status === 'COMPLETED') {
-                             setWarning(`File "${details.name || details.original_filename}" processed, but may not be suitable for regression/clustering.`);
-                        } else if (details.status === 'FAILED') {
-                             setError(`Processing failed for "${details.name || details.original_filename}".`);
-                        }
+                         setAvailableResources(prev => prev.filter(r => r.id !== details.id));
+                         if (details.status === 'COMPLETED') setWarning(`File "${details.name || details.original_filename}" processed, but may not be suitable for regression/clustering.`);
+                         else if (details.status === 'FAILED') setError(`Processing failed for "${details.name || details.original_filename}".`);
                     }
                 }
             } catch (error) {
                 console.error(`Polling: Error for ${resourceId}:`, error);
                 const isNotFound = error.response?.status === 404;
-                clearInterval(pollingIntervals.current[resourceId]);
-                delete pollingIntervals.current[resourceId];
+                clearInterval(pollingIntervals.current[resourceId]); delete pollingIntervals.current[resourceId];
                 setUploadFilesInfo(prev => prev.map(f => f.resourceId === resourceId ? {...f, status: 'failed', error: isNotFound ? 'Resource not found' : 'Polling failed'} : f));
-                if (isNotFound) {
-                    setAvailableResources(prev => prev.filter(r => r.id !== resourceId));
-                }
+                if (isNotFound) setAvailableResources(prev => prev.filter(r => r.id !== resourceId));
             }
-        }, 7000); // Intervallo polling
-    }, []); // Dipendenze vuote
+        }, 7000);
+    }, []);
 
     useEffect(() => { // Cleanup Polling
         const intervals = pollingIntervals.current;
@@ -305,14 +271,13 @@ const RegressionPage = () => {
         setError(''); setSuccess(''); setWarning('');
         let currentUploadErrors = [];
         fileRejections.forEach((rej) => rej.errors.forEach(err => currentUploadErrors.push(`${rej.file.name}: ${err.message}`)));
-        const filesToUpload = []; let cumulativeSize = 0;
+        const filesToUpload = [];
         acceptedFiles.forEach(file => {
             const fileId = `${file.name}-${file.size}-${file.lastModified}`;
             const maxSize = 15 * 1024 * 1024;
             if (file.size > maxSize) { currentUploadErrors.push(`${file.name}: Exceeds size limit (${formatBytes(maxSize)}).`); return; }
-            // Rimuoviamo il check dello storage qui perché storageInfo.used potrebbe non essere aggiornato istantaneamente
-            // if (storageInfo.used + cumulativeSize + file.size > storageInfo.limit) { currentUploadErrors.push(`${file.name}: Upload exceeds available storage.`); return; }
-            cumulativeSize += file.size;
+            // TODO: Re-enable storage check if needed and storageInfo is reliable
+            // if (storageInfo.used + file.size > storageInfo.limit) { currentUploadErrors.push(`${file.name}: Upload exceeds available storage.`); return; }
             filesToUpload.push({ fileId, file, progress: 0, status: 'pending', error: null });
         });
         if (currentUploadErrors.length > 0) setError(`Upload issues:\n- ${currentUploadErrors.join('\n- ')}`);
@@ -320,7 +285,7 @@ const RegressionPage = () => {
              setUploadFilesInfo(prev => [...filesToUpload, ...prev]);
              filesToUpload.forEach(item => uploadFileToResourceManager(item));
         }
-    }, [startPolling, storageInfo]); // Tolto storageInfo.used/limit dalle dipendenze dirette
+    }, [startPolling/*, storageInfo*/]); // Rimosso dependency da storageInfo per ora
 
     const uploadFileToResourceManager = async (uploadItem) => {
         const { fileId, file } = uploadItem;
@@ -334,7 +299,7 @@ const RegressionPage = () => {
                  }
             });
              setUploadFilesInfo(prev => prev.map(f => f.fileId === fileId ? { ...f, status: 'processing', progress: 100, resourceId: response.id, error: null } : f));
-             setSuccess(`File "${file.name}" uploaded (ID: ${response.id}). Processing...`);
+             setSuccess(`File "${file.name}" (ID: ${response.id}) uploaded. Processing...`);
              startPolling(response.id);
         } catch (error) {
             const errorMsg = error.response?.data?.error || error.message || 'Upload failed';
@@ -375,7 +340,7 @@ const RegressionPage = () => {
                      if (results.errors.length) throw new Error(results.errors.map(e=>e.message).join(', '));
                      if (!results.data || results.data.length === 0) throw new Error("CSV file is empty or could not be parsed correctly.");
                      setCurrentData(results.data); setCurrentHeaders(results.meta.fields || (results.data.length > 0 ? Object.keys(results.data[0]) : []));
-                     setSuccess("Data loaded successfully.");
+                     setSuccess("Data loaded for editing.");
                  }, error: (err) => { throw new Error(`CSV Parsing error: ${err.message}`); }
             });
         } catch (err) { setError(err.message || 'Failed to load or parse resource data.'); setCurrentData(null); setCurrentHeaders([]);
@@ -386,10 +351,33 @@ const RegressionPage = () => {
     const handleRunRegression = async () => {
         if (!selectedResource || !selectedFeatureCol || !selectedTargetCol) { setError('Select resource & columns.'); return; }
         setIsTraining(true); setError(''); setSuccess(''); setRegressionResult(null); setPredictionResult(null);
+        // --- Dati per il grafico (pulizia): Assicurati che currentData sia caricato PRIMA ---
+        let dataForPlot = [];
+        if(currentData){ // Se i dati sono già caricati per l'edit
+            dataForPlot = currentData
+                .map(row => ({ x: row[selectedFeatureCol], y: row[selectedTargetCol] }))
+                .filter(point => typeof point.x === 'number' && typeof point.y === 'number' && !isNaN(point.x) && !isNaN(point.y));
+        } else {
+            // Se i dati non sono caricati, non possiamo plottare subito, ma possiamo eseguire la regressione
+            console.warn("Data not loaded for plotting, running regression only.");
+        }
+        // --- Fine dati per grafico ---
         try {
             const result = await runRegression({ resource_id: selectedResource.id, feature_column: selectedFeatureCol, target_column: selectedTargetCol });
-            setRegressionResult(result); setSuccess(result.message || 'Regression successful!');
-        } catch (err) { setError(err.response?.data?.error || err.message || 'Regression failed.');
+            setRegressionResult(result);
+            // Aggiorna currentData con i dati puliti usati PER IL PLOT, SOLO se non erano stati caricati prima
+             if (!currentData && result.data_points_used > 0) {
+                 // Idealmente il backend restituirebbe i punti usati.
+                 // Se non lo fa, non possiamo aggiornare currentData per il plot qui facilmente.
+                 // Dovremmo richiamare loadDataForEditing e poi filtrare.
+                 // Per ora, lascio currentData a null se non caricato manualmente.
+                 console.log("Regression done, but data for plot not pre-loaded.");
+             } else if (currentData) {
+                 // Se erano caricati, assicurati che currentData contenga i punti {x,y} puliti
+                 setCurrentData(dataForPlot);
+             }
+            setSuccess(result.message || 'Regression successful!');
+        } catch (err) { setError(err.response?.data?.error || err.message || 'Regression failed.'); setCurrentData(null); // Resetta dati su errore
         } finally { setIsTraining(false); }
     };
 
@@ -406,7 +394,7 @@ const RegressionPage = () => {
 
     // Salvataggio Copia Modificata
     const handleSaveCopy = async () => {
-        if (!currentData || !selectedResource) { setError('No modified data to save.'); return; }
+        if (!currentData || !selectedResource) { setError('Load and modify data before saving a copy.'); return; }
         const originalResource = selectedResource;
         setIsSavingCopy(true); setError(''); setSuccess('');
         try {
@@ -418,11 +406,45 @@ const RegressionPage = () => {
             formData.append('description', `Modified copy of ${originalResource.original_filename} (ID: ${originalResource.id})`);
             const response = await uploadResource(formData);
             setSuccess(`Modified copy uploaded (ID: ${response.id}). Processing...`);
-            setCurrentData(null); // Resetta dati modificati dopo salvataggio
+            //setCurrentData(null); // Opzionale: Resetta tabella dopo salvataggio
             startPolling(response.id);
         } catch (err) { setError(err.response?.data?.error || 'Failed to save modified copy.');
         } finally { setIsSavingCopy(false); }
     };
+
+    // --- Preparazione Dati e Opzioni per Chart.js ---
+    const chartDataAndOptions = useMemo(() => {
+        // Mostra grafico solo se c'è risultato E currentData (che contiene i punti {x,y} puliti)
+        if (!regressionResult || !currentData || currentData.length === 0 || !selectedFeatureCol || !selectedTargetCol) {
+            return null;
+        }
+        // currentData ora dovrebbe contenere {x, y} puliti (impostato in handleRunRegression)
+        const scatterData = currentData; // Già nel formato {x, y}
+
+        const { slope, intercept } = regressionResult;
+        const xValues = scatterData.map(p => p.x);
+        const minX = Math.min(...xValues);
+        const maxX = Math.max(...xValues);
+        // Aggiungi un piccolo margine per la linea se minX === maxX
+        const lineMinX = minX === maxX ? minX - 1 : minX;
+        const lineMaxX = minX === maxX ? maxX + 1 : maxX;
+        const regressionLineData = [
+            { x: lineMinX, y: slope * lineMinX + intercept },
+            { x: lineMaxX, y: slope * lineMaxX + intercept },
+        ];
+
+        const data = {
+            datasets: [
+                { label: `Data Points`, data: scatterData, backgroundColor: 'rgba(75, 192, 192, 0.6)', type: 'scatter', pointRadius: 4 },
+                { label: `Regression Line (R²: ${regressionResult.r_squared?.toFixed(3)})`, data: regressionLineData, borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 2, fill: false, tension: 0, type: 'line', pointRadius: 0 },
+            ],
+        };
+        const options = {
+            responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }, title: { display: true, text: `Regression: ${selectedTargetCol} vs ${selectedFeatureCol}`, font: { size: 16 } }, tooltip: { callbacks: { label: (ctx) => ctx.parsed.y !== null ? `(${ctx.parsed.x.toFixed(2)}, ${ctx.parsed.y.toFixed(2)})` : '' } } },
+            scales: { x: { type: 'linear', position: 'bottom', title: { display: true, text: selectedFeatureCol, font: { weight: 'bold' } } }, y: { type: 'linear', position: 'left', title: { display: true, text: selectedTargetCol, font: { weight: 'bold' } } } }
+        };
+        return { data, options };
+    }, [regressionResult, currentData, selectedFeatureCol, selectedTargetCol]);
 
     // --- Rendering ---
     return (
@@ -459,8 +481,7 @@ const RegressionPage = () => {
                                             {(f.status === 'processing') && (<span className='text-blue-600 flex items-center'><Spinner small /> Processing...</span>)}
                                             {(f.status === 'pending') && (<span className='text-gray-500'>Waiting...</span>)}
                                             {(f.status === 'failed') && (<span className='text-red-700 truncate flex-shrink min-w-0' title={f.error}>Error: {f.error || 'Failed'}</span>)}
-                                            {/* Bottone per Rimuovere dalla lista UI */}
-                                             {(f.status === 'failed' || f.status === 'completed') && ( // Permetti rimozione se finito (anche fallito)
+                                             {(f.status === 'failed' || f.status === 'completed') && (
                                                  <button onClick={() => setUploadFilesInfo(prev => prev.filter(item => item.fileId !== f.fileId))} className='text-gray-400 hover:text-red-500 ml-2' title="Dismiss"><FaTimes size={12}/></button>
                                              )}
                                         </div>
@@ -492,7 +513,7 @@ const RegressionPage = () => {
                      </div>
                 </div>
 
-                {/* Colonna Destra: Configurazione, Risultati, Dati */}
+                {/* Colonna Destra: Configurazione, Risultati, Grafico, Dati */}
                 <div className="lg:col-span-2 space-y-4">
                     {/* Configurazione Regressione */}
                     {selectedResource ? (
@@ -527,7 +548,7 @@ const RegressionPage = () => {
                          </div>
                       )}
 
-                    {/* Risultati Regressione */}
+                    {/* Risultati Regressione e Predizione */}
                      {regressionResult && (
                          <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
                              <h3 className="text-md font-semibold text-gray-700 mb-2 border-b pb-1">Regression Results</h3>
@@ -537,7 +558,6 @@ const RegressionPage = () => {
                                 <span>R-squared:</span> <span className="font-mono text-right">{regressionResult.r_squared?.toFixed(5)}</span>
                                 <span>Data Points Used:</span> <span className="font-mono text-right">{regressionResult.data_points_used}</span>
                              </div>
-                             {/* Area Predizione */}
                             <div className="border-t mt-3 pt-3 space-y-2">
                                  <label htmlFor="predictValue" className="block text-sm font-medium text-gray-700">Predict <span className='font-semibold'>{selectedTargetCol || 'Y'}</span> for <span className='font-semibold'>{selectedFeatureCol || 'X'}</span> =</label>
                                  <div className="flex items-center gap-2">
@@ -547,6 +567,18 @@ const RegressionPage = () => {
                                      </button>
                                  </div>
                                  {predictionResult !== null && ( <p className="text-md font-semibold text-indigo-700 mt-2">Predicted Value: <span className="font-mono">{predictionResult.toFixed(5)}</span></p> )}
+                            </div>
+                         </div>
+                     )}
+
+                    {/* Grafico Scatter Plot */}
+                    {chartDataAndOptions && !isTraining && (
+                         <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
+                            <h3 className="text-md font-semibold text-gray-700 mb-3 flex items-center">
+                                <FaChartLine className="mr-2 text-indigo-600"/>Regression Plot
+                            </h3>
+                             <div className="relative h-64 md:h-80 lg:h-96">
+                                <Scatter data={chartDataAndOptions.data} options={chartDataAndOptions.options} />
                             </div>
                          </div>
                      )}
@@ -573,7 +605,7 @@ const RegressionPage = () => {
                      )}
                 </div>
             </div>
-             {/* Modali non necessari qui */}
+             {/* Modali rimossi */}
         </div>
     );
 };
