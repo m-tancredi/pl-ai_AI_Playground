@@ -1,15 +1,12 @@
-from django.contrib import admin
+# from django.contrib import admin # Non più necessario
 from django.urls import path, include
-from django.conf import settings
-from django.conf.urls.static import static
+# from django.conf import settings # Non necessario senza media/static qui
+# from django.conf.urls.static import static # Non necessario
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    # Includi le URL dell'app datasets_api sotto il prefisso /api/
-    # Useremo /api/regression/ in Nginx, ma internamente qui basta /api/
-    path('api/', include('datasets_api.urls')),
+    # path('admin/', admin.site.urls), # Rimosso
+    # Include le URL della nuova app regression_api
+    path('api/regression/', include('regression_api.urls')),
 ]
 
-# Servi i file media durante lo sviluppo (DEBUG=True)
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Non serve più servire media/static da qui
