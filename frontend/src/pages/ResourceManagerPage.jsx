@@ -118,17 +118,41 @@ const ResourceManagerPage = () => {
     const fileInputRef = useRef(null); // Per resettare input file se necessario
 
     // Funzione Helper per costruire URL completo
-    const buildFullImageUrl = useCallback((relativeUrl) => {
-         if (!relativeUrl || typeof relativeUrl !== 'string') return null;
-         try {
-             const cleanRelativeUrl = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`;
-             // Assumiamo che frontend e API gateway siano sulla stessa origine
-             return `${window.location.origin}${cleanRelativeUrl}`;
-         } catch (e) {
-             console.error("URL build failed for:", relativeUrl, e);
-             return null; // Restituisci null in caso di errore
-         }
-    }, []); // Nessuna dipendenza esterna
+    const buildFullImageUrl = useCallback((urlOrPath) => {
+        if (!urlOrPath) return null;
+    
+        // Controlla se è già un URL completo (inizia con http:// o https://)
+        if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
+            // Potrebbe essere l'URL errato senza porta? Prova a correggerlo.
+            try {
+                const urlObj = new URL(urlOrPath);
+                // Se l'host è localhost e manca la porta, aggiungi quella del frontend
+                if (urlObj.hostname === 'localhost' && !urlObj.port && window.location.port) {
+                    // Rimuovi 'http://localhost' e ricostruisci
+                    const path = urlObj.pathname + urlObj.search + urlObj.hash;
+                    return `${window.location.origin}${path}`;
+                 }
+                 // Altrimenti, assumi che sia un URL esterno valido o già corretto
+                 return urlOrPath;
+            } catch (e) {
+                 console.error("Error parsing potential full URL:", urlOrPath, e);
+                 return null; // Non valido
+            }
+        }
+        // Se è un path relativo (inizia con /media/)
+        else if (urlOrPath.startsWith('/media/')) {
+            return `${window.location.origin}${urlOrPath}`;
+        }
+        // Se è un path relativo senza / iniziale (improbabile dal backend Django)
+        else if (!urlOrPath.startsWith('/')) {
+             return `${window.location.origin}/${urlOrPath}`;
+        }
+        // Altrimenti, non sappiamo come gestirlo
+        else {
+             console.warn("Unrecognized URL/path format:", urlOrPath);
+             return urlOrPath; // Restituisci com'è, sperando funzioni
+        }
+    }, []); // Dipende solo da window.location
 
     // --- Funzione per Fetch Storage Info ---
     const fetchStorageInfo = useCallback(async () => {

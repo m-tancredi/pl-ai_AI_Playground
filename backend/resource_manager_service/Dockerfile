@@ -16,7 +16,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     zlib1g-dev \
     libmagic1 \
+    git \
+    libc-dev \
+    autoconf \   
+    automake \   
+    libtool \    
+    pkg-config \ 
     && rm -rf /var/lib/apt/lists/*
+
 
 # Installa dipendenze Python
 COPY requirements.txt /app/
