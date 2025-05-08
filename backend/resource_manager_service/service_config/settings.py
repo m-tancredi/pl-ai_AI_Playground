@@ -203,7 +203,10 @@ CORS_ALLOW_CREDENTIALS = True # Permette invio cookie/auth headers da frontend
 
 # --- Celery Configuration ---
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'amqp://guest:guest@rabbitmq:5672//') # Default punta al container RabbitMQ
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'amqp://guest:guest@rabbitmq:5672//')
+CELERY_DEFAULT_QUEUE = 'resource_tasks'
+CELERY_TASK_DEFAULT_QUEUE = 'resource_tasks' # Ridondante ma sicuro
+
 CELERY_ACCEPT_CONTENT = ['json'] # Formato messaggi
 CELERY_TASK_SERIALIZER = 'json' # Serializzazione task
 CELERY_RESULT_SERIALIZER = 'json' # Serializzazione risultati (se usati)

@@ -9,8 +9,9 @@ import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import RegressionPage from './pages/RegressionPage';
 import ImageGeneratorPage from './pages/ImageGeneratorPage';
-// Importa la nuova pagina
-import ResourceManagerPage from './pages/ResourceManagerPage'; // <-- NUOVO IMPORT
+import ResourceManagerPage from './pages/ResourceManagerPage';
+import ImageClassifierPage from './pages/ImageClassifierPage';
+
 
 function App() {
   return (
@@ -28,7 +29,8 @@ function App() {
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/regression" element={<RegressionPage />} />
                 <Route path="/image-generator" element={<ImageGeneratorPage />} />
-                <Route path="/resources" element={<ResourceManagerPage />} /> {/* <-- NUOVA ROUTE */}
+                <Route path="/resources" element={<ResourceManagerPage />} />
+                <Route path="/image-classifier" element={<ImageClassifierPage />} />
              </Route>
 
           {/* Fallback route */}

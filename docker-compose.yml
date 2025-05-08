@@ -16,6 +16,8 @@ volumes:
   resource_media_data:     # Resource Manager Service Media
   # Broker Volume
   rabbitmq_data:
+  classifier_db_data: # <-- NUOVO Volume DB Classifier
+  models_storage_data: # <-- NUOVO Volume per Modelli ML
 
 secrets:
   openai_api_key_secret:
@@ -131,6 +133,40 @@ services:
     # RIMOSSO healthcheck basato su /admin (o sostituire con uno valido)
     restart: unless-stopped
 
+  classifier_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-classifier-db
+    volumes: [classifier_db_data:/var/lib/postgresql/data]
+    environment:
+      POSTGRES_USER: ${CLASSIFIER_DB_USER:-classifier_user}
+      POSTGRES_PASSWORD: ${CLASSIFIER_DB_PASSWORD:-classifier_password}
+      POSTGRES_DB: ${CLASSIFIER_DB_NAME:-classifier_db}
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-classifier_user} -d $${POSTGRES_DB:-classifier_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+    # --- NUOVO Classifier Service (Web) ---
+  image_classifier_service: # Questo è il web server
+    build: { context: ./backend/image_classifier_service }
+    container_name: pl-ai-classifier-web # Nome corretto
+    env_file: [./backend/image_classifier_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=web] # Dice all'entrypoint di avviare solo il web
+    volumes:
+      - ./backend/image_classifier_service:/app
+      - models_storage_data:/app/models_storage
+    expose: ["8004"]
+    networks: [pl-ai-network]
+    depends_on:
+      classifier_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    # healthcheck: { ... } # Opzionale
+    restart: unless-stopped
+
   pl_ai_image_generator_service:
     build: { context: ./backend/image_generator_service }
     container_name: pl-ai-image-generator-service
@@ -175,7 +211,7 @@ services:
     build: { context: ./backend/resource_manager_service }
     container_name: pl-ai-resource-manager-worker
     entrypoint: ""
-    command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO"]
+    command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "resource_tasks"]
     env_file: [./backend/resource_manager_service/.env]
     volumes:
       - ./backend/resource_manager_service:/app
@@ -183,6 +219,26 @@ services:
     networks: [pl-ai-network]
     depends_on:
       resource_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+
+    # --- NUOVO Classifier Service (Worker) ---
+  image_classifier_worker: # Questo è il worker Celery per il classifier
+    build: { context: ./backend/image_classifier_service } # Usa la stessa immagine del web
+    container_name: pl-ai-classifier-worker # Nome corretto
+    # --- CORREZIONE FONDAMENTALE ---
+    # Sovrascrivi entrypoint e definisci il comando per avviare il worker
+    # di QUESTO servizio (che usa service_config come nome progetto)
+    entrypoint: ""
+    command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "classifier_tasks", "-c", "1"]
+    # --- FINE CORREZIONE ---
+    env_file: [./backend/image_classifier_service/.env] # Stesse variabili env
+    volumes: # Accesso a codice e storage modelli
+      - ./backend/image_classifier_service:/app
+      - models_storage_data:/app/models_storage
+    networks: [pl-ai-network]
+    depends_on: # Dipende da DB e Broker
+      classifier_db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
     restart: unless-stopped
 
@@ -194,6 +250,8 @@ services:
     networks: [pl-ai-network]
     restart: unless-stopped
 
+  
+
   # --- API Gateway / Reverse Proxy ---
   nginx:
     build: { context: ./nginx }
@@ -204,10 +262,11 @@ services:
       # Rimosso mount regression_media_data
       - image_generator_media:/media_images:ro
       - resource_media_data:/media_resources:ro
-    depends_on:
+    depends_on: # Assicurati che dipenda da TUTTI i web services
       auth_service: { condition: service_healthy }
-      pl_ai_regression_service: { condition: service_started } # Aggiornato a started
-      pl_ai_image_generator_service: { condition: service_healthy } # O started
+      pl_ai_regression_service: { condition: service_started } # o healthy
+      pl_ai_image_generator_service: { condition: service_healthy } # o started
       resource_manager_service: { condition: service_healthy }
+      image_classifier_service: { condition: service_started } # o healthy
       frontend: { condition: service_started }
     restart: unless-stopped

@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE folders
+.idea/
+.vscode/
+
+# Environment
+.env
+venv/
+env/
+.venv/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Django specific
+*.log
+*.sqlite3 # Dummy db
+static/
+mediafiles/ # If used temporarily (unlikely here)
+models_storage/ # Managed by volume
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+wheels/
+*.egg
