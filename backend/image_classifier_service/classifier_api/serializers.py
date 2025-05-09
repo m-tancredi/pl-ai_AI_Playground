@@ -104,11 +104,14 @@ class PredictResponseSerializer(serializers.Serializer):
     status = serializers.CharField(read_only=True, default="success")
 
 
-# --- Serializer per Gestione Modelli ---
+# pl-ai/backend/image_classifier_service/classifier_api/serializers.py
+# ... (altri import e serializer come prima) ...
 
 class TrainedModelSerializer(serializers.ModelSerializer):
-    """Serializer per listare e vedere dettagli dei modelli addestrati."""
-    # Non esponiamo i path dei file direttamente
+    """Serializer per listare, vedere dettagli e AGGIORNARE i modelli addestrati."""
+    # owner_id è sempre read-only, impostato dal sistema
+    owner_id = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = TrainedModel
         fields = [
@@ -117,4 +120,10 @@ class TrainedModelSerializer(serializers.ModelSerializer):
             'error_message', 'created_at', 'training_started_at',
             'training_finished_at'
         ]
-        read_only_fields = fields # In sola lettura per la lista/dettaglio
+        # Campi che non devono MAI essere modificati direttamente tramite API dopo la creazione
+        read_only_fields = [
+            'id', 'owner_id', 'status', 'class_names', 'accuracy', 'loss',
+            'training_params', 'error_message', 'created_at',
+            'training_started_at', 'training_finished_at'
+        ]
+        # 'name' e 'description' sono implicitamente scrivibili (possono essere aggiornati con PATCH)

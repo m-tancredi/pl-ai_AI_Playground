@@ -204,8 +204,28 @@ class PredictView(views.APIView):
              return Response({"error": "An unexpected error occurred during prediction."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# --- ViewSet per Gestione Modelli (Opzionale) ---
-class TrainedModelViewSet(viewsets.ReadOnlyModelViewSet):
+# pl-ai/backend/image_classifier_service/classifier_api/views.py
+# ... (altri import) ...
+
+class TrainedModelViewSet(viewsets.ModelViewSet): # Assicurati sia ModelViewSet
+    """
+    Permette di listare, vedere dettagli, aggiornare (PATCH per nome/descrizione)
+    e cancellare i modelli addestrati dall'utente.
+    """
+    serializer_class = TrainedModelSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTCustomAuthentication]
+    lookup_field = 'id'
+    # Definisci i metodi permessi: GET (list, retrieve), PATCH (update), DELETE (destroy)
+    http_method_names = ['get', 'patch', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        user = self.request.user
+        return TrainedModel.objects.filter(owner_id=user.id).order_by('-created_at')
+
+    # Non serve perform_create, la creazione avviene tramite /train/
+    # perform_update (per PATCH) è gestito da ModelViewSet e usa il serializer
+    # perform_destroy (per DELETE) è gestito da ModelViewSet e chiama .delete() del modello
     """ Permette di listare e vedere dettagli dei modelli addestrati dall'utente. """
     serializer_class = TrainedModelSerializer
     permission_classes = [permissions.IsAuthenticated]

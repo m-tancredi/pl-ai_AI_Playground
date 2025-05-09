@@ -1,43 +1,60 @@
 // src/services/classifierService.js
-import apiClient from './apiClient'; // Your configured Axios instance
+import apiClient from './apiClient'; // Assicurati che il percorso sia corretto per la tua istanza Axios
 
-const API_CLASSIFIER_URL = '/api/classifier'; // Base URL for this service
+const API_CLASSIFIER_URL = '/api/classifier'; // Base URL per questo servizio (come definito in Nginx)
 
 /**
- * Sends training data to start the classifier training task.
- * @param {object} payload - { images: string[], labels: number[], class_names: string[], model_name?: string, epochs?: number, batch_size?: number }
- * @returns {Promise<object>} Promise resolving with { model_id, status, message }
+ * Invia i dati per l'addestramento di un nuovo modello di classificazione immagini.
+ * @param {object} payload - Oggetto contenente:
+ *   {
+ *     images: string[], // Array di immagini come stringhe base64 (con prefisso data:image/...)
+ *     labels: number[], // Array di etichette numeriche (0-based) corrispondenti alle immagini
+ *     class_names: string[], // Array dei nomi delle classi (l'indice corrisponde all'etichetta)
+ *     model_name?: string, // Nome opzionale per il modello
+ *     epochs?: number, // Numero opzionale di epoche
+ *     batch_size?: number // Dimensione opzionale del batch
+ *   }
+ * @returns {Promise<object>} Promise che risolve con la risposta iniziale dal backend,
+ *                            solitamente { model_id, status: "PENDING"|"TRAINING", message }.
  */
 export const trainClassifier = async (payload) => {
     try {
         const response = await apiClient.post(`${API_CLASSIFIER_URL}/train/`, payload);
-        return response.data; // Expects 202 Accepted with model ID and status
+        return response.data;
     } catch (error) {
         console.error("API Error training classifier:", error.response?.data || error.message);
-        throw error;
+        throw error; // Rilancia per gestione nel componente UI
     }
 };
 
 /**
- * Sends an image for prediction using a trained model.
- * @param {object} payload - { image: string (base64 data URL), model_id: string }
- * @returns {Promise<object>} Promise resolving with { model_id, predictions: Array<{label: string, confidence: number}>, status: string }
+ * Invia un'immagine per la classificazione usando un modello precedentemente addestrato.
+ * @param {object} payload - Oggetto contenente:
+ *   {
+ *     image: string, // Immagine come stringa base64 (con prefisso data:image/...)
+ *     model_id: string // UUID del modello addestrato da usare
+ *   }
+ * @returns {Promise<object>} Promise che risolve con i risultati della predizione,
+ *                            solitamente { model_id, predictions: Array<{label: string, confidence: number}>, status: "success" }.
  */
 export const predictImage = async (payload) => {
     try {
         const response = await apiClient.post(`${API_CLASSIFIER_URL}/predict/`, payload);
         return response.data;
     } catch (error) {
-        // Don't log every prediction error verbosely unless debugging
-        // console.error("API Error predicting image:", error.response?.data || error.message);
+        // Log meno verboso per le predizioni realtime per non floodare la console,
+        // a meno che non sia un errore significativo (es. 500)
+        if (error.response?.status >= 500 || !error.response) {
+             console.error("API Error predicting image:", error.response?.data || error.message);
+        }
         throw error;
     }
 };
 
 /**
- * Gets the status and details of a specific trained model.
- * @param {string} modelId - The UUID of the model.
- * @returns {Promise<object>} Promise resolving with the model details (including status).
+ * Ottiene lo stato e i dettagli di un modello di classificazione specifico.
+ * @param {string} modelId - L'UUID del modello.
+ * @returns {Promise<object>} Promise che risolve con i dettagli del modello (incluso status, accuracy, ecc.).
  */
 export const getModelStatus = async (modelId) => {
     try {
@@ -50,13 +67,14 @@ export const getModelStatus = async (modelId) => {
 };
 
 /**
- * Lists all models trained by the current user. (Optional)
- * @returns {Promise<Array>} Promise resolving with an array of model objects.
+ * Lista tutti i modelli di classificazione addestrati dall'utente corrente.
+ * @returns {Promise<Array>} Promise che risolve con un array di oggetti modello.
+ *                           (Adatta se il backend usa paginazione, es. response.data.results).
  */
 export const listUserModels = async () => {
     try {
         const response = await apiClient.get(`${API_CLASSIFIER_URL}/models/`);
-         // Adapt if backend uses pagination
+        // Se il backend usa la paginazione standard di DRF, i risultati sono in 'results'
         return response.data.results || response.data;
     } catch (error) {
         console.error("API Error listing user models:", error.response?.data || error.message);
@@ -65,14 +83,31 @@ export const listUserModels = async () => {
 };
 
 /**
- * Deletes a specific trained model. (Optional)
- * @param {string} modelId - The UUID of the model to delete.
- * @returns {Promise<void>} Promise resolving on success.
+ * Aggiorna i metadati (es. nome, descrizione) di un modello addestrato.
+ * @param {string} modelId - L'UUID del modello.
+ * @param {object} metadata - Oggetto contenente i campi da aggiornare (es. { name: "Nuovo Nome", description: "Nuova Desc." }).
+ * @returns {Promise<object>} Promise che risolve con i dati aggiornati del modello.
+ */
+export const updateModelMetadata = async (modelId, metadata) => {
+    try {
+        // Usa PATCH per aggiornamenti parziali
+        const response = await apiClient.patch(`${API_CLASSIFIER_URL}/models/${modelId}/`, metadata);
+        return response.data;
+    } catch (error) {
+        console.error(`API Error updating model metadata for ID ${modelId}:`, error.response?.data || error.message);
+        throw error;
+    }
+};
+
+/**
+ * Elimina un modello di classificazione addestrato.
+ * @param {string} modelId - L'UUID del modello da eliminare.
+ * @returns {Promise<void>} Promise che risolve al successo (nessun contenuto restituito).
  */
 export const deleteModel = async (modelId) => {
     try {
         await apiClient.delete(`${API_CLASSIFIER_URL}/models/${modelId}/`);
-        // Expects 204 No Content on success
+        // DELETE tipicamente restituisce 204 No Content in caso di successo
     } catch (error) {
         console.error(`API Error deleting model ID ${modelId}:`, error.response?.data || error.message);
         throw error;
