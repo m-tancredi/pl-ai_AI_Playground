@@ -162,11 +162,11 @@ REST_FRAMEWORK = {
 
 # Simple JWT Settings
 # https://django-rest-framework-simplejwt.readthedocs.io/en/latest/settings.html
-ACCESS_TOKEN_LIFETIME_MINUTES = int(os.getenv('ACCESS_TOKEN_LIFETIME_MINUTES', 5))
+ACCESS_TOKEN_LIFETIME_DAYS = int(os.getenv('ACCESS_TOKEN_LIFETIME_DAYS', 5))
 REFRESH_TOKEN_LIFETIME_DAYS = int(os.getenv('REFRESH_TOKEN_LIFETIME_DAYS', 1))
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=ACCESS_TOKEN_LIFETIME_MINUTES),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=ACCESS_TOKEN_LIFETIME_DAYS),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=REFRESH_TOKEN_LIFETIME_DAYS),
     "ROTATE_REFRESH_TOKENS": True, # Important: Generate new refresh token on refresh
     "BLACKLIST_AFTER_ROTATION": True, # Blacklist old refresh token after rotation
