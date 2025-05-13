@@ -1,0 +1,54 @@
+// src/services/dataAnalysisService.js
+import apiClient from './apiClient'; // La tua istanza Axios configurata
+
+const API_ANALYSIS_URL = '/api/analysis'; // Prefisso API come definito in Nginx
+
+/**
+ * Invia dati (ID risorsa o file) per ottenere suggerimenti di algoritmi.
+ * @param {FormData|object} payload - Se FormData, deve contenere 'file'.
+ *                                    Se oggetto, deve contenere 'resource_id'.
+ *                                    Può contenere 'task_type_preference'.
+ * @returns {Promise<object>} Promise che risolve con { analysis_session_id, dataset_preview, suggestions }
+ */
+export const suggestAlgorithm = async (payload) => {
+    try {
+        const headers = payload instanceof FormData
+            ? { 'Content-Type': 'multipart/form-data' }
+            : { 'Content-Type': 'application/json' };
+        const response = await apiClient.post(`${API_ANALYSIS_URL}/suggest-algorithm/`, payload, { headers });
+        return response.data;
+    } catch (error) {
+        console.error("API Error suggesting algorithm:", error.response?.data || error.message);
+        throw error;
+    }
+};
+
+/**
+ * Avvia un job di analisi asincrono.
+ * @param {object} payload - { analysis_session_id, selected_algorithm_key, selected_features, selected_target, task_type, algorithm_params? }
+ * @returns {Promise<object>} Promise che risolve con { analysis_job_id, status, message }
+ */
+export const runAnalysis = async (payload) => {
+    try {
+        const response = await apiClient.post(`${API_ANALYSIS_URL}/run/`, payload);
+        return response.data;
+    } catch (error) {
+        console.error("API Error running analysis:", error.response?.data || error.message);
+        throw error;
+    }
+};
+
+/**
+ * Ottiene lo stato e i risultati di un job di analisi.
+ * @param {string} jobId - L'UUID del job di analisi.
+ * @returns {Promise<object>} Promise che risolve con i dettagli del AnalysisJob.
+ */
+export const getAnalysisResults = async (jobId) => {
+    try {
+        const response = await apiClient.get(`${API_ANALYSIS_URL}/results/${jobId}/`);
+        return response.data;
+    } catch (error) {
+        console.error(`API Error getting analysis results for job ID ${jobId}:`, error.response?.data || error.message);
+        throw error;
+    }
+};

@@ -11,7 +11,7 @@ import RegressionPage from './pages/RegressionPage';
 import ImageGeneratorPage from './pages/ImageGeneratorPage';
 import ResourceManagerPage from './pages/ResourceManagerPage';
 import ImageClassifierPage from './pages/ImageClassifierPage';
-
+import DataAnalysisPage from './pages/DataAnalysisPage';
 
 function App() {
   return (
@@ -31,15 +31,22 @@ function App() {
                 <Route path="/image-generator" element={<ImageGeneratorPage />} />
                 <Route path="/resources" element={<ResourceManagerPage />} />
                 <Route path="/image-classifier" element={<ImageClassifierPage />} />
+                <Route path="/data-analysis" element={<DataAnalysisPage />} />
              </Route>
 
           {/* Fallback route */}
-          <Route path="*" element={<div>404 Not Found</div>} />
+          <Route path="*" element={
+            <div className="text-center py-10">
+              <h1 className="text-4xl font-bold text-red-600">404</h1>
+              <p className="text-xl text-gray-700">Page Not Found</p>
+            </div>
+          } />
         </Routes>
       </main>
-      {/* ... Footer ... */}
+      <footer className="bg-gray-800 text-white text-center p-4 mt-auto">
+        © {new Date().getFullYear()} PL-AI Platform
+      </footer>
     </div>
   );
 }
-
 export default App;

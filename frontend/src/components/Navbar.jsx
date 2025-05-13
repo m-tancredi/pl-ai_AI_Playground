@@ -1,113 +1,120 @@
+// src/components/Navbar.jsx
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { Link, NavLink, useNavigate } from 'react-router-dom'; // Aggiunto NavLink per active-styling
+import { useAuth } from '../context/AuthContext'; // Verifica path
 
 const Navbar = () => {
   const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Per menu mobile
 
-  const handleLogout = async () => {
-    await logout();
-    setIsUserMenuOpen(false); // Close menu after logout
-    navigate('/login'); // Redirect to login page
-  };
-
+  const handleLogout = async () => { /* ... come prima ... */ };
   const toggleUserMenu = () => setIsUserMenuOpen(!isUserMenuOpen);
+  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
+  const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
-  // Get user initials or a default
-  const getUserInitials = () => {
-    if (user?.username) {
-      return user.username.substring(0, 2).toUpperCase();
-    }
-    // Add logic for first/last name if available
-    // if (user?.first_name && user?.last_name) {
-    //   return (user.first_name[0] + user.last_name[0]).toUpperCase();
-    // }
-    return '??';
-  };
+  const getUserInitials = () => { /* ... come prima ... */ };
+
+  // Stile per NavLink attivo
+  const activeLinkStyle = "bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium";
+  const inactiveLinkStyle = "text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium";
+  const mobileActiveLinkStyle = "bg-indigo-700 text-white block px-3 py-2 rounded-md text-base font-medium";
+  const mobileInactiveLinkStyle = "text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium";
+
 
   return (
     <nav className="bg-gray-800 text-white shadow-md">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           {/* Logo/Brand */}
-          <Link to="/" className="text-xl font-semibold hover:text-gray-300">
-            PL-AI
-          </Link>
+          <Link to="/" className="text-xl font-semibold hover:text-gray-300">PL-AI</Link>
 
-          {/* Navigation Links */}
+          {/* Link di Navigazione Desktop */}
           <div className="hidden md:flex items-center space-x-4">
-            <Link to="/" className="hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">Home</Link>
+            <NavLink to="/" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle} end>Home</NavLink>
             {isAuthenticated && (
               <>
-                {/* Add other main links for logged-in users here */}
-                <Link to="/regression" className="hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">Regression</Link>
-                <Link to="/image-generator" className="hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">Image Gen</Link>
-                <Link to="/resources" className="hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">Resources</Link> {/* <-- NUOVO LINK */}
+                <NavLink to="/regression" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Regression</NavLink>
+                <NavLink to="/image-generator" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Image Gen</NavLink>
+                <NavLink to="/resources" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Resources</NavLink>
+                {/* --- AGGIUNGI LINK QUI --- */}
+                <NavLink to="/data-analysis" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Data Analysis</NavLink>
               </>
             )}
           </div>
 
-          {/* Auth Links / User Menu */}
-          <div className="flex items-center space-x-4">
+          {/* Auth Links / User Menu (Desktop) */}
+          <div className="hidden md:flex items-center space-x-4">
             {isAuthenticated ? (
               <div className="relative">
-                {/* User Avatar/Initials Button */}
-                <button
-                  onClick={toggleUserMenu}
-                  className="flex items-center justify-center w-10 h-10 bg-indigo-600 rounded-full text-white font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
-                  aria-label="User menu"
-                  aria-haspopup="true"
-                >
-                  {getUserInitials()}
-                </button>
-
-                {/* Dropdown Menu */}
+                <button onClick={toggleUserMenu} className="flex items-center justify-center w-10 h-10 bg-indigo-600 rounded-full text-white font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white" aria-label="User menu" aria-haspopup="true"> {getUserInitials()} </button>
                 {isUserMenuOpen && (
-                  <div
-                    className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10"
-                    role="menu"
-                    aria-orientation="vertical"
-                    aria-labelledby="user-menu-button"
-                  >
-                    <div className="px-4 py-2 text-sm text-gray-700 border-b">
-                        Signed in as <br/>
-                        <strong className="font-medium">{user?.username || 'User'}</strong>
-                    </div>
-                    <Link
-                      to="/profile"
-                      onClick={() => setIsUserMenuOpen(false)}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      role="menuitem"
-                    >
-                      Your Profile
-                    </Link>
-                    {/* Add other dropdown links here */}
-                    <button
-                      onClick={handleLogout}
-                      className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                      role="menuitem"
-                    >
-                      Sign out
-                    </button>
+                  <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-20" role="menu">
+                    {/* ... (link profilo e logout come prima) ... */}
+                    <Link to="/profile" onClick={() => {setIsUserMenuOpen(false); closeMobileMenu();}} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Your Profile</Link>
+                    <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50" role="menuitem">Sign out</button>
                   </div>
                 )}
               </div>
             ) : (
-              // Links for non-authenticated users
-              <div className="hidden md:flex items-center space-x-2">
+              <div className="space-x-2">
                 <Link to="/login" className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium">Login</Link>
                 <Link to="/register" className="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Register</Link>
               </div>
             )}
-            {/* Mobile Menu Button (Optional) */}
-            {/* <div className="md:hidden"> ... </div> */}
+          </div>
+
+          {/* Mobile Menu Button */}
+          <div className="md:hidden flex items-center">
+            <button onClick={toggleMobileMenu} type="button" className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white" aria-controls="mobile-menu" aria-expanded={isMobileMenuOpen}>
+              <span className="sr-only">Open main menu</span>
+              {isMobileMenuOpen ? <FaTimes className="block h-6 w-6" /> : <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>}
+            </button>
           </div>
         </div>
       </div>
-       {/* Mobile Menu (Optional) */}
-       {/* {isMobileMenuOpen && (...)} */}
+
+      {/* Mobile Menu */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden" id="mobile-menu">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+            <NavLink to="/" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu} end>Home</NavLink>
+            {isAuthenticated && (
+              <>
+                <NavLink to="/regression" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Regression</NavLink>
+                <NavLink to="/image-generator" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Image Gen</NavLink>
+                <NavLink to="/resources" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Resources</NavLink>
+                {/* --- AGGIUNGI LINK QUI (MOBILE) --- */}
+                <NavLink to="/data-analysis" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Data Analysis</NavLink>
+              </>
+            )}
+             {/* Auth Links Mobile */}
+            {!isAuthenticated ? (
+                 <>
+                    <NavLink to="/login" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Login</NavLink>
+                    <NavLink to="/register" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Register</NavLink>
+                 </>
+             ) : (
+                <div className="pt-4 pb-3 border-t border-gray-700">
+                    <div className="flex items-center px-5">
+                         <div className="flex-shrink-0">
+                             <div className="flex items-center justify-center w-10 h-10 bg-indigo-600 rounded-full text-white font-semibold"> {getUserInitials()} </div>
+                         </div>
+                         <div className="ml-3">
+                             <div className="text-base font-medium text-white">{user?.username || 'User'}</div>
+                             {user?.email && <div className="text-sm font-medium text-gray-400">{user.email}</div>}
+                         </div>
+                    </div>
+                    <div className="mt-3 px-2 space-y-1">
+                        <NavLink to="/profile" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Your Profile</NavLink>
+                        <button onClick={handleLogout} className="w-full text-left text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Sign out</button>
+                    </div>
+                </div>
+             )}
+          </div>
+        </div>
+      )}
     </nav>
   );
 };
