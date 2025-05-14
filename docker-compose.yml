@@ -20,12 +20,17 @@ volumes:
   models_storage_data: # <-- NUOVO Volume per Modelli ML
   analysis_db_data:         # Per il DB di questo servizio
   analysis_results_data:    # Per modelli/plot salvati da questo servizio
+  chatbot_db_data:
 
 secrets:
   openai_api_key_secret:
     file: ./.secrets/openai_api_key.txt
   stability_api_key_secret:
     file: ./.secrets/stability_api_key.txt
+  anthropic_api_key_secret:
+    file: ./.secrets/anthropic_api_key.txt
+  gemini_api_key_secret:
+    file: ./.secrets/gemini_api_key.txt
 
 services:
 
@@ -86,6 +91,57 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+  # --- NUOVO Database per Chatbot Service ---
+  chatbot_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-chatbot-db
+    volumes:
+      - chatbot_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${CHATBOT_DB_USER:-chatbot_user}
+      POSTGRES_PASSWORD: ${CHATBOT_DB_PASSWORD:-chatbot_password}
+      POSTGRES_DB: ${CHATBOT_DB_NAME:-chatbot_db}
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-chatbot_user} -d $${POSTGRES_DB:-chatbot_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # --- NUOVO Chatbot Service (Web Server) ---
+  chatbot_service:
+    build:
+      context: ./backend/chatbot_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-chatbot-web
+    env_file: [./backend/chatbot_service/.env]
+    # Imposta SERVICE_PROCESS_TYPE=web se il tuo entrypoint.sh lo usa
+    # per avviare solo il web server. Se l'entrypoint avvia solo web di default, non serve.
+    environment:
+      - SERVICE_PROCESS_TYPE=web # Assumendo che entrypoint.sh lo supporti
+    volumes:
+      - ./backend/chatbot_service:/app
+      # Non ha un volume media dedicato qui, i file sono gestiti da resource_manager
+    secrets: # Mappa tutte le chiavi API LLM e il segreto interno
+      - openai_api_key_secret
+      - anthropic_api_key_secret
+      - gemini_api_key_secret
+    expose: ["8006"] # Nuova porta per questo servizio
+    networks: [pl-ai-network]
+    depends_on:
+      chatbot_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy } # Se usi Celery attivamente
+      resource_manager_service: { condition: service_started } # Per chiamate API interne RAG
+    # Healthcheck opzionale, es. se hai un endpoint admin
+    healthcheck:
+       test: ["CMD-SHELL", "curl --fail http://localhost:8006/admin/login/ || exit 1"]
+       interval: 30s
+       timeout: 10s
+       retries: 5
+       start_period: 45s
     restart: unless-stopped
 
   # --- Message Broker ---
@@ -334,5 +390,6 @@ services:
       resource_manager_service: { condition: service_healthy }
       image_classifier_service: { condition: service_started } # o healthy
       data_analysis_service: { condition: service_healthy } # O started
+      chatbot_service: { condition: service_healthy } # <-- AGGIUNTO
       frontend: { condition: service_started }
     restart: unless-stopped
