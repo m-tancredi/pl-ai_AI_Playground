@@ -4,12 +4,15 @@ import json
 import pandas as pd
 from io import StringIO
 import requests
+import joblib # Per caricare modello e preprocessor
 from rest_framework import generics # Assicurati che sia importato
     
 from django.conf import settings
 from django.core.cache import cache # Per sessioni analisi temporanee
 from django.http import Http404
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from pathlib import Path
 
 from rest_framework import views, status, permissions, exceptions, generics
 from rest_framework.response import Response
@@ -21,7 +24,7 @@ from .models import AnalysisJob
 from .serializers import (
     AlgorithmSuggestionRequestSerializer, SuggestionResponseSerializer, DatasetPreviewSerializer,
     AnalysisRunRequestSerializer, AnalysisJobSubmitResponseSerializer,
-    AnalysisJobSerializer
+    AnalysisJobSerializer, InstanceFeaturesSerializer, ClassificationPredictionSerializer 
 )
 from .authentication import JWTCustomAuthentication
 from .tasks import run_analysis_task # Importa task Celery
@@ -374,3 +377,239 @@ class AnalysisResultView(generics.RetrieveAPIView):
         user = self.request.user
         # JWTCustomAuthentication assicura che user.id esista
         return AnalysisJob.objects.filter(owner_id=user.id)
+
+class PredictInstanceView(views.APIView):
+    """
+    Esegue una predizione per una singola istanza usando un modello di classificazione addestrato.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTCustomAuthentication]
+
+    def post(self, request, analysis_job_id, *args, **kwargs):
+        # 1. Recupera il Job di Analisi
+        job = get_object_or_404(AnalysisJob, pk=analysis_job_id, owner_id=request.user.id)
+
+        if job.status != AnalysisJob.Status.COMPLETED:
+            return Response({"error": "Analysis job is not completed. Current status: " + job.status}, status=status.HTTP_400_BAD_REQUEST)
+        if job.task_type != 'classification':
+            return Response({"error": "This endpoint is for classification models only."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verifica che i path necessari siano presenti
+        model_file_path_str = job.model_path.name if job.model_path else None # model_path è un FileField, .name dà il path relativo
+        preprocessor_path_str = job.input_parameters.get('preprocessor_path')
+        
+        if not model_file_path_str or not preprocessor_path_str:
+            return Response({"error": "Model or preprocessor path not found for this job. Please ensure training was successful and paths are saved."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Valida le feature in input
+        input_serializer = InstanceFeaturesSerializer(data=request.data)
+        if not input_serializer.is_valid():
+            return Response(input_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        instance_features_dict_from_request = input_serializer.validated_data['features']
+
+        try:
+            # 3. Carica Modello, Preprocessor e LabelEncoder (se esiste)
+            model_full_path = Path(settings.ANALYSIS_RESULTS_ROOT) / model_file_path_str
+            preprocessor_full_path = Path(settings.ANALYSIS_RESULTS_ROOT) / preprocessor_path_str
+            
+            if not model_full_path.exists() or not preprocessor_full_path.exists():
+                print(f"Error: Model file {model_full_path} or preprocessor {preprocessor_full_path} does not exist.")
+                raise FileNotFoundError("Model or preprocessor file missing on server.")
+
+            print(f"Loading model from: {model_full_path}")
+            model = joblib.load(model_full_path)
+            print(f"Loading preprocessor from: {preprocessor_full_path}")
+            preprocessor = joblib.load(preprocessor_full_path)
+            
+            label_encoder = None
+            le_path_rel = job.input_parameters.get('label_encoder_path')
+            if le_path_rel:
+                le_full_path = Path(settings.ANALYSIS_RESULTS_ROOT) / le_path_rel
+                if le_full_path.exists():
+                    print(f"Loading label encoder from: {le_full_path}")
+                    label_encoder = joblib.load(le_full_path)
+                else:
+                    print(f"Warning: Label encoder file not found at {le_full_path}, will use numeric labels or class_names from job.")
+
+            # 4. Prepara l'istanza per la predizione
+            # L'ordine delle feature DEVE corrispondere a quello usato per addestrare il preprocessor
+            original_features_order = job.input_parameters.get('selected_features', [])
+            if not original_features_order:
+                return Response({"error": "Original feature list not found in job parameters. Cannot prepare data for prediction."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # Verifica che tutte le feature necessarie siano presenti nell'input
+            if not all(feat_name in instance_features_dict_from_request for feat_name in original_features_order):
+                 missing_feats = [f for f in original_features_order if f not in instance_features_dict_from_request]
+                 return Response({"error": f"Missing feature(s) in input: {', '.join(missing_feats)}. Expected all of: {original_features_order}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Crea DataFrame con una riga nell'ordine corretto
+            # Prova a convertire in numerico se possibile, altrimenti lascia stringa
+            instance_df_data_ordered = {}
+            for feat in original_features_order:
+                val = instance_features_dict_from_request[feat]
+                try:
+                    instance_df_data_ordered[feat] = [float(val)] # Tenta float per coerenza con Scikit-learn
+                except (ValueError, TypeError):
+                    instance_df_data_ordered[feat] = [val] # Lascia come stringa se non convertibile
+
+            instance_df = pd.DataFrame(instance_df_data_ordered)
+            print(f"Instance DataFrame for prediction: {instance_df}")
+
+            # Applica preprocessor
+            instance_transformed = preprocessor.transform(instance_df)
+            print(f"Instance transformed shape: {instance_transformed.shape}")
+
+            # 5. Esegui Predizione
+            prediction_numeric_array = model.predict(instance_transformed)
+            predicted_class_numeric = prediction_numeric_array[0] # È un array, prendi il primo elemento
+
+            predicted_class_name = str(predicted_class_numeric) # Default se non c'è encoder/nomi
+            if label_encoder:
+                try:
+                    predicted_class_name = str(label_encoder.inverse_transform([predicted_class_numeric])[0])
+                except Exception as le_err:
+                    print(f"Warning: Error inverse transforming label with LabelEncoder: {le_err}. Using numeric label.")
+            elif job.class_names and isinstance(job.class_names, list): # Usa i nomi salvati nel job
+                try:
+                    if int(predicted_class_numeric) < len(job.class_names):
+                       predicted_class_name = job.class_names[int(predicted_class_numeric)]
+                    else:
+                         print(f"Warning: Predicted numeric label {predicted_class_numeric} out of bounds for job.class_names (len {len(job.class_names)}).")
+                except (ValueError, TypeError, IndexError) as map_err:
+                     print(f"Warning: Error mapping numeric label to class name from job.class_names: {map_err}.")
+
+
+            probabilities_dict = None
+            if hasattr(model, "predict_proba"):
+                proba_numeric_array = model.predict_proba(instance_transformed)[0]
+                class_names_for_proba = []
+                if label_encoder and hasattr(label_encoder, 'classes_'):
+                    class_names_for_proba = label_encoder.classes_.tolist()
+                elif job.class_names and isinstance(job.class_names, list):
+                    class_names_for_proba = job.class_names
+                else: # Fallback
+                    class_names_for_proba = [f"Class_{i}" for i in range(len(proba_numeric_array))]
+
+                if len(class_names_for_proba) == len(proba_numeric_array):
+                    probabilities_dict = {str(class_names_for_proba[i]): float(proba_numeric_array[i]) for i in range(len(proba_numeric_array))}
+                else:
+                    print(f"Warning: Length mismatch between class_names_for_proba ({len(class_names_for_proba)}) and proba_numeric_array ({len(proba_numeric_array)}). Skipping probabilities.")
+
+
+            # 6. Restituisci Risultato
+            result_data = {
+                "predicted_class": predicted_class_name,
+                "probabilities": probabilities_dict
+            }
+            response_serializer = ClassificationPredictionSerializer(result_data)
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+        except FileNotFoundError as e:
+            print(f"Error predicting instance for job {analysis_job_id} (File Not Found): {e}")
+            return Response({"error": "Model data or preprocessor not found. The job might need to be re-run or files are missing."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error predicting instance for job {analysis_job_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            return Response({"error": "An unexpected error occurred during prediction."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    """
+    Esegue una predizione per una singola istanza usando un modello di classificazione addestrato.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTCustomAuthentication]
+
+    def post(self, request, analysis_job_id, *args, **kwargs):
+        # 1. Recupera il Job di Analisi
+        job = get_object_or_404(AnalysisJob, pk=analysis_job_id, owner_id=request.user.id)
+
+        if job.status != AnalysisJob.Status.COMPLETED:
+            return Response({"error": "Analysis job is not completed."}, status=status.HTTP_400_BAD_REQUEST)
+        if job.task_type != 'classification':
+            return Response({"error": "This endpoint is for classification models only."}, status=status.HTTP_400_BAD_REQUEST)
+        if not job.model_path or not job.input_parameters.get('preprocessor_path'):
+            return Response({"error": "Model or preprocessor path not found for this job."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Valida le feature in input
+        input_serializer = InstanceFeaturesSerializer(data=request.data)
+        if not input_serializer.is_valid():
+            return Response(input_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        instance_features_dict = input_serializer.validated_data['features']
+
+        try:
+            # 3. Carica Modello e Preprocessor
+            model_full_path = Path(settings.ANALYSIS_RESULTS_ROOT) / job.model_path.name # model_path è un FileField
+            preprocessor_full_path = Path(settings.ANALYSIS_RESULTS_ROOT) / job.input_parameters['preprocessor_path']
+            
+            if not model_full_path.exists() or not preprocessor_full_path.exists():
+                raise FileNotFoundError("Model or preprocessor file missing on server.")
+
+            model = joblib.load(model_full_path)
+            preprocessor = joblib.load(preprocessor_full_path)
+            
+            # Carica LabelEncoder se esiste
+            label_encoder = None
+            le_path_rel = job.input_parameters.get('label_encoder_path')
+            if le_path_rel:
+                le_full_path = Path(settings.ANALYSIS_RESULTS_ROOT) / le_path_rel
+                if le_full_path.exists():
+                    label_encoder = joblib.load(le_full_path)
+                else:
+                    print(f"Warning: Label encoder file not found at {le_full_path}")
+
+            # 4. Prepara l'istanza per la predizione
+            # Assicurati che le feature siano nell'ordine corretto atteso dal preprocessor/modello
+            # Il preprocessor è stato fittato sulle `selected_features` originali
+            original_features_order = job.input_parameters.get('selected_features', [])
+            if not all(feat_name in instance_features_dict for feat_name in original_features_order):
+                 missing_feats = [f for f in original_features_order if f not in instance_features_dict]
+                 return Response({"error": f"Missing feature(s) in input: {', '.join(missing_feats)}. Expected: {original_features_order}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Crea DataFrame con una riga nell'ordine corretto
+            instance_df_data = {feat: [instance_features_dict.get(feat)] for feat in original_features_order}
+            instance_df = pd.DataFrame(instance_df_data)
+
+            # Applica preprocessor
+            instance_transformed = preprocessor.transform(instance_df)
+
+            # 5. Esegui Predizione
+            prediction_numeric = model.predict(instance_transformed) # Restituisce array (es. [0])
+            predicted_class_numeric = prediction_numeric[0]
+
+            predicted_class_name = str(predicted_class_numeric) # Default a numerico
+            if label_encoder:
+                try:
+                    predicted_class_name = label_encoder.inverse_transform([predicted_class_numeric])[0]
+                except Exception as le_err:
+                    print(f"Error inverse transforming label: {le_err}. Using numeric label.")
+            elif job.results and 'confusion_matrix_labels' in job.results and isinstance(job.results['confusion_matrix_labels'], list):
+                # Prova a usare i nomi classi salvati nelle metriche se LabelEncoder non c'è
+                try:
+                    predicted_class_name = job.results['confusion_matrix_labels'][int(predicted_class_numeric)]
+                except (IndexError, ValueError) as map_err:
+                     print(f"Error mapping numeric label to class name: {map_err}. Using numeric label.")
+
+
+            probabilities = None
+            if hasattr(model, "predict_proba"):
+                proba_numeric = model.predict_proba(instance_transformed)[0]
+                class_names_for_proba = label_encoder.classes_ if label_encoder else job.results.get('confusion_matrix_labels', [str(i) for i in range(len(proba_numeric))])
+                probabilities = {str(class_names_for_proba[i]): float(proba_numeric[i]) for i in range(len(proba_numeric))}
+
+            # 6. Restituisci Risultato
+            result_data = {
+                "predicted_class": predicted_class_name,
+                "probabilities": probabilities
+            }
+            response_serializer = ClassificationPredictionSerializer(result_data)
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+        except FileNotFoundError as e:
+            print(f"Error predicting instance for job {analysis_job_id}: {e}")
+            return Response({"error": "Model data not found. The job might need to be re-run."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error predicting instance for job {analysis_job_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            return Response({"error": "An unexpected error occurred during prediction."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

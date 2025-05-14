@@ -15,6 +15,8 @@ from django.db import transaction
 from django.core.cache import cache
 from sklearn.model_selection import train_test_split
 from django.core.files.base import ContentFile
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LinearRegression # Già importato in ml_utils, ma meglio essere espliciti se lo usi qui
 
 from .models import AnalysisJob
 from .ml_utils import (
@@ -129,16 +131,31 @@ def run_analysis_task(self, analysis_job_id_str):
 
         # Split dati
         stratify_y = None
-        if task_type == 'classification' and len(np.unique(y)) > 1 and len(y) > 1 : # Stratify solo se ha senso
-             # Controlla se ci sono abbastanza campioni per classe per stratificare
-             class_counts = np.bincount(y.astype(int)) # Assumendo y sia già encodato o intero
-             if all(count >= 2 for count in class_counts): # Ogni classe deve avere almeno 2 campioni per lo split stratificato
+        if task_type == 'classification' and len(y) > 0: # Assicurati che y non sia vuoto
+            unique_labels, counts = np.unique(y.astype(int), return_counts=True) # Assumi y è già encodato e intero
+            num_classes = len(unique_labels)
+            # Calcola la dimensione del test set
+            # test_size_float = 0.2 # Il tuo test_size
+            # n_samples_test = np.ceil(len(y) * test_size_float).astype(int)
+            # Scikit-learn lo calcola internamente, ma il vincolo è che
+            # n_samples_test deve essere >= num_classes per la stratificazione
+            # Un modo più semplice è controllare che ogni classe abbia abbastanza campioni
+            # per essere presente sia in train che in test (almeno 2 per classe)
+            if all(count >= 2 for count in counts) and len(y) * 0.2 >= num_classes : # Condizione più robusta
                  stratify_y = y
-             else:
-                 print(f"{task_id_log_prefix}   Warning: Not enough samples in some classes for stratified split. Using non-stratified split.")
+                 print(f"{task_id_log_prefix}   Using stratified split. Class counts: {dict(zip(unique_labels, counts))}")
+            else:
+                 print(f"{task_id_log_prefix}   Warning: Not enough samples in each class for a stratified split (or test set too small). Using non-stratified split. Class counts: {dict(zip(unique_labels, counts))}")
+                 # stratify_y rimane None
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=stratify_y)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y,
+            test_size=0.2, # Mantieni test_size desiderato
+            random_state=42,
+            stratify=stratify_y # Sarà None se le condizioni non sono soddisfatte
+        )
         print(f"{task_id_log_prefix}   Data split: X_train={X_train.shape}, X_test={X_test.shape}")
+
 
         # --- 4. Inizializza e Addestra Modello ---
         algorithm_key = analysis_job.selected_algorithm_key
@@ -156,33 +173,47 @@ def run_analysis_task(self, analysis_job_id_str):
 
         if task_type == 'regression':
             metrics = calculate_regression_metrics(y_test, y_pred)
+            # --- ASSICURATI CHE SLOPE E INTERCEPT SIANO QUI ---
+            # model è l'istanza di LinearRegression (o simile)
+            if hasattr(model, 'coef_') and hasattr(model, 'intercept_'):
+                if isinstance(model, Pipeline) and isinstance(model.named_steps['linear'], LinearRegression): # Per Polynomial
+                    metrics['slope'] = model.named_steps['linear'].coef_[0] if model.named_steps['linear'].coef_.ndim == 1 else model.named_steps['linear'].coef_.tolist() # Gestisci multi-output
+                    metrics['intercept'] = float(model.named_steps['linear'].intercept_)
+                elif isinstance(model, LinearRegression):
+                    metrics['slope'] = model.coef_[0] if model.coef_.ndim == 1 else model.coef_.tolist()
+                    metrics['intercept'] = float(model.intercept_)
+                # Aggiungere casi per SVR, DecisionTreeRegressor, RandomForestRegressor se i nomi degli attributi sono diversi
+                # SVR: non ha coef_ o intercept_ diretti in modo semplice
+                # DecisionTree/RandomForest: non hanno slope/intercept
+                # Per questi, la predizione interattiva nel frontend non funzionerà con slope/intercept.
+                # Dovresti usare l'endpoint /predict_instance/ del backend anche per loro.
+            # --- FINE ASSICURAZIONE ---
             plot_data_json = generate_regression_plot_data(X_test, y_test, y_pred, "Features (Test Set)", selected_target)
         elif task_type == 'classification':
             y_pred_proba = None
             if hasattr(model, "predict_proba"):
                 y_pred_proba = model.predict_proba(X_test)
 
-            # Determina le etichette uniche e i nomi delle classi per la confusion matrix
-            # Assumiamo che y_test e y_pred contengano etichette numeriche (0, 1, ...)
-            unique_numeric_labels = sorted(list(np.unique(np.concatenate((y_test.astype(int), y_pred.astype(int))))))
-            
-            # Ottieni i nomi delle classi dal label_encoder se usato, altrimenti crea nomi generici
-            class_names_for_metrics = []
+            all_original_class_names = []
             if label_encoder and hasattr(label_encoder, 'classes_'):
-                try:
-                    class_names_for_metrics = [str(label_encoder.classes_[i]) for i in unique_numeric_labels if i < len(label_encoder.classes_)]
-                except IndexError: # Fallback se gli indici non corrispondono (improbabile se y è stato encodato correttamente)
-                    class_names_for_metrics = [f"Class {i}" for i in unique_numeric_labels]
-            else: # Se y era già numerico (ma abbiamo i nomi da input_parameters)
-                original_class_names = analysis_job.input_parameters.get('class_names_from_suggestion_or_user', []) # Aggiungere questo se necessario
-                if original_class_names:
-                     class_names_for_metrics = [original_class_names[i] for i in unique_numeric_labels if i < len(original_class_names)]
-                else:
-                     class_names_for_metrics = [f"Class {i}" for i in unique_numeric_labels]
+                all_original_class_names = label_encoder.classes_.tolist()
+            elif analysis_job.class_names: # Dal campo class_names del modello AnalysisJob
+                 all_original_class_names = analysis_job.class_names
+            else:
+                 all_original_class_names = [f"Class {i}" for i in sorted(list(np.unique(y_train.astype(int))))]
 
+            all_numeric_labels_for_all_classes = list(range(len(all_original_class_names)))
 
-            metrics = calculate_classification_metrics(y_test.astype(int), y_pred.astype(int), y_pred_proba, labels=unique_numeric_labels, class_names=class_names_for_metrics)
-            plot_data_json = generate_classification_plot_data(X_test, y_test.astype(int), model, selected_features, selected_target, class_names_for_metrics, preprocessor, label_encoder)
+            # --- CORREZIONE NELLA CHIAMATA QUI ---
+            metrics = calculate_classification_metrics(
+                y_test.astype(int),
+                y_pred.astype(int),
+                y_pred_proba,
+                all_class_labels_numeric=all_numeric_labels_for_all_classes, # Usa nuovo nome argomento
+                all_class_names=all_original_class_names  # Usa nuovo nome argomento
+            )
+            # --- FINE CORREZIONE ---
+            plot_data_json = generate_classification_plot_data(X_test, y_test.astype(int), model, selected_features, selected_target, all_original_class_names, preprocessor, label_encoder)
 
         print(f"{task_id_log_prefix}   Metrics calculated: {metrics}")
 

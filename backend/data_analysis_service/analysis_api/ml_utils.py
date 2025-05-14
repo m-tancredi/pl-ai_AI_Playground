@@ -136,31 +136,64 @@ def calculate_regression_metrics(y_true, y_pred):
         "rmse": np.sqrt(mean_squared_error(y_true, y_pred))
     }
 
-def calculate_classification_metrics(y_true, y_pred, y_pred_proba=None, labels=None, class_names=None):
+# analysis_api/ml_utils.py
+
+def calculate_classification_metrics(y_true, y_pred, y_pred_proba=None, all_class_labels_numeric=None, all_class_names=None):
+    """
+    Calcola metriche di classificazione.
+    all_class_labels_numeric: Lista di TUTTI gli indici numerici unici possibili per le classi (es. [0, 1, 2]).
+    all_class_names: Lista dei nomi di TUTTE le classi, nello stesso ordine degli indici numerici.
+    """
     metrics = {
         "accuracy": accuracy_score(y_true, y_pred),
         "precision_macro": precision_score(y_true, y_pred, average='macro', zero_division=0),
         "recall_macro": recall_score(y_true, y_pred, average='macro', zero_division=0),
         "f1_macro": f1_score(y_true, y_pred, average='macro', zero_division=0),
     }
-    if class_names and len(class_names) == 2: # Metriche binarie
-        metrics["precision_binary"] = precision_score(y_true, y_pred, pos_label=1, zero_division=0) # Assume 1 è la classe positiva
-        metrics["recall_binary"] = recall_score(y_true, y_pred, pos_label=1, zero_division=0)
-        metrics["f1_binary"] = f1_score(y_true, y_pred, pos_label=1, zero_division=0)
 
-    # Matrice di confusione (come lista di liste)
-    cm = confusion_matrix(y_true, y_pred, labels=labels).tolist() # labels sono gli indici unici delle classi
+    # Determina le etichette effettive per la confusion matrix
+    # Usa all_class_labels_numeric se fornito, altrimenti quelle presenti in y_true e y_pred
+    if all_class_labels_numeric is None:
+        current_labels = sorted(list(np.unique(np.concatenate((y_true, y_pred)))))
+    else:
+        current_labels = sorted(list(all_class_labels_numeric))
+
+
+    if all_class_names and len(all_class_names) == 2 and len(current_labels) >=2 : # Metriche binarie (assicurati che 1 sia la classe positiva)
+        # Trova quale etichetta numerica corrisponde alla classe "positiva" (spesso l'indice 1)
+        # Questo presuppone che all_class_names[1] sia la classe positiva se y_true/y_pred sono 0 e 1
+        positive_label_index = 1 # Assumiamo che 1 sia la classe positiva
+        if positive_label_index in current_labels: # Controlla se la classe positiva è presente nei dati
+             metrics["precision_binary"] = precision_score(y_true, y_pred, labels=current_labels, pos_label=positive_label_index, average='binary', zero_division=0)
+             metrics["recall_binary"] = recall_score(y_true, y_pred, labels=current_labels, pos_label=positive_label_index, average='binary', zero_division=0)
+             metrics["f1_binary"] = f1_score(y_true, y_pred, labels=current_labels, pos_label=positive_label_index, average='binary', zero_division=0)
+
+
+    cm = confusion_matrix(y_true, y_pred, labels=current_labels).tolist()
     metrics["confusion_matrix"] = cm
-    if class_names and labels: # Aggiungi etichette alla matrice
-        metrics["confusion_matrix_labels"] = [class_names[i] for i in labels]
 
-    # TODO: ROC AUC (richiede y_pred_proba)
-    # if y_pred_proba is not None and len(np.unique(y_true)) == 2: # Solo per binaria
-    #     from sklearn.metrics import roc_auc_score
-    #     metrics["roc_auc"] = roc_auc_score(y_true, y_pred_proba[:, 1])
+    # Costruisci confusion_matrix_labels usando all_class_names e current_labels
+    # Questo assicura che l'ordine corrisponda a quello della confusion_matrix
+    if all_class_names:
+        # Mappa gli indici numerici in current_labels ai nomi corrispondenti in all_class_names
+        # Solo se l'indice è valido per all_class_names
+        metrics["confusion_matrix_labels"] = [all_class_names[i] for i in current_labels if i < len(all_class_names)]
+    else: # Fallback se all_class_names non è fornito
+        metrics["confusion_matrix_labels"] = [f"Class {i}" for i in current_labels]
+
+
+    # ROC AUC (richiede y_pred_proba)
+    if y_pred_proba is not None and len(all_class_names or []) == 2 and len(current_labels) == 2:
+        from sklearn.metrics import roc_auc_score
+        try:
+            # Assicurati che y_pred_proba sia (n_samples, n_classes)
+            # e prendi le probabilità per la classe positiva (indice 1)
+            metrics["roc_auc"] = roc_auc_score(y_true, y_pred_proba[:, 1])
+        except Exception as roc_exc:
+            print(f"Could not calculate ROC AUC: {roc_exc}")
+            metrics["roc_auc"] = None
 
     return metrics
-
 # --- Funzioni per Plot (Esempio con Plotly, da adattare) ---
 # Queste funzioni genererebbero JSON per Plotly.js nel frontend
 

@@ -52,3 +52,22 @@ export const getAnalysisResults = async (jobId) => {
         throw error;
     }
 };
+
+// src/services/dataAnalysisService.js
+// ... (suggestAlgorithm, runAnalysis, getAnalysisResults come prima) ...
+
+/**
+ * Esegue una predizione per una singola istanza usando un modello di classificazione addestrato.
+ * @param {string} jobId - L'UUID del job di analisi (modello addestrato).
+ * @param {object} featuresData - Oggetto con { featureName1: value, featureName2: value, ... }.
+ * @returns {Promise<object>} Promise che risolve con { predicted_class, probabilities? }.
+ */
+export const predictClassificationInstance = async (jobId, featuresData) => {
+    try {
+        const response = await apiClient.post(`${API_ANALYSIS_URL}/jobs/${jobId}/predict_instance/`, { features: featuresData });
+        return response.data;
+    } catch (error) {
+        console.error(`API Error predicting instance for job ID ${jobId}:`, error.response?.data || error.message);
+        throw error;
+    }
+};

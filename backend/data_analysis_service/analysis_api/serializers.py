@@ -66,3 +66,19 @@ class AnalysisJobSerializer(serializers.ModelSerializer):
             'error_message', 'created_at', 'job_started_at', 'job_finished_at'
         ]
         read_only_fields = fields # Tutti i campi sono di sola lettura quando si recupera un job
+
+class InstanceFeaturesSerializer(serializers.Serializer):
+    """ Serializer per validare le feature di una singola istanza per la predizione. """
+    # Questo serializer si aspetta un dizionario dove le chiavi sono i nomi delle feature
+    # e i valori sono i valori di quelle feature.
+    # La validazione specifica dei campi (tipo, ecc.) può essere omessa qui
+    # se il preprocessor nel backend è robusto, altrimenti aggiungila.
+    # Esempio: feature1 = serializers.FloatField(required=True)
+    #          feature2 = serializers.CharField(required=True)
+    # Per renderlo generico, accettiamo un dizionario.
+    features = serializers.DictField(child=serializers.CharField(allow_blank=True), required=True) # CharField per accettare numeri come stringhe e convertirli dopo
+
+class ClassificationPredictionSerializer(serializers.Serializer):
+    """ Serializer per l'output della predizione di classificazione. """
+    predicted_class = serializers.CharField()
+    probabilities = serializers.DictField(child=serializers.FloatField(), required=False, allow_null=True) # Opzionale: {class_name: probability}
