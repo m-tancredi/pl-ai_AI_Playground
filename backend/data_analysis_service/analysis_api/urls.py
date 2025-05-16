@@ -13,4 +13,6 @@ urlpatterns = [
     path('jobs/<uuid:analysis_job_id>/predict_instance/', views.PredictInstanceView.as_view(), name='predict-instance'),
     # path('', include(router.urls)), # Se si usa un router per i jobs
     path('jobs/<uuid:analysis_job_id>/predict_instance/', views.PredictInstanceView.as_view(), name='predict-instance'),
+    path('generate-synthetic-csv/', views.GenerateSyntheticCsvView.as_view(), name='generate-synthetic-csv'),
+    path('synthetic-jobs/<uuid:job_id>/', views.SyntheticJobStatusView.as_view(), name='synthetic-job-status'),
 ]

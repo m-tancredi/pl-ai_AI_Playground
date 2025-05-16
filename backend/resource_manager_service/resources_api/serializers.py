@@ -54,3 +54,15 @@ class UploadResponseSerializer(serializers.ModelSerializer):
         model = Resource
         fields = ['id', 'owner_id', 'original_filename', 'status', 'created_at', 'name', 'description', 'size'] # Aggiunto size
         read_only_fields = fields
+
+
+# --- NUOVO SERIALIZER PER UPLOAD INTERNO DI CONTENUTO SINTETICO ---
+class InternalSyntheticContentUploadSerializer(serializers.Serializer):
+    file = serializers.FileField(required=True, help_text="Il file CSV generato da caricare.")
+    name = serializers.CharField(max_length=255, required=False, help_text="Nome del file suggerito.")
+    description = serializers.CharField(required=False, allow_blank=True, help_text="Descrizione opzionale.")
+    owner_id = serializers.IntegerField(required=True, help_text="ID dell'utente proprietario.")
+    metadata_json = serializers.CharField(required=False, allow_blank=True, help_text="JSON string of pre-analyzed metadata (headers, potential_uses, etc.)")
+    # Potremmo aggiungere altri metadati che il data_analysis_service conosce già
+    # come potential_uses, num_rows, num_cols, headers per evitare che
+    # il Resource Manager debba ri-processare (ma questo richiederebbe più logica qui)

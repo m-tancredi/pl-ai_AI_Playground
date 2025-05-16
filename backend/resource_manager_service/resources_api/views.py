@@ -6,7 +6,10 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.db.models import Sum
 from rest_framework.renderers import BaseRenderer # <-- IMPORTA
-
+import traceback   # <-- AGGIUNGI QUESTO IMPORT
+from django.db import transaction # <-- AGGIUNGI QUESTO IMPORT
+import magic # <-- AGGIUNGI QUESTO IMPORT
+import json
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -15,7 +18,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.http import Http404, HttpResponse # Importa HttpResponse
 
 from .models import Resource
-from .serializers import ResourceSerializer, UploadRequestSerializer, UploadResponseSerializer
+from .serializers import ResourceSerializer, UploadRequestSerializer, UploadResponseSerializer, InternalSyntheticContentUploadSerializer
 from .authentication import JWTCustomAuthentication
 from .tasks import process_uploaded_resource # Importa il task Celery
 from .permissions import AllowInternalOnly # <-- Importa il nuovo permesso
@@ -202,3 +205,150 @@ class UserStorageInfoView(views.APIView):
             "storage_limit": limit_bytes,
         }
         return Response(data, status=status.HTTP_200_OK)
+    
+class AllowInternalOnlyWithSecret(permissions.BasePermission):
+    """
+    Permette accesso solo se un header segreto specifico è presente e corretto.
+    """
+    message = 'Invalid or missing internal access secret.'
+
+    def has_permission(self, request, view):
+        print("--- Internal Permission Check (Resource Manager) ---")
+        # settings.INTERNAL_API_SECRET_HEADER_NAME e settings.INTERNAL_API_SECRET_VALUE
+        # dovrebbero essere definiti nel settings.py del resource_manager_service
+        # e letti dal suo file .env
+        expected_secret_value = getattr(settings, 'INTERNAL_API_SECRET_VALUE', None)
+        header_name_http = f"HTTP_{settings.INTERNAL_API_SECRET_HEADER_NAME.upper().replace('-', '_')}"
+        provided_secret = request.META.get(header_name_http)
+
+        print(f"  Expected Secret Value (is set): {bool(expected_secret_value)}")
+        print(f"  Header Name Checked: {header_name_http}")
+        print(f"  Provided Secret in Header: {' vorhanden' if provided_secret else 'NICHT vorhanden'}")
+
+        if not expected_secret_value:
+            print("  Internal secret not configured on this service. Denying access.")
+            return False # Se il segreto non è configurato nel RM, nega per sicurezza
+        
+        is_allowed = provided_secret == expected_secret_value
+        if not is_allowed:
+            print(f"  Permission Denied. Provided: '{provided_secret}', Expected: '{expected_secret_value}' (comparison failed)")
+        else:
+            print("  Permission Granted.")
+        return is_allowed
+
+# ... (UploadView, ResourceViewSet, DownloadView, InternalContentView come prima) ...
+
+
+class InternalSyntheticContentUploadView(views.APIView):
+    """
+    Endpoint interno per caricare contenuto CSV sintetico generato da altri servizi (es. DataAnalysisService).
+    Questo endpoint salva il file e i metadati forniti direttamente, impostando lo stato a COMPLETED.
+    """
+    permission_classes = [AllowInternalOnlyWithSecret] # Proteggi questo endpoint
+    authentication_classes = [] # Nessuna autenticazione utente JWT necessaria per chiamate interne server-to-server
+    parser_classes = [MultiPartParser, FormParser] # Per ricevere FormData
+
+    def post(self, request, *args, **kwargs):
+        print("--- RM: InternalSyntheticContentUploadView Received Request ---")
+        print(f"  request.data (form fields): {request.data}")
+        print(f"  request.FILES (uploaded files): {request.FILES}")
+        print("--- RM: End Received Request Data ---")
+
+        # Serializer valida i campi non-file da request.data
+        # e si aspetta 'file' in request.FILES
+        serializer = InternalSyntheticContentUploadSerializer(data=request.data)
+        if not serializer.is_valid():
+            print(f"  RM: Validation errors for InternalSyntheticContentUploadSerializer: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        validated_data = serializer.validated_data
+        uploaded_file = validated_data['file'] # Ottenuto da request.FILES grazie a FileField nel serializer
+        owner_id = validated_data['owner_id']
+        file_name = validated_data.get('name') or uploaded_file.name # Usa nome fornito o nome originale del file
+        description = validated_data.get('description', '')
+        metadata_json_str = validated_data.get('metadata_json')
+
+        print(f"  Processing file: '{file_name}', Owner ID: {owner_id}, Description: '{description[:50]}...'")
+        if metadata_json_str:
+            print(f"  Received metadata_json (first 100 chars): {metadata_json_str[:100]}...")
+        else:
+            print("  No pre-analyzed metadata_json provided.")
+
+        try:
+            # Usare transaction.atomic per assicurare che la creazione del record
+            # e il salvataggio del file siano atomici (o entrambi o nessuno).
+            with transaction.atomic():
+                resource = Resource(
+                    owner_id=owner_id,
+                    original_filename=file_name, # Per file sintetici, il nome fornito è l'originale
+                    name=file_name, # L'utente può cambiarlo dopo se vuole
+                    description=description,
+                    status=Resource.Status.PROCESSING, # Inizia come PROCESSING, verrà aggiornato sotto
+                    size=uploaded_file.size
+                )
+                # Il metodo save di FileField gestisce il salvataggio effettivo del file
+                # usando la funzione `user_resource_path` definita nel modello.
+                # `save=False` qui perché salveremo l'istanza completa dopo.
+                resource.file.save(file_name, uploaded_file, save=False)
+                print(f"  File '{resource.file.name}' (size: {resource.size}) prepared for saving to storage.")
+
+                # 1. Determinazione MIME Type (anche se ci aspettiamo CSV)
+                try:
+                    # Leggi i primi bytes del file per la rilevazione MIME
+                    # Non possiamo usare default_storage.path() prima che il file sia committato
+                    # quindi leggiamo direttamente da uploaded_file (InMemoryUploadedFile o TemporaryUploadedFile)
+                    uploaded_file.seek(0) # Assicura di leggere dall'inizio
+                    buffer = uploaded_file.read(2048) # Leggi i primi 2KB
+                    uploaded_file.seek(0) # Riporta il puntatore all'inizio per il salvataggio successivo
+                    resource.mime_type = magic.from_buffer(buffer, mime=True)
+                    print(f"    Detected MIME type (sync): {resource.mime_type}")
+                except Exception as mime_exc:
+                    print(f"    Warning: MIME detection failed (sync): {mime_exc}. Defaulting to 'text/csv'.")
+                    resource.mime_type = 'text/csv' # Sicuro default per questo endpoint
+
+                # 2. Popolamento Metadati
+                final_metadata = {}
+                if metadata_json_str:
+                    try:
+                        pre_analyzed_metadata = json.loads(metadata_json_str)
+                        # Applica direttamente i metadati forniti
+                        final_metadata = pre_analyzed_metadata
+                        print(f"    Applied pre-analyzed metadata. Potential uses: {final_metadata.get('potential_uses')}")
+                    except json.JSONDecodeError:
+                        print(f"    Warning: Could not parse provided metadata_json: {metadata_json_str}")
+                        # Fallback a estrazione header base se metadata_json fallisce
+                        if resource.mime_type == 'text/csv':
+                            try:
+                                uploaded_file.seek(0)
+                                df_preview = pd.read_csv(BytesIO(uploaded_file.read()), nrows=0)
+                                final_metadata['headers'] = list(df_preview.columns)
+                                print(f"    Fallback: Extracted CSV headers: {final_metadata['headers']}")
+                                uploaded_file.seek(0)
+                            except Exception as csv_exc:
+                                print(f"    Fallback: CSV header extraction failed: {csv_exc}")
+                                final_metadata['headers'] = []
+                elif resource.mime_type == 'text/csv': # Se non ci sono metadata_json, prova a estrarre almeno gli header
+                     try:
+                        uploaded_file.seek(0)
+                        df_preview = pd.read_csv(BytesIO(uploaded_file.read()), nrows=0)
+                        final_metadata['headers'] = list(df_preview.columns)
+                        print(f"    No pre-analyzed metadata, extracted CSV headers: {final_metadata['headers']}")
+                        uploaded_file.seek(0)
+                     except Exception as csv_exc:
+                         print(f"    No pre-analyzed metadata, CSV header extraction failed: {csv_exc}")
+                         final_metadata['headers'] = []
+
+                resource.metadata = final_metadata
+                resource.status = Resource.Status.COMPLETED # File e metadati base sono pronti
+                
+                # Salva l'istanza del modello, che ora committerà anche il file allo storage
+                resource.save()
+            
+            print(f"  Resource {resource.id} created and set to COMPLETED. Path: {resource.file.name}")
+            response_serializer = ResourceSerializer(resource, context={'request': request})
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            print(f"  Error in InternalSyntheticContentUploadView during resource creation or saving: {e}")
+            traceback.print_exc()
+            return Response({"error": f"Failed to create synthetic resource: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

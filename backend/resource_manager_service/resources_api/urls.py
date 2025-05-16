@@ -17,6 +17,7 @@ urlpatterns = [
     # Rimuovi 'resources/' da questi path
     path('upload/', views.UploadView.as_view(), name='resource-upload'),
     path('storage-info/', views.UserStorageInfoView.as_view(), name='storage-info'),
+    path('internal/resources/upload-synthetic-content/', views.InternalSyntheticContentUploadView.as_view(), name='internal-synthetic-upload'),
     path('internal/resources/<int:resource_id>/content/', views.InternalContentView.as_view(), name='internal-resource-content'),
 
     # Include le URL del router (relative a '')
