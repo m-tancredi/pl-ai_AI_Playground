@@ -71,3 +71,26 @@ export const predictClassificationInstance = async (jobId, featuresData) => {
         throw error;
     }
 };
+
+/**
+ * Esegue una predizione per una singola istanza (sia classificazione che regressione).
+ * @param {string} jobId - L'UUID del job di analisi.
+ * @param {object} featuresData - Oggetto con { featureName1: value, ... }.
+ * @param {string} taskType - 'classification' o 'regression'.
+ * @returns {Promise<object>} Promise che risolve con il risultato della predizione.
+ *          Per classificazione: { predicted_class, probabilities?, plot_coordinates? }
+ *          Per regressione: { predicted_value }
+ */
+export const predictInstance = async (jobId, featuresData, taskType) => {
+    try {
+        // L'endpoint è lo stesso, ma il backend ora differenzia internamente
+        // Se vuoi endpoint separati, dovrai cambiare qui e nel backend.
+        const endpoint = `${API_ANALYSIS_URL}/jobs/${jobId}/predict_instance/`;
+        const response = await apiClient.post(endpoint, { features: featuresData });
+        return response.data;
+    } catch (error) {
+        console.error(`API Error predicting instance for job ID ${jobId} (type: ${taskType}):`, error.response?.data || error.message);
+        throw error;
+    }
+};
+
