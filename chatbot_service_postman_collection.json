@@ -1,0 +1,106 @@
+{
+  "info": {
+    "name": "Chatbot Service API",
+    "_postman_id": "12345678-aaaa-bbbb-cccc-1234567890ab",
+    "description": "Collection per testare tutte le API del microservizio chatbot_service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Crea Profilo Chatbot",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{jwt_token}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Assistente Demo\",\n  \"system_prompt\": \"Sei un assistente AI molto gentile.\",\n  \"llm_model_name\": \"gpt-4o-mini\",\n  \"grade_level\": \"Università\",\n  \"mode\": \"general_chat\",\n  \"subject\": \"Storia\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/profiles/", "host": ["{{base_url}}"], "path": ["profiles", ""] }
+      }
+    },
+    {
+      "name": "2. Lista Profili Chatbot",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{jwt_token}}", "type": "text" }
+        ],
+        "url": { "raw": "{{base_url}}/profiles/", "host": ["{{base_url}}"], "path": ["profiles", ""] }
+      }
+    },
+    {
+      "name": "3. Crea Conversazione",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{jwt_token}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"profile_id\": \"{{profile_id}}\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/conversations/", "host": ["{{base_url}}"], "path": ["conversations", ""] }
+      }
+    },
+    {
+      "name": "4. Lista Conversazioni",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{jwt_token}}", "type": "text" }
+        ],
+        "url": { "raw": "{{base_url}}/conversations/", "host": ["{{base_url}}"], "path": ["conversations", ""] }
+      }
+    },
+    {
+      "name": "5. Invia Messaggio (nuova conversazione)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{jwt_token}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"content\": \"Ciao, chi sei?\",\n  \"profile_id\": \"{{profile_id}}\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/send-message/", "host": ["{{base_url}}"], "path": ["send-message", ""] }
+      }
+    },
+    {
+      "name": "6. Invia Messaggio (conversazione esistente)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{jwt_token}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"content\": \"Raccontami una curiosità su Napoleone.\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/conversations/{{conversation_id}}/send-message/", "host": ["{{base_url}}"], "path": ["conversations", "{{conversation_id}}", "send-message", ""] }
+      }
+    },
+    {
+      "name": "7. Lista Messaggi Conversazione",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{jwt_token}}", "type": "text" }
+        ],
+        "url": { "raw": "{{base_url}}/conversations/{{conversation_id}}/messages/", "host": ["{{base_url}}"], "path": ["conversations", "{{conversation_id}}", "messages", ""] }
+      }
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8006" },
+    { "key": "jwt_token", "value": "" },
+    { "key": "profile_id", "value": "" },
+    { "key": "conversation_id", "value": "" }
+  ]
+} 

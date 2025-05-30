@@ -9,12 +9,35 @@ const Navbar = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Per menu mobile
 
-  const handleLogout = async () => { /* ... come prima ... */ };
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setIsUserMenuOpen(false);
+      setIsMobileMenuOpen(false);
+      navigate('/login');
+    } catch (error) {
+      console.error('Errore durante il logout:', error);
+    }
+  };
   const toggleUserMenu = () => setIsUserMenuOpen(!isUserMenuOpen);
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
-  const getUserInitials = () => { /* ... come prima ... */ };
+  const getUserInitials = () => {
+    if (!user) return '';
+    if (user.username) {
+      const parts = user.username.split(' ');
+      if (parts.length === 1) {
+        return parts[0].substring(0, 2).toUpperCase();
+      } else {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+    }
+    if (user.email) {
+      return user.email.substring(0, 2).toUpperCase();
+    }
+    return '';
+  };
 
   // Stile per NavLink attivo
   const activeLinkStyle = "bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium";

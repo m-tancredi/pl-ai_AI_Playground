@@ -2,7 +2,6 @@
 import os
 from django.conf import settings
 from openai import OpenAI, APIError as OpenAIAPIError, RateLimitError as OpenAIRateLimitError, AuthenticationError as OpenAIAuthError
-from anthropic import Anthropic, APIError as AnthropicAPIError, RateLimitError as AnthropicRateLimitError, AuthenticationError as AnthropicAuthError
 import google.generativeai as genai
 import tiktoken
 
@@ -10,7 +9,6 @@ import tiktoken
 # Questo dizionario può essere importato e controllato prima di tentare di usare un client
 API_CLIENT_STATUS = {
     'openai': False,
-    'anthropic': False,
     'gemini': False,
     'error_messages': {} # Per memorizzare errori di inizializzazione
 }
@@ -45,29 +43,6 @@ else:
     msg = "OPENAI_API_KEY not found in settings (Docker Secret not loaded or empty)."
     print(f"Warning: {msg}")
     API_CLIENT_STATUS['error_messages']['openai'] = msg
-
-
-# --- Client Anthropic ---
-anthropic_client = None
-if settings.ANTHROPIC_API_KEY:
-    try:
-        anthropic_client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        # Anthropic SDK non ha un metodo semplice come list() per testare la chiave senza fare una chiamata costosa.
-        # Si potrebbe fare una chiamata molto piccola a basso costo se necessario.
-        API_CLIENT_STATUS['anthropic'] = True
-        print("Anthropic client initialized successfully.")
-    except AnthropicAuthError as e:
-        msg = f"Anthropic API Key is invalid: {e}"
-        print(f"ERROR: {msg}")
-        API_CLIENT_STATUS['error_messages']['anthropic'] = msg
-    except Exception as e:
-        msg = f"Unexpected error initializing Anthropic client: {e}"
-        print(f"ERROR: {msg}")
-        API_CLIENT_STATUS['error_messages']['anthropic'] = msg
-else:
-    msg = "ANTHROPIC_API_KEY not found in settings."
-    print(f"Warning: {msg}")
-    API_CLIENT_STATUS['error_messages']['anthropic'] = msg
 
 
 # --- Client Google Gemini ---

@@ -22,8 +22,8 @@ from .serializers import (
 from .authentication import JWTCustomAuthentication
 # Assicurati che i client LLM e la funzione count_tokens siano importati correttamente
 from .llm_clients import (
-    openai_client, anthropic_client, genai, API_CLIENT_STATUS,
-    count_tokens_for_openai, OpenAIAPIError, AnthropicAPIError # Importa anche gli errori specifici
+    openai_client, genai, API_CLIENT_STATUS,
+    count_tokens_for_openai, OpenAIAPIError # Rimosso AnthropicAPIError
 )
 from .rag_utils import get_document_content_from_resource_manager
 
@@ -152,19 +152,6 @@ class SendMessageView(APIView):
                     input_tokens = completion.usage.prompt_tokens
                     output_tokens = completion.usage.completion_tokens
                     total_tokens = completion.usage.total_tokens
-            elif llm_model_name.startswith("claude") and anthropic_client and API_CLIENT_STATUS['anthropic']:
-                system_prompt_anthropic = current_profile.system_prompt # Prendi da profilo
-                anthropic_messages = [msg for msg in messages_payload if msg['role'] != 'system'] # Rimuovi system da messages
-                response = anthropic_client.messages.create(
-                    model=llm_model_name, max_tokens=1500,
-                    system=system_prompt_anthropic if system_prompt_anthropic else None,
-                    messages=anthropic_messages, temperature=0.7
-                )
-                response_text = response.content[0].text
-                if response.usage:
-                    input_tokens = response.usage.input_tokens
-                    output_tokens = response.usage.output_tokens
-                    total_tokens = input_tokens + output_tokens
             elif llm_model_name.startswith("gemini") and API_CLIENT_STATUS['gemini']:
                 gemini_history = []
                 current_system_prompt_gemini = current_profile.system_prompt
@@ -203,9 +190,6 @@ class SendMessageView(APIView):
         except OpenAIAPIError as e:
             print(f"OpenAI API Error: {e}")
             raise exceptions.APIException(f"OpenAI API error: {str(e)}", code=getattr(e, 'status_code', 503))
-        except AnthropicAPIError as e:
-            print(f"Anthropic API Error: {e}")
-            raise exceptions.APIException(f"Anthropic API error: {str(e)}", code=getattr(e, 'status_code', 503))
         except Exception as e: # Per errori Gemini o altri non specifici
             print(f"General LLM call error for {llm_model_name}: {e}")
             # Includi traceback per debug

@@ -70,7 +70,6 @@ CELERY_TIMEZONE = TIME_ZONE
 
 # API Keys lette da Docker Secrets
 OPENAI_API_KEY = get_docker_secret('openai_api_key_secret')
-ANTHROPIC_API_KEY = get_docker_secret('anthropic_api_key_secret')
 GEMINI_API_KEY = get_docker_secret('gemini_api_key_secret')
 
 # Resource Manager Access (per RAG)
@@ -80,7 +79,6 @@ INTERNAL_API_SECRET_VALUE = os.getenv('INTERNAL_API_SECRET')
 
 # LLM Configuration (valori di default, possono essere sovrascritti da ChatbotProfile)
 DEFAULT_LLM_MODEL_OPENAI = "gpt-4o-mini"
-DEFAULT_LLM_MODEL_ANTHROPIC = "claude-3-haiku-20240307" # Modello Claude più piccolo/veloce
 DEFAULT_LLM_MODEL_GEMINI = "gemini-1.5-flash-latest" # Modello Gemini più piccolo/veloce
 
 MAX_CONTEXT_MESSAGES = 10 # Numero di messaggi precedenti da inviare come contesto

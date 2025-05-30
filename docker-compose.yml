@@ -27,8 +27,6 @@ secrets:
     file: ./.secrets/openai_api_key.txt
   stability_api_key_secret:
     file: ./.secrets/stability_api_key.txt
-  anthropic_api_key_secret:
-    file: ./.secrets/anthropic_api_key.txt
   gemini_api_key_secret:
     file: ./.secrets/gemini_api_key.txt
 
@@ -127,7 +125,6 @@ services:
       # Non ha un volume media dedicato qui, i file sono gestiti da resource_manager
     secrets: # Mappa tutte le chiavi API LLM e il segreto interno
       - openai_api_key_secret
-      - anthropic_api_key_secret
       - gemini_api_key_secret
     expose: ["8006"] # Nuova porta per questo servizio
     networks: [pl-ai-network]
