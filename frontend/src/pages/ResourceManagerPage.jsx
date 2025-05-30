@@ -14,6 +14,8 @@ import { useAuth } from '../context/AuthContext'; // Assicurati che il path sia 
 // Importa componenti figli
 import ResourceCard from '../components/ResourceCard'; // Assicurati che il path sia corretto
 import ResourceEditModal from '../components/ResourceEditModal'; // Assicurati che il path sia corretto
+import ResourcePreviewModal from '../components/ResourcePreviewModal';
+import { getFullMediaUrl } from '../utils/getFullMediaUrl';
 
 // --- Componenti UI base ---
 const Spinner = ({ small = false }) => (
@@ -113,46 +115,16 @@ const ResourceManagerPage = () => {
     const [storageInfo, setStorageInfo] = useState({ used: 0, limit: 1 * 1024 * 1024 * 1024 }); // Default 1GB
     const [isLoadingStorage, setIsLoadingStorage] = useState(false);
 
+    // Stato Preview
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
+    const [selectedResourceForPreview, setSelectedResourceForPreview] = useState(null);
+
     // Refs
     const pollingIntervals = useRef({});
     const fileInputRef = useRef(null); // Per resettare input file se necessario
 
     // Funzione Helper per costruire URL completo
-    const buildFullImageUrl = useCallback((urlOrPath) => {
-        if (!urlOrPath) return null;
-    
-        // Controlla se è già un URL completo (inizia con http:// o https://)
-        if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
-            // Potrebbe essere l'URL errato senza porta? Prova a correggerlo.
-            try {
-                const urlObj = new URL(urlOrPath);
-                // Se l'host è localhost e manca la porta, aggiungi quella del frontend
-                if (urlObj.hostname === 'localhost' && !urlObj.port && window.location.port) {
-                    // Rimuovi 'http://localhost' e ricostruisci
-                    const path = urlObj.pathname + urlObj.search + urlObj.hash;
-                    return `${window.location.origin}${path}`;
-                 }
-                 // Altrimenti, assumi che sia un URL esterno valido o già corretto
-                 return urlOrPath;
-            } catch (e) {
-                 console.error("Error parsing potential full URL:", urlOrPath, e);
-                 return null; // Non valido
-            }
-        }
-        // Se è un path relativo (inizia con /media/)
-        else if (urlOrPath.startsWith('/media/')) {
-            return `${window.location.origin}${urlOrPath}`;
-        }
-        // Se è un path relativo senza / iniziale (improbabile dal backend Django)
-        else if (!urlOrPath.startsWith('/')) {
-             return `${window.location.origin}/${urlOrPath}`;
-        }
-        // Altrimenti, non sappiamo come gestirlo
-        else {
-             console.warn("Unrecognized URL/path format:", urlOrPath);
-             return urlOrPath; // Restituisci com'è, sperando funzioni
-        }
-    }, []); // Dipende solo da window.location
+    const buildFullImageUrl = useCallback((urlOrPath) => getFullMediaUrl(urlOrPath), []);
 
     // --- Funzione per Fetch Storage Info ---
     const fetchStorageInfo = useCallback(async () => {
@@ -334,24 +306,29 @@ const ResourceManagerPage = () => {
             setShowEditModal(false); setSuccess(`Resource updated.`); return true;
         } catch (error) { console.error("Update failed:", error); /* L'errore è gestito nel modale */ return false; }
     };
-    const handleDeleteClick = (resource) => { // Riceve oggetto corretto da ResourceCard
-        if (resource && resource.id != null) {
-             setResourceToDelete(resource); setShowConfirmDeleteModal(true);
-        } else { console.error("Delete clicked on invalid resource:", resource); setError("Cannot delete: Invalid data.");}
+    const handleDeleteClick = (resourceId) => {
+        const resource = userResources.find(r => r.id === resourceId);
+        if (!resource) {
+            setError('Risorsa non trovata o già eliminata.');
+            return;
+        }
+        setResourceToDelete(resource);
+        setShowConfirmDeleteModal(true);
     };
     const confirmDelete = async () => {
-        if (!resourceToDelete || resourceToDelete.id == null) return;
-        const idToDelete = resourceToDelete.id;
-        const nameToDelete = resourceToDelete.name || resourceToDelete.original_filename;
-        setIsDeleting(true); setError(''); setSuccess(''); setShowConfirmDeleteModal(false);
+        if (!resourceToDelete) return;
+        setIsDeleting(true);
         try {
-            await deleteResource(idToDelete);
-            setSuccess(`Resource "${nameToDelete}" deleted.`);
-            setUserResources(prev => prev.filter(r => r.id !== idToDelete));
+            await deleteResource(resourceToDelete.id);
+            setUserResources(prev => prev.filter(r => r.id !== resourceToDelete.id));
+            setSuccess('Risorsa eliminata con successo.');
+        } catch (err) {
+            setError('Errore durante l\'eliminazione della risorsa.');
+        } finally {
+            setIsDeleting(false);
+            setShowConfirmDeleteModal(false);
             setResourceToDelete(null);
-            fetchStorageInfo(); // Aggiorna storage dopo delete
-        } catch (error) { setError(error.response?.data?.error || `Failed to delete resource.`); console.error(`Delete failed:`, error);
-        } finally { setIsDeleting(false); setResourceToDelete(null); }
+        }
     };
 
     // --- Filtro Risorse ---
@@ -367,6 +344,31 @@ const ResourceManagerPage = () => {
              return false;
          });
      }, [userResources, currentFilter]);
+
+    // --- Funzione per aprire la modale di anteprima
+    const handlePreviewResource = (resource) => {
+        if (resource) {
+            setSelectedResourceForPreview(resource);
+            setShowPreviewModal(true);
+        }
+    };
+
+    // --- Funzione per salvataggio contenuto modificato (implementa la logica di update via API)
+    const handleSaveResourceContent = async (resourceId, newContent) => {
+        // TODO: implementa la logica di salvataggio (es. via API)
+        // Puoi usare updateResourceMetadata o una nuova API se serve
+        // Aggiorna la lista risorse se necessario
+    };
+
+    // --- Funzione per download
+    const handleDownloadResource = (resource) => {
+        if (!resource) return;
+        // Scarica il file usando il link diretto
+        const url = getFullMediaUrl(resource.file_url || resource.download_url);
+        if (url) {
+            window.open(url, '_blank');
+        }
+    };
 
     // --- Rendering ---
     return (
@@ -432,20 +434,29 @@ const ResourceManagerPage = () => {
 
                  {resourcesError && <Alert type="error" message={resourcesError} onClose={() => setResourcesError('')} />}
                  {isLoadingResources ? ( <div className="text-center py-10"><Spinner /> Loading resources...</div> )
-                 : filteredResources.length > 0 ? (
-                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-                         {filteredResources.map(resource => (
+                 : userResources.length === 0 && !isLoadingResources ? (
+                     <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                         <FaFileAlt className="text-6xl mb-4" />
+                         <p className="text-lg font-semibold">Nessuna risorsa trovata</p>
+                         <p className="text-sm">Carica un file per iniziare!</p>
+                     </div>
+                 ) : (
+                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                         {userResources.map(resource => (
                              <ResourceCard
-                                key={resource.id} resource={resource} buildFullUrl={buildFullImageUrl}
-                                onEdit={handleEditResource} onDelete={handleDeleteClick}
-                                isDeleting={resourceToDelete?.id === resource.id && isDeleting}
+                                key={resource.id}
+                                resource={resource}
+                                buildFullUrl={getFullMediaUrl}
+                                onSelect={handlePreviewResource}
+                                onPreview={handlePreviewResource}
+                                onEdit={handleEditResource}
+                                onDelete={handleDeleteClick}
+                                onDownload={handleDownloadResource}
+                                isDeleting={isDeleting && resourceToDelete?.id === resource.id}
+                                isSelected={selectedResourceForEdit?.id === resource.id}
                              />
                          ))}
                      </div>
-                 ) : (
-                     <p className="text-center text-gray-500 py-10 italic">
-                         {resourcesError ? 'Could not load resources.' : (currentFilter === 'all' ? 'No resources uploaded yet.' : `No ${currentFilter} resources found.`)}
-                     </p>
                  )}
             </div>
 
@@ -474,6 +485,15 @@ const ResourceManagerPage = () => {
                      </div>
                  </div>
             )}
+
+            {/* Modale anteprima risorsa */}
+            <ResourcePreviewModal
+                isOpen={showPreviewModal}
+                onClose={() => setShowPreviewModal(false)}
+                resource={selectedResourceForPreview}
+                onSave={handleSaveResourceContent}
+                onDownload={handleDownloadResource}
+            />
 
         </div>
     );

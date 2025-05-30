@@ -94,3 +94,33 @@ export const predictInstance = async (jobId, featuresData, taskType) => {
     }
 };
 
+/**
+ * Crea un nuovo job di generazione di dataset sintetico.
+ * @param {object} payload - { user_prompt: string, num_rows: number, dataset_name?: string }
+ * @returns {Promise<object>} Promise che risolve con { job_id, status, message }
+ */
+export const createSyntheticCsvJob = async (payload) => {
+    try {
+        const response = await apiClient.post(`${API_ANALYSIS_URL}/generate-synthetic-csv/`, payload);
+        return response.data;
+    } catch (error) {
+        console.error('API Error creating synthetic CSV job:', error.response?.data || error.message);
+        throw error;
+    }
+};
+
+/**
+ * Recupera lo stato e i dettagli di un job di dataset sintetico.
+ * @param {string} jobId - L'UUID del job.
+ * @returns {Promise<object>} Promise che risolve con i dettagli del SyntheticDatasetJob.
+ */
+export const getSyntheticCsvJobStatus = async (jobId) => {
+    try {
+        const response = await apiClient.get(`${API_ANALYSIS_URL}/synthetic-jobs/${jobId}/`);
+        return response.data;
+    } catch (error) {
+        console.error(`API Error getting synthetic CSV job status for job ID ${jobId}:`, error.response?.data || error.message);
+        throw error;
+    }
+};
+

@@ -363,11 +363,14 @@ const ImageClassifierPage = () => {
 
     // --- Rendering ---
     return (
-        <div className="container mx-auto px-4 py-8 space-y-6">
+        <div className="container mx-auto px-2 py-6 space-y-8 max-w-7xl">
             {/* Header Pagina */}
-            <div className="flex justify-between items-center border-b pb-3 mb-4">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Custom Image Classifier</h1>
-                <button onClick={() => setShowTutorialModal(true)} title="Show Tutorial" className="text-indigo-600 hover:text-indigo-800 p-1">
+            <div className="flex flex-col md:flex-row justify-between items-center border-b pb-4 mb-6 gap-2">
+                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+                    <span className="inline-block bg-indigo-100 text-indigo-700 rounded-full px-3 py-1 text-lg mr-2">🖼️</span>
+                    Custom Image Classifier
+                </h1>
+                <button onClick={() => setShowTutorialModal(true)} title="Mostra tutorial" className="text-indigo-600 hover:text-indigo-800 p-2 rounded-full bg-indigo-50 border border-indigo-200 shadow-sm transition">
                     <FaInfoCircle size={24}/>
                 </button>
             </div>
@@ -377,56 +380,101 @@ const ImageClassifierPage = () => {
              {warning && <Alert type="warning" message={warning} onClose={() => setWarning('')} />}
              {success && <Alert type="success" message={success} onClose={() => setSuccess('')} />}
 
-            {/* Layout a Colonne */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+            {/* Layout a Colonne Responsive */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
 
-                {/* Colonna Sinistra: Input Classi e Selezione Modello Esistente */}
-                <div className="md:col-span-1 space-y-4">
-                     <h2 className="text-lg font-semibold text-gray-700 mb-1">1. Collect Data or Load Model</h2>
-                     {classes.map((cls) => ( <ClassInputBox key={cls.id} classData={cls} onNameChange={handleClassNameChange} onImagesUpdate={handleClassImagesUpdate} onRemove={removeClass} canRemove={classes.length > MIN_CLASSES}/> ))}
-                     {classes.length < MAX_CLASSES && ( <button onClick={addClass} className="w-full flex items-center justify-center px-4 py-2 border border-dashed border-gray-400 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"> <FaPlus className="mr-2" /> Add Class ({classes.length}/{MAX_CLASSES}) </button> )}
+                {/* Step 1: Dati & Classi */}
+                <section className="lg:col-span-1 shadow-lg rounded-xl bg-white p-6 mb-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><span className="text-indigo-500 text-2xl">1.</span> <span className="text-2xl">📂</span> Dati & Classi</h2>
+                    {classes.map((cls) => (
+                        <ClassInputBox key={cls.id} classData={cls} onNameChange={handleClassNameChange} onImagesUpdate={handleClassImagesUpdate} onRemove={removeClass} canRemove={classes.length > MIN_CLASSES}/>
+                    ))}
+                    {classes.length < MAX_CLASSES && (
+                        <button onClick={addClass} className="w-full flex items-center justify-center px-4 py-3 border-2 border-dashed border-indigo-300 rounded-lg text-base font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400 mt-4 transition">
+                            <FaPlus className="mr-2" /> Aggiungi Classe ({classes.length}/{MAX_CLASSES})
+                        </button>
+                    )}
+                </section>
 
-                    <div className="bg-white p-4 rounded-lg shadow border border-gray-200 mt-6">
-                        <h3 className="text-md font-semibold text-gray-700 mb-2">Load My Trained Model</h3>
-                        {modelsError && <Alert type="error" message={modelsError} onClose={() => setModelsError('')} />}
-                        {isLoadingModels ? <div className="text-center"><Spinner/></div> :
-                            userModels.length > 0 ? (
-                                <>
-                                    <select value={selectedExistingModelId} onChange={(e) => setSelectedExistingModelId(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm focus:ring-indigo-500 focus:border-indigo-500 mb-2">
-                                        <option value="">-- Select a trained model --</option>
-                                        {userModels.map(m => ( <option key={m.id} value={m.id} disabled={m.status !== 'COMPLETED'}> {m.name || `Model ${m.id.substring(0,8)}`} ({m.status}) - Acc: {m.accuracy ? (m.accuracy*100).toFixed(1) : 'N/A'}% </option> ))}
-                                    </select>
-                                    <button onClick={handleLoadExistingModel} disabled={!selectedExistingModelId || isRealtimeActive} className="w-full px-4 py-2 bg-blue-600 text-white rounded-md shadow hover:bg-blue-700 disabled:opacity-50"> Load & Start Webcam </button>
-                                </>
-                            ) : ( <p className="text-sm text-gray-500 italic">No trained models found.</p> )}
-                         <button onClick={fetchUserModels} disabled={isLoadingModels} className="text-xs text-indigo-500 hover:underline mt-2 disabled:opacity-50 flex items-center"> {isLoadingModels ? <Spinner small/> : <FaRedo className="mr-1"/>} Refresh List </button>
+                {/* Step 2: Training Modello */}
+                <section className="lg:col-span-1 shadow-lg rounded-xl bg-white p-6 mb-6 lg:sticky lg:top-6 flex flex-col items-center">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><span className="text-green-500 text-2xl">2.</span> <span className="text-2xl">⚙️</span> Training Modello</h2>
+                    <button onClick={handleTrainClick} disabled={!canTrain || trainingState === 'sending' || trainingState === 'training'} className="w-full py-3 text-lg font-bold rounded-lg shadow-md flex items-center justify-center gap-2 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                        {(trainingState === 'sending' || trainingState === 'training') && <Spinner />} 
+                        {trainingState === 'completed' && modelId && !classes.some(c => c.imageCount > 0) ? 'MODELLO CARICATO - NUOVO TRAINING?' : trainingState === 'completed' ? 'TRAINA DI NUOVO' : 'TRAINA MODELLO'}
+                    </button>
+                    {/* Progress bar */}
+                    {(trainingState === 'sending' || trainingState === 'training') && (
+                        <div className="w-full mt-4">
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div className="h-2 bg-indigo-500 rounded-full animate-pulse" style={{width: trainingState === 'sending' ? '30%' : '70%'}}></div>
+                            </div>
+                        </div>
+                    )}
+                    {/* Stato Training */}
+                    <div className="mt-4 flex items-center gap-2">
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${trainingState === 'completed' ? 'bg-green-100 text-green-700' : trainingState === 'training' ? 'bg-yellow-100 text-yellow-700' : trainingState === 'error' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{trainingState.toUpperCase()}</span>
+                        <span className="text-sm text-gray-600">{trainingStatusMessage}</span>
                     </div>
-                </div>
+                    {trainingError && <p className="text-xs text-red-600 text-center px-1 mt-2">{trainingError}</p>}
+                    {modelId && (<p className="text-xs text-gray-500 mt-2">Model ID: <span className="font-mono">{modelId.substring(0,8)}...</span></p>)}
+                    {modelAccuracy !== null && (trainingState === 'completed' || (modelId && selectedExistingModelId === modelId)) && (
+                        <p className="text-base text-green-600 font-bold mt-2">Accuracy: {(modelAccuracy * 100).toFixed(1)}%</p>
+                    )}
+                </section>
 
-                {/* Colonna Centrale: Training */}
-                <div className="md:col-span-1 flex flex-col items-center space-y-4 bg-white p-6 rounded-lg shadow-lg border border-gray-200 md:sticky md:top-4 min-h-[250px]">
-                    <h2 className="text-lg font-semibold text-gray-700">2. Train Model</h2>
-                    <button onClick={handleTrainClick} disabled={!canTrain || trainingState === 'sending' || trainingState === 'training'} className="w-full px-8 py-3 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-lg transition-colors duration-200"> {(trainingState === 'sending' || trainingState === 'training') && <Spinner />} {trainingState === 'completed' && modelId && !classes.some(c => c.imageCount > 0) ? 'MODEL LOADED - TRAIN NEW?' : trainingState === 'completed' ? 'TRAIN AGAIN' : 'TRAIN MODEL'} </button>
-                    <div className="text-sm text-gray-600 text-center h-12 flex items-center justify-center px-2 border rounded-md bg-gray-50 w-full"> {trainingStatusMessage} </div>
-                    {trainingError && <p className="text-xs text-red-600 text-center px-1">{trainingError}</p>}
-                    {modelId && ( <p className="text-xs text-gray-500">Active Model ID: <span className="font-mono">{modelId.substring(0,8)}...</span></p> )}
-                    {modelAccuracy !== null && (trainingState === 'completed' || (modelId && selectedExistingModelId === modelId)) && ( <p className="text-xs text-green-600 font-medium">Model Accuracy: {(modelAccuracy * 100).toFixed(1)}%</p> )}
+                {/* Step 3: Predizione Realtime */}
+                <section className="lg:col-span-1 shadow-lg rounded-xl bg-white p-6 mb-6 lg:sticky lg:top-6 flex flex-col items-center">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><span className="text-blue-500 text-2xl">3.</span> <span className="text-2xl">🤖</span> Predizione Realtime</h2>
+                    <div className="bg-black border border-gray-300 rounded-xl aspect-video overflow-hidden flex items-center justify-center relative text-white w-full max-w-md mx-auto">
+                        <video ref={realtimeVideoRef} className={`w-full h-full object-contain absolute inset-0 transition-opacity duration-300 ${isRealtimeActive ? 'opacity-100' : 'opacity-0'}`} autoPlay playsInline muted />
+                        {!isRealtimeActive && (
+                            <div className="z-10 p-4 text-center">
+                                {(trainingState === 'completed' && modelId) || selectedExistingModelId ? (
+                                    <button onClick={() => setIsRealtimeActive(true)} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow text-lg font-bold transition flex items-center gap-2"><FaVideo className="mr-2"/> Avvia Webcam</button>
+                                ) : (
+                                    <p className="text-base text-gray-400 italic">Allena o carica un modello prima.</p>
+                                )}
                 </div>
-
-                {/* Colonna Destra: Predizione Realtime */}
-                <div className="md:col-span-1 space-y-4 bg-white p-6 rounded-lg shadow-lg border border-gray-200 md:sticky md:top-4 min-h-[250px]">
-                     <h2 className="text-lg font-semibold text-gray-700">3. Real-time Classification</h2>
-                     <div className="bg-black border border-gray-300 rounded aspect-video overflow-hidden flex items-center justify-center relative text-white">
-                         <video ref={realtimeVideoRef} className={`w-full h-full object-contain absolute inset-0 transition-opacity duration-300 ${isRealtimeActive ? 'opacity-100' : 'opacity-0'}`} autoPlay playsInline muted />
-                         {!isRealtimeActive && ( <div className="z-10 p-4 text-center"> {(trainingState === 'completed' && modelId) || selectedExistingModelId ? ( <button onClick={() => setIsRealtimeActive(true)} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 shadow">Start Webcam</button> ) : ( <p className="text-sm text-gray-400 italic">Train or load a model first.</p> )} </div> )}
-                         {isRealtimeActive && ( <button onClick={() => setIsRealtimeActive(false)} title="Stop Webcam" className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full shadow hover:bg-red-600 z-20 opacity-70 hover:opacity-100"><FaVideoSlash size={14}/></button> )}
+                        )}
+                        {isRealtimeActive && (
+                            <button onClick={() => setIsRealtimeActive(false)} title="Stop Webcam" className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full shadow hover:bg-red-600 z-20 opacity-80 hover:opacity-100"><FaVideoSlash size={18}/></button>
+                        )}
                          <canvas ref={realtimeCanvasRef} style={{ display: 'none' }}></canvas>
                      </div>
+                    <div className="w-full mt-4">
                      <PredictionDisplay predictions={realtimePredictions} />
                  </div>
+                </section>
             </div>
 
+            {/* Modelli salvati */}
+            <section className="max-w-2xl mx-auto bg-white shadow rounded-xl p-6 mb-8">
+                <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2"><FaInfoCircle className="text-indigo-400"/> Modelli salvati</h3>
+                {modelsError && <Alert type="error" message={modelsError} onClose={() => setModelsError('')} />}
+                {isLoadingModels ? <div className="text-center"><Spinner/></div> :
+                    userModels.length > 0 ? (
+                        <div className="flex flex-col md:flex-row gap-2 items-center">
+                            <select value={selectedExistingModelId} onChange={(e) => setSelectedExistingModelId(e.target.value)} className="flex-1 p-2 border border-gray-300 rounded-md shadow-sm bg-white text-base focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">-- Seleziona un modello addestrato --</option>
+                                {userModels.map(m => (
+                                    <option key={m.id} value={m.id} disabled={m.status !== 'COMPLETED'}>
+                                        {m.name || `Model ${m.id.substring(0,8)}`} ({m.status}) - Acc: {m.accuracy ? (m.accuracy*100).toFixed(1) : 'N/A'}%
+                                    </option>
+                                ))}
+                            </select>
+                            <button onClick={handleLoadExistingModel} disabled={!selectedExistingModelId || isRealtimeActive} className="px-4 py-2 bg-blue-600 text-white rounded-md shadow hover:bg-blue-700 disabled:opacity-50 ml-2">Carica & Avvia Webcam</button>
+                            <button onClick={fetchUserModels} disabled={isLoadingModels} className="text-xs text-indigo-500 hover:underline ml-2 flex items-center">{isLoadingModels ? <Spinner small/> : <FaRedo className="mr-1"/>} Aggiorna</button>
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-500 italic">Nessun modello addestrato trovato.</p>
+                    )}
+            </section>
+
+            {/* Console Log */}
+            <section className="max-w-3xl mx-auto mb-8">
             <ConsoleLog logs={consoleLogs} onClear={() => setConsoleLogs([])} />
+            </section>
             <TutorialModal isOpen={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
             <AlertModalShell isOpen={showAlertModal} onClose={() => setShowAlertModal(false)} title={alertModalContent.title}> {alertModalContent.message} </AlertModalShell>
         </div>

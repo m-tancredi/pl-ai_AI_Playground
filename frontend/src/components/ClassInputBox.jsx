@@ -163,13 +163,17 @@ const ClassInputBox = ({ classData, onNameChange, onImagesUpdate, onRemove, canR
                 <label htmlFor={`class-name-${classData.id}`} className="block text-sm font-medium text-gray-700">Class Name:</label>
                 <input type="text" id={`class-name-${classData.id}`} value={classData.name} onChange={handleNameChange} placeholder={`Class ${classData.id.substring(0, 4)}...`} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 sm:text-sm focus:ring-indigo-500 focus:border-indigo-500"/>
             </div>
+            {/* --- Layout affiancato camera/catture --- */}
+            <div className="flex flex-col md:flex-row gap-3 items-start">
+                {/* Camera */}
+                <div className="flex-1 min-w-0">
             <div className="bg-gray-100 border rounded aspect-video overflow-hidden relative flex items-center justify-center">
                  <video ref={videoRef} className={`w-full h-full object-contain ${!webcamActive ? 'hidden' : ''}`} autoPlay playsInline muted />
                  {!webcamActive && ( <FaCamera className="text-gray-300 text-4xl"/> )}
                  <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
             </div>
-            {error && <p className="text-xs text-red-600">{error}</p>}
-            <div className="grid grid-cols-2 gap-2">
+                    {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+                    <div className="grid grid-cols-2 gap-2 mt-2">
                 <button onClick={toggleWebcam} className={`w-full px-3 py-2 text-sm font-medium rounded-md shadow-sm flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 ${webcamActive ? 'bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-gray-500' : 'bg-blue-100 text-blue-700 hover:bg-blue-200 focus:ring-blue-500'}`}>
                     {webcamActive ? <FaVideoSlash className="mr-2"/> : <FaVideo className="mr-2"/>}
                     {webcamActive ? 'Stop Webcam' : 'Activate Webcam'}
@@ -179,22 +183,20 @@ const ClassInputBox = ({ classData, onNameChange, onImagesUpdate, onRemove, canR
                     {isCapturing ? 'Stop Capture' : 'Start Capture'}
                 </button>
             </div>
-            <div className="text-right">
-                 <span className={`text-sm font-medium ${classData.imageCount >= CAPTURE_LIMIT ? 'text-red-600' : 'text-gray-700'}`}>
-                    {classData.imageCount} / {CAPTURE_LIMIT} images
-                 </span>
+                    <div className="text-right mt-1">
+                        <span className={`text-sm font-medium ${classData.imageCount >= CAPTURE_LIMIT ? 'text-red-600' : 'text-gray-700'}`}>{classData.imageCount} / {CAPTURE_LIMIT} images</span>
+                    </div>
             </div>
-
-            {/* Image Previews con Bottone Delete */}
+                {/* Catture (thumbnail) */}
              {capturedImagesPreview.length > 0 && (
-                 <div className="mt-2">
-                     <p className="text-xs text-gray-500 mb-1">Recent captures ({capturedImagesPreview.length} shown):</p>
+                    <div className="w-full md:w-1/4 flex-shrink-0 mt-3 md:mt-0">
+                        <p className="text-xs text-gray-500 mb-1">Recent captures:</p>
                      <div className="grid grid-cols-3 gap-1">
-                        {capturedImagesPreview.map((imgSrc, index) => ( // L'indice qui è relativo a capturedImagesPreview
-                            <div key={`preview-${classData.id}-${index}`} className="aspect-square bg-gray-200 rounded overflow-hidden relative group">
+                            {capturedImagesPreview.map((imgSrc, index) => (
+                                <div key={`preview-${classData.id}-${index}`} className="aspect-square bg-gray-200 rounded overflow-hidden relative group w-12 h-12">
                                 <img src={imgSrc} alt={`Capture ${index + 1}`} className="w-full h-full object-cover" />
                                 <button
-                                    onClick={() => handleDeletePreviewImage(index)} // Passa l'indice della preview
+                                        onClick={() => handleDeletePreviewImage(index)}
                                     className="absolute top-0.5 right-0.5 p-0.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-opacity"
                                     title="Delete this capture"
                                     aria-label="Delete this capture"
@@ -206,6 +208,7 @@ const ClassInputBox = ({ classData, onNameChange, onImagesUpdate, onRemove, canR
                      </div>
                  </div>
              )}
+            </div>
         </div>
     );
 };

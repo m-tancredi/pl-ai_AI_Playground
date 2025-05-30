@@ -146,10 +146,151 @@ class SuggestAlgorithmView(views.APIView):
                 prompt_detail = f"Dataset Sample (first {len(sample_df_openai)} rows):\n{sample_df_openai.to_string(index=False, max_rows=10, max_cols=10)}\n\n"
                 prompt_detail += f"Column Headers: {', '.join(headers)}\n"
                 prompt_detail += f"Total columns: {len(headers)}\n\n"
+
+                # --- Nuova sezione: statistiche sulle colonne ---
+                prompt_detail += "Column statistics:\n"
+                likely_class_cols = []
+                for col in df.columns:
+                    unique_vals = df[col].nunique(dropna=True)
+                    dtype = str(df[col].dtype)
+                    if unique_vals <= 10:
+                        vals = df[col].dropna().unique().tolist()
+                        prompt_detail += f"- {col}: {dtype}, unique={unique_vals}, values={vals}\n"
+                    elif dtype.startswith('float') or dtype.startswith('int'):
+                        prompt_detail += f"- {col}: {dtype}, unique={unique_vals}, min={df[col].min()}, max={df[col].max()}, mean={df[col].mean()}\n"
+                    else:
+                        prompt_detail += f"- {col}: {dtype}, unique={unique_vals}\n"
+                    # Candidata per classificazione?
+                    if unique_vals <= 10 or any(x in col.lower() for x in ['class', 'label', 'target', 'category']):
+                        likely_class_cols.append(col)
+                if likely_class_cols:
+                    prompt_detail += f"Columns likely to be classification targets: {', '.join(likely_class_cols)}\n"
+
+                # --- Nuova sezione: correlazione feature-target ---
+                correlation_info = ""
+                fit_test_info = ""
+                from sklearn.linear_model import LinearRegression, LogisticRegression
+                from sklearn.preprocessing import PolynomialFeatures
+                from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+                from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+                from sklearn.svm import SVR, SVC
+                from sklearn.naive_bayes import GaussianNB
+                from sklearn.metrics import r2_score, mean_squared_error, accuracy_score, f1_score
+                target_col = headers[-1] if headers else None
+                if target_col and target_col in df.columns:
+                    y = df[target_col].dropna()
+                    # REGRESSIONE
+                    if pd.api.types.is_numeric_dtype(df[target_col]):
+                        for col in df.columns:
+                            if col == target_col or not pd.api.types.is_numeric_dtype(df[col]):
+                                continue
+                            X = df[[col]].dropna()
+                            y_aligned = y.loc[X.index]
+                            if len(X) < 10:
+                                continue
+                            results = []
+                            # Linear Regression
+                            linreg = LinearRegression().fit(X, y_aligned)
+                            y_pred_lin = linreg.predict(X)
+                            r2_lin = r2_score(y_aligned, y_pred_lin)
+                            mse_lin = mean_squared_error(y_aligned, y_pred_lin)
+                            results.append(("linear_regression", r2_lin, mse_lin))
+                            # Polynomial Regression
+                            poly = PolynomialFeatures(degree=2)
+                            X_poly = poly.fit_transform(X)
+                            polyreg = LinearRegression().fit(X_poly, y_aligned)
+                            y_pred_poly = polyreg.predict(X_poly)
+                            r2_poly = r2_score(y_aligned, y_pred_poly)
+                            mse_poly = mean_squared_error(y_aligned, y_pred_poly)
+                            results.append(("polynomial_regression", r2_poly, mse_poly))
+                            # Decision Tree
+                            dtr = DecisionTreeRegressor(max_depth=6, random_state=42).fit(X, y_aligned)
+                            y_pred_dtr = dtr.predict(X)
+                            r2_dtr = r2_score(y_aligned, y_pred_dtr)
+                            mse_dtr = mean_squared_error(y_aligned, y_pred_dtr)
+                            results.append(("decision_tree_regressor", r2_dtr, mse_dtr))
+                            # Random Forest
+                            rfr = RandomForestRegressor(n_estimators=30, max_depth=8, random_state=42).fit(X, y_aligned)
+                            y_pred_rfr = rfr.predict(X)
+                            r2_rfr = r2_score(y_aligned, y_pred_rfr)
+                            mse_rfr = mean_squared_error(y_aligned, y_pred_rfr)
+                            results.append(("random_forest_regressor", r2_rfr, mse_rfr))
+                            # SVR
+                            svr = SVR(kernel='rbf', max_iter=500).fit(X, y_aligned)
+                            y_pred_svr = svr.predict(X)
+                            r2_svr = r2_score(y_aligned, y_pred_svr)
+                            mse_svr = mean_squared_error(y_aligned, y_pred_svr)
+                            results.append(("svr", r2_svr, mse_svr))
+                            fit_test_info += f"\nFeature: {col} vs Target: {target_col}\n"
+                            for name, r2, mse in results:
+                                fit_test_info += f"- {name}: R2={r2:.3f}, MSE={mse:.3f}\n"
+                    # CLASSIFICAZIONE
+                    elif pd.api.types.is_categorical_dtype(df[target_col]) or df[target_col].nunique() < 20:
+                        for col in df.columns:
+                            if col == target_col or not pd.api.types.is_numeric_dtype(df[col]):
+                                continue
+                            X = df[[col]].dropna()
+                            y_aligned = y.loc[X.index]
+                            if len(X) < 10:
+                                continue
+                            y_bin = y_aligned.astype(str)
+                            results = []
+                            # Logistic Regression
+                            try:
+                                logreg = LogisticRegression(max_iter=200).fit(X, y_bin)
+                                y_pred_log = logreg.predict(X)
+                                acc_log = accuracy_score(y_bin, y_pred_log)
+                                f1_log = f1_score(y_bin, y_pred_log, average='macro')
+                                results.append(("logistic_regression", acc_log, f1_log))
+                            except Exception as e:
+                                results.append(("logistic_regression", 0, 0))
+                            # Decision Tree
+                            try:
+                                dtc = DecisionTreeClassifier(max_depth=6, random_state=42).fit(X, y_bin)
+                                y_pred_dtc = dtc.predict(X)
+                                acc_dtc = accuracy_score(y_bin, y_pred_dtc)
+                                f1_dtc = f1_score(y_bin, y_pred_dtc, average='macro')
+                                results.append(("decision_tree_classifier", acc_dtc, f1_dtc))
+                            except Exception as e:
+                                results.append(("decision_tree_classifier", 0, 0))
+                            # Random Forest
+                            try:
+                                rfc = RandomForestClassifier(n_estimators=30, max_depth=8, random_state=42).fit(X, y_bin)
+                                y_pred_rfc = rfc.predict(X)
+                                acc_rfc = accuracy_score(y_bin, y_pred_rfc)
+                                f1_rfc = f1_score(y_bin, y_pred_rfc, average='macro')
+                                results.append(("random_forest_classifier", acc_rfc, f1_rfc))
+                            except Exception as e:
+                                results.append(("random_forest_classifier", 0, 0))
+                            # SVC
+                            try:
+                                svc = SVC(kernel='rbf', max_iter=500).fit(X, y_bin)
+                                y_pred_svc = svc.predict(X)
+                                acc_svc = accuracy_score(y_bin, y_pred_svc)
+                                f1_svc = f1_score(y_bin, y_pred_svc, average='macro')
+                                results.append(("svc", acc_svc, f1_svc))
+                            except Exception as e:
+                                results.append(("svc", 0, 0))
+                            # Naive Bayes
+                            try:
+                                nb = GaussianNB().fit(X, y_bin)
+                                y_pred_nb = nb.predict(X)
+                                acc_nb = accuracy_score(y_bin, y_pred_nb)
+                                f1_nb = f1_score(y_bin, y_pred_nb, average='macro')
+                                results.append(("naive_bayes_classifier", acc_nb, f1_nb))
+                            except Exception as e:
+                                results.append(("naive_bayes_classifier", 0, 0))
+                            fit_test_info += f"\nFeature: {col} vs Target: {target_col}\n"
+                            for name, acc, f1 in results:
+                                fit_test_info += f"- {name}: Accuracy={acc:.3f}, F1_macro={f1:.3f}\n"
+                prompt_detail += f"\nFit tests (all models):\n{fit_test_info}\n"
+                prompt_detail += "Suggest the best algorithm(s) based on these tests. Motivate your choice using the metrics above.\n"
+
                 prompt_detail += "Suggest ML algorithms from ['linear_regression', 'polynomial_regression', 'decision_tree_regressor', 'random_forest_regressor', 'svr', 'logistic_regression', 'svc', 'decision_tree_classifier', 'random_forest_classifier', 'naive_bayes_classifier'].\n"
                 prompt_detail += "For each, provide JSON: {'algorithm_name': str, 'algorithm_key': str, 'task_type': 'regression'|'classification', 'motivation': str, 'suggested_features': list[str], 'suggested_target': str}.\n"
+                prompt_detail += "For each suggestion, explain why you chose regression or classification for the target column.\n"
                 if serializer.validated_data.get('task_type_preference'):
-                    prompt_detail += f"Prioritize: {serializer.validated_data['task_type_preference']}\n"
+                    prompt_detail += f"Prioritize: {serializer.validated_data['task_type_preference']} if it makes sense for the data.\n"
                 prompt_detail += "Response must be a JSON object: {'suggestions': array_of_suggestion_objects}. Empty array if none."
 
                 print(f"Sending prompt to OpenAI for suggestions (length {len(prompt_detail)}).")

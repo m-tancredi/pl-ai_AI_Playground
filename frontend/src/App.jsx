@@ -7,7 +7,6 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
-import RegressionPage from './pages/RegressionPage';
 import ImageGeneratorPage from './pages/ImageGeneratorPage';
 import ResourceManagerPage from './pages/ResourceManagerPage';
 import ImageClassifierPage from './pages/ImageClassifierPage';
@@ -27,7 +26,6 @@ function App() {
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
                 <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/regression" element={<RegressionPage />} />
                 <Route path="/image-generator" element={<ImageGeneratorPage />} />
                 <Route path="/resources" element={<ResourceManagerPage />} />
                 <Route path="/image-classifier" element={<ImageClassifierPage />} />

@@ -14,12 +14,6 @@ const HomePage = () => {
       {isAuthenticated ? (
         <div>
           <p className="mb-4">Hello, {user?.username || 'User'}!</p>
-          <Link
-            to="/regression" // Or profile, or dashboard
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition duration-300"
-          >
-            Go to Regression Tool
-          </Link>
         </div>
       ) : (
         <div>

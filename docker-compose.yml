@@ -239,21 +239,6 @@ services:
       resource_manager_service: { condition: service_started }
     restart: unless-stopped
 
-  pl_ai_regression_service: # --- Aggiornato ---
-    build: { context: ./backend/regression_service }
-    container_name: pl-ai-regression-service
-    env_file: [./backend/regression_service/.env]
-    volumes:
-      - ./backend/regression_service:/app # Solo codice
-      # RIMOSSO volume media
-    expose: ["8001"]
-    networks: [pl-ai-network]
-    # RIMOSSA dipendenza da DB
-    depends_on: # Dipende da resource manager per chiamate interne
-      resource_manager_service: { condition: service_started } # O healthy se ha healthcheck affidabile
-    # RIMOSSO healthcheck basato su /admin (o sostituire con uno valido)
-    restart: unless-stopped
-
   classifier_db:
     image: postgres:15-alpine
     container_name: pl-ai-classifier-db
@@ -314,7 +299,7 @@ services:
     environment: [SERVICE_PROCESS_TYPE=web]
     volumes:
       - ./backend/resource_manager_service:/app
-      - resource_media_data:/app/mediafiles
+      - ./backend/resource_manager_service/mediafiles:/mediafiles
     expose: ["8003"]
     networks: [pl-ai-network]
     depends_on:
@@ -336,7 +321,7 @@ services:
     env_file: [./backend/resource_manager_service/.env]
     volumes:
       - ./backend/resource_manager_service:/app
-      - resource_media_data:/app/mediafiles
+      - ./backend/resource_manager_service/mediafiles:/mediafiles
     networks: [pl-ai-network]
     depends_on:
       resource_db: { condition: service_healthy }
@@ -382,10 +367,9 @@ services:
     volumes:
       - analysis_results_data:/media_analysis_results:ro
       - image_generator_media:/media_images:ro
-      - resource_media_data:/media_resources:ro
+      - ./backend/resource_manager_service/mediafiles:/media_resources
     depends_on: # Assicurati che dipenda da TUTTI i web services
       auth_service: { condition: service_healthy }
-      pl_ai_regression_service: { condition: service_started } # o healthy
       pl_ai_image_generator_service: { condition: service_healthy } # o started
       resource_manager_service: { condition: service_healthy }
       image_classifier_service: { condition: service_started } # o healthy

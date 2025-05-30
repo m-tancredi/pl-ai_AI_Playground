@@ -1,6 +1,7 @@
 // src/components/ResourceCard.jsx
 import React, { useState } from 'react';
 import { FaFileImage, FaFilePdf, FaFileCsv, FaFileWord, FaFileAlt, FaEdit, FaTrashAlt, FaDownload, FaInfoCircle, FaSpinner, FaTags, FaBrain, FaChartLine, FaListOl } from 'react-icons/fa';
+import { getFullMediaUrl } from '../utils/getFullMediaUrl';
 
 // --- Componenti UI Semplici ---
 const MiniSpinner = () => <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-indigo-500"></div>;
@@ -40,7 +41,6 @@ const getUseTagStyle = (useType) => {
         return fallbackStyle;
     }
     switch (useType.toLowerCase()) {
-        case 'regression': return { icon: <FaChartLine className="mr-1" />, color: 'bg-blue-100 text-blue-800' };
         case 'classification': return { icon: <FaListOl className="mr-1" />, color: 'bg-purple-100 text-purple-800' };
         case 'rag': return { icon: <FaBrain className="mr-1" />, color: 'bg-teal-100 text-teal-800' };
         case 'clustering': return { icon: <FaTags className="mr-1" />, color: 'bg-yellow-100 text-yellow-800' };
@@ -57,6 +57,7 @@ const ResourceCard = ({
     onSelect,     // Callback per quando la card viene selezionata (opzionale)
     onEdit,       // Callback per aprire modale modifica (opzionale)
     onDelete,     // Callback per avviare eliminazione (opzionale)
+    onDownload,   // Callback per avviare download (opzionale)
     isDeleting,   // Booleano per indicare se l'eliminazione è in corso
     isSelected    // Booleano per indicare se la card è selezionata
 }) => {
@@ -71,7 +72,7 @@ const ResourceCard = ({
     };
 
     // Chiamate a funzioni helper
-    const fullThumbnailUrl = resource.thumbnail_url ? buildFullUrl(resource.thumbnail_url) : null;
+    const fullThumbnailUrl = resource.thumbnail_url ? getFullMediaUrl(resource.thumbnail_url) : null;
     const fileIconElement = getFileIcon(resource.mime_type);
 
     // Determina se la card è cliccabile (completata e con callback onSelect)
@@ -171,13 +172,14 @@ const ResourceCard = ({
             </div>
 
             {/* Azioni (Footer) - Mostra solo se le callback sono fornite */}
-            {(onEdit || onDelete) && (
+            {(onEdit || onDelete || onDownload) && (
                 <div className={`border-t border-gray-100 px-3 py-2 flex justify-end space-x-1 ${!isCompleted ? 'invisible' : ''}`}>
                     {onEdit && (
                          <button onClick={(e) => { e.stopPropagation(); onEdit(resource); }} disabled={isProcessing || isDeleting} title="Edit Metadata" className="p-1 text-gray-400 hover:text-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-yellow-400 rounded" aria-label="Edit"> <FaEdit className="h-4 w-4"/> </button>
                     )}
-                    {/* Download gestito separatamente o rimosso da qui */}
-                    {/* <a href={...}>...</a> */}
+                    {onDownload && (
+                         <button onClick={(e) => { e.stopPropagation(); onDownload(resource); }} title="Download" className="p-1 text-gray-400 hover:text-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded" aria-label="Download"> <FaDownload className="h-4 w-4"/> </button>
+                    )}
                     {onDelete && (
                          <button onClick={(e) => { e.stopPropagation(); onDelete(resource.id); }} disabled={isDeleting || isProcessing} title="Delete Resource" className={`p-1 text-gray-400 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed ${isDeleting ? 'text-indigo-500' : ''} focus:outline-none focus:ring-1 focus:ring-red-400 rounded`} aria-label="Delete"> {isDeleting ? <MiniSpinner /> : <FaTrashAlt className="h-4 w-4"/>} </button>
                     )}

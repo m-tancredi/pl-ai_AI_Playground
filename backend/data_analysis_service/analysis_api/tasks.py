@@ -186,24 +186,29 @@ def run_analysis_task(self, analysis_job_id_str):
                     metrics['slope'] = model.coef_[0] if model.coef_.ndim == 1 else model.coef_.tolist()
                     metrics['intercept'] = float(model.intercept_)
                 else: print(f"{task_id_log_prefix}   Model type {type(model)} doesn't have standard slope/intercept.")
-            plot_data_json = generate_regression_plot_data(X_test, y_test, y_pred, model, selected_features, selected_target)
+            # Calcola predizioni su tutto il dataset
+            y_pred_full = model.predict(X)
+            plot_data_json = generate_regression_plot_data(X, y, y_pred_full, model, selected_features, selected_target)
 
         elif task_type == 'classification':
             y_pred_proba = None
             if hasattr(model, "predict_proba"): y_pred_proba = model.predict_proba(X_test)
-            
             all_original_class_names = []
             if label_encoder and hasattr(label_encoder, 'classes_'):
                 all_original_class_names = label_encoder.classes_.tolist()
-            elif analysis_job.input_parameters.get('class_names_from_suggestion_or_user'): # Assumendo che la vista lo salvi qui
+            elif analysis_job.input_parameters.get('class_names_from_suggestion_or_user'):
                 all_original_class_names = analysis_job.input_parameters['class_names_from_suggestion_or_user']
-            # Fallback se i nomi non sono stati passati o trovati
             if not all_original_class_names:
                 all_original_class_names = [f"Class {i}" for i in sorted(list(np.unique(y_train.astype(int))))]
-
             all_numeric_labels_for_all_classes = list(range(len(all_original_class_names)))
             metrics = calculate_classification_metrics(y_test.astype(int), y_pred.astype(int), y_pred_proba, all_class_labels_numeric=all_numeric_labels_for_all_classes, all_class_names=all_original_class_names)
-            plot_data_json = generate_classification_plot_data(X_test, y_test.astype(int), model, selected_features, selected_target, all_original_class_names, preprocessor, label_encoder)
+            # Calcola predizioni su tutto il dataset
+            y_pred_full = model.predict(X)
+            # Passa tutto il dataset e mostra solo scatter 3D
+            plot_data_json = generate_classification_plot_data(X, y, model, selected_features, selected_target, all_original_class_names, preprocessor, label_encoder)
+            # Filtra solo scatter 3D se presente
+            if isinstance(plot_data_json, list):
+                plot_data_json = [p for p in plot_data_json if p.get('type') == 'classification_scatter_3d']
 
         print(f"{task_id_log_prefix}   Metrics calculated: {metrics}")
 

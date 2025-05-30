@@ -35,8 +35,8 @@ const Navbar = () => {
             <NavLink to="/" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle} end>Home</NavLink>
             {isAuthenticated && (
               <>
-                <NavLink to="/regression" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Regression</NavLink>
                 <NavLink to="/image-generator" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Image Gen</NavLink>
+                <NavLink to="/image-classifier" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Image Classifier</NavLink>
                 <NavLink to="/resources" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Resources</NavLink>
                 {/* --- AGGIUNGI LINK QUI --- */}
                 <NavLink to="/data-analysis" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Data Analysis</NavLink>
@@ -82,8 +82,8 @@ const Navbar = () => {
             <NavLink to="/" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu} end>Home</NavLink>
             {isAuthenticated && (
               <>
-                <NavLink to="/regression" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Regression</NavLink>
                 <NavLink to="/image-generator" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Image Gen</NavLink>
+                <NavLink to="/image-classifier" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Image Classifier</NavLink>
                 <NavLink to="/resources" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Resources</NavLink>
                 {/* --- AGGIUNGI LINK QUI (MOBILE) --- */}
                 <NavLink to="/data-analysis" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Data Analysis</NavLink>
