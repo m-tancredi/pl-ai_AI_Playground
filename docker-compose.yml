@@ -3,18 +3,15 @@
 networks:
   pl-ai-network:
     driver: bridge
+  ai_platform_network:
+    driver: bridge
 
 volumes:
-  # Database Volumes
   postgres_data:           # Auth Service DB
-  # RIMOSSO: regression_db_data:
   image_generator_db_data: # Image Generator Service DB
   resource_db_data:        # Resource Manager Service DB
-  # Media Volumes
-  # RIMOSSO: regression_media_data:
   image_generator_media:   # Image Generator Service Media
   resource_media_data:     # Resource Manager Service Media
-  # Broker Volume
   rabbitmq_data:
   classifier_db_data: # <-- NUOVO Volume DB Classifier
   models_storage_data: # <-- NUOVO Volume per Modelli ML
@@ -353,14 +350,14 @@ services:
     networks: [pl-ai-network]
     restart: unless-stopped
 
-  
-
   # --- API Gateway / Reverse Proxy ---
   nginx:
     build: { context: ./nginx }
     container_name: pl-ai-nginx
     ports: ["8080:80"]
-    networks: [pl-ai-network]
+    networks:
+      - pl-ai-network
+      - ai_platform_network
     volumes:
       - analysis_results_data:/media_analysis_results:ro
       - image_generator_media:/media_images:ro

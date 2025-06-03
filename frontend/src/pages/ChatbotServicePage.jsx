@@ -8,12 +8,52 @@ import {
   createConversation,
   deleteConversation
 } from '../services/chatbotService';
+import axios from 'axios';
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
-const ChatbotServicePage = () => {
+const BACKENDS = {
+  chatbot: {
+    label: 'ChatbotService',
+    send: async ({ input, selectedProfile, selectedConversation }) => {
+      // Usa la logica esistente
+      return await sendMessage({
+        content: input,
+        profileId: selectedProfile.id,
+        conversationId: selectedConversation ? selectedConversation.id : undefined
+      });
+    },
+    parse: (response) => response.reply || response.content || 'Risposta non disponibile.'
+  },
+  ollama: {
+    label: 'Ollama (LLM locale)',
+    send: async ({ input, jwtToken }) => {
+      // Chiamata diretta all'API LLM
+      const res = await axios.post(
+        '/api/llm/chat/completions/',
+        {
+          model: 'phi:latest', // o altro modello disponibile
+          messages: [
+            { role: 'user', content: input }
+          ],
+          stream: false
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${jwtToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      return res.data.choices?.[0]?.message?.content || 'Risposta non disponibile.';
+    },
+    parse: (response) => response // già stringa
+  }
+};
+
+const ChatbotServicePage = ({ jwtToken }) => {
   const [profiles, setProfiles] = useState([]);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -26,6 +66,7 @@ const ChatbotServicePage = () => {
   const [newProfileName, setNewProfileName] = useState('');
   const [sending, setSending] = useState(false);
   const chatEndRef = useRef(null);
+  const [backend, setBackend] = useState('chatbot');
 
   // Carica profili all'avvio
   useEffect(() => {
@@ -109,21 +150,32 @@ const ChatbotServicePage = () => {
     setSending(true);
     setError(null);
     try {
-      let response;
-      if (selectedConversation) {
-        response = await sendMessage({
-          content: input,
-          profileId: selectedProfile.id,
-          conversationId: selectedConversation.id
-        });
-        await loadMessages(selectedConversation.id);
-      } else {
-        response = await sendMessage({
-          content: input,
-          profileId: selectedProfile.id
-        });
-        // Dopo la creazione, ricarica conversazioni e seleziona quella nuova
-        await loadConversations(selectedProfile.id);
+      let reply;
+      if (backend === 'chatbot') {
+        // Usa la logica esistente
+        let response;
+        if (selectedConversation) {
+          response = await sendMessage({
+            content: input,
+            profileId: selectedProfile.id,
+            conversationId: selectedConversation.id
+          });
+          await loadMessages(selectedConversation.id);
+        } else {
+          response = await sendMessage({
+            content: input,
+            profileId: selectedProfile.id
+          });
+          await loadConversations(selectedProfile.id);
+        }
+        reply = response.reply || response.content || 'Risposta non disponibile.';
+      } else if (backend === 'ollama') {
+        // Chiamata a Ollama
+        reply = await BACKENDS.ollama.send({ input, jwtToken });
+        setMessages(msgs => [...msgs, { role: 'user', content: input }, { role: 'assistant', content: reply, backend: 'ollama' }]);
+        setInput('');
+        setSending(false);
+        return;
       }
       setInput('');
     } catch (e) {
@@ -166,6 +218,14 @@ const ChatbotServicePage = () => {
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-4rem)] bg-gray-50">
+      {/* Selettore backend */}
+      <div className="p-4 border-b flex items-center gap-4">
+        <label>Backend:</label>
+        <select value={backend} onChange={e => setBackend(e.target.value)}>
+          <option value="chatbot">ChatbotService</option>
+          <option value="ollama">Ollama (LLM locale)</option>
+        </select>
+      </div>
       {/* Sidebar profili/conversazioni */}
       <aside className="w-full md:w-80 bg-white border-r flex flex-col">
         <div className="p-4 border-b flex items-center justify-between">

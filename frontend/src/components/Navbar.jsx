@@ -63,6 +63,7 @@ const Navbar = () => {
                 <NavLink to="/resources" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Resources</NavLink>
                 {/* --- AGGIUNGI LINK QUI --- */}
                 <NavLink to="/data-analysis" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Data Analysis</NavLink>
+                <NavLink to="/chatbot" className={({isActive}) => isActive ? activeLinkStyle : inactiveLinkStyle}>Chatbot</NavLink>
               </>
             )}
           </div>
@@ -110,6 +111,7 @@ const Navbar = () => {
                 <NavLink to="/resources" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Resources</NavLink>
                 {/* --- AGGIUNGI LINK QUI (MOBILE) --- */}
                 <NavLink to="/data-analysis" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Data Analysis</NavLink>
+                <NavLink to="/chatbot" className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileInactiveLinkStyle} onClick={closeMobileMenu}>Chatbot</NavLink>
               </>
             )}
              {/* Auth Links Mobile */}
