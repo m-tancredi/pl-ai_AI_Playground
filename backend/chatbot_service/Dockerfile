@@ -2,38 +2,32 @@ FROM python:3.10-slim
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV TF_CPP_MIN_LOG_LEVEL=${TF_CPP_MIN_LOG_LEVEL:-2}
 
 WORKDIR /app
 
-# Installa dipendenze di sistema
-# libpq-dev per psycopg2
-# build-essential, gcc per compilazioni C generiche
-# git, autoconf, ecc. per librabbitmq
-# PyMuPDF (fitz) potrebbe necessitare di alcune librerie C, ma spesso il wheel le include.
-# Verificare se sono necessarie: libmupdf-dev, swig
+# Installa dipendenze di sistema necessarie per Postgres, Pillow, ecc.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
-    build-essential \
     netcat-openbsd \
     curl \
-    git \
-    autoconf automake libtool pkg-config libc-dev \
-    # Aggiungere qui se PyMuPDF dà errori di build:
-    # swig libmupdf-dev mupdf-tools
+    libjpeg-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Installa dipendenze Python
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copia il codice del progetto
 COPY . /app/
 
+# Copia entrypoint script e rendilo eseguibile
 COPY ./entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Non ci sono media files gestiti direttamente da questo servizio
-# quindi non serve `mkdir -p /app/mediafiles`
+# Espone la porta 8001 (puoi cambiarla se preferisci)
+EXPOSE 8001
 
-EXPOSE 8006
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Esegui entrypoint script
+ENTRYPOINT ["/app/entrypoint.sh"] 

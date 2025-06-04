@@ -1,30 +1,16 @@
 Django>=4.0,<5.0
 djangorestframework>=3.14,<3.16
-djangorestframework-simplejwt[crypto]>=5.2,<5.4 # Per validazione
+djangorestframework-simplejwt[crypto]>=5.2,<5.4
 django-cors-headers>=3.13,<4.4
-gunicorn>=20.1,<22.0
 python-dotenv>=0.20,<1.1
-psycopg2-binary>=2.9,<2.10 # Driver PostgreSQL
-requests>=2.28,<2.32       # Per chiamate API interne (es. a Resource Manager per RAG)
-dj_database_url
-PyPDF2
-# LLM SDKs
-openai>=1.0,<2.0 # Nuovo SDK OpenAI
-anthropic>=0.20.0,<0.22.0 # Specifica una versione stabile, es. 0.21.3
-google-generativeai>=0.4.0,<0.5.0 # Es. 0.4.1
-
-# Tokenizer
-tiktoken>=0.5.0,<0.6.0 # Es. 0.5.1
-
-# File Processing per RAG (se implementato)
-PyMuPDF>=1.23.0,<1.24.0    # Per PDF (fitz)
-python-docx>=1.1.0,<1.2.0 # Per DOCX
-pandas>=1.5,<2.3          # Per CSV (e potenzialmente altri formati tabulari)
-# python-magic non strettamente necessario qui se Resource Manager fornisce MIME
-
-# Celery (struttura base)
-celery>=5.3,<5.4
-librabbitmq>=2.0,<3.0 # O redis
-
-# Opzionale: per risultati Celery in DB
-# django-celery-results>=2.5,<2.6
+psycopg2-binary>=2.9,<2.10
+requests>=2.28,<2.32
+openai>=1.0,<2.0
+anthropic
+google-generativeai
+tiktoken
+pandas>=1.5,<2.3
+pytesseract
+Pillow>=9.0,<10.3
+pdfplumber
+PyJWT

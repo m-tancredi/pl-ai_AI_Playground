@@ -1,0 +1,122 @@
+{
+  "info": {
+    "_postman_id": "chatbot-service-collection-001",
+    "name": "Chatbot Service API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Crea nuova chat",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"message\": \"Ciao, spiegami la fotosintesi\",\n  \"context\": {\n    \"grade\": \"secondaria\",\n    \"mode\": \"spiegazione\",\n    \"subject\": \"scienze\",\n    \"model\": \"gpt4\",\n    \"systemPrompt\": \"Sei un tutor gentile.\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/chat/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "chat", ""]
+        }
+      }
+    },
+    {
+      "name": "Chat history",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/chat-history/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "chat-history", ""]
+        }
+      }
+    },
+    {
+      "name": "Dettaglio chat",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/chat/{{chat_id}}/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "chat", "{{chat_id}}", ""]
+        }
+      }
+    },
+    {
+      "name": "Cancella chat",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/chat/{{chat_id}}/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "chat", "{{chat_id}}", ""]
+        }
+      }
+    },
+    {
+      "name": "Cancella tutte le chat",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/chats/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "chats", ""]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "jwt_token",
+      "value": "INSERISCI_QUI_IL_TUO_TOKEN"
+    },
+    {
+      "key": "chat_id",
+      "value": "1"
+    }
+  ]
+} 

@@ -1,35 +1,56 @@
 # Rimuovi 'version: '3.8'' se usi docker compose V2+
 
+version: '3.9'
+
 networks:
-  pl-ai-network:
-    driver: bridge
   ai_platform_network:
+    driver: bridge
+  pl-ai-network:
     driver: bridge
 
 volumes:
-  postgres_data:           # Auth Service DB
-  image_generator_db_data: # Image Generator Service DB
-  resource_db_data:        # Resource Manager Service DB
-  image_generator_media:   # Image Generator Service Media
-  resource_media_data:     # Resource Manager Service Media
-  rabbitmq_data:
-  classifier_db_data: # <-- NUOVO Volume DB Classifier
-  models_storage_data: # <-- NUOVO Volume per Modelli ML
-  analysis_db_data:         # Per il DB di questo servizio
-  analysis_results_data:    # Per modelli/plot salvati da questo servizio
+  analysis_db_data:
+  analysis_results_data:
   chatbot_db_data:
+  classifier_db_data:
+  image_generator_db_data:
+  image_generator_media:
+  models_storage_data:
+  postgres_data:
+  rabbitmq_data:
+  resource_db_data:
+  resource_media_data:
 
 secrets:
+  anthropic_api_key_secret:
+    file: ./.secrets/anthropic_api_key.txt
+  gemini_api_key_secret:
+    file: ./.secrets/gemini_api_key.txt
   openai_api_key_secret:
     file: ./.secrets/openai_api_key.txt
   stability_api_key_secret:
     file: ./.secrets/stability_api_key.txt
-  gemini_api_key_secret:
-    file: ./.secrets/gemini_api_key.txt
 
 services:
-
   # --- Databases ---
+  analysis_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-analysis-db
+    volumes:
+      - analysis_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${ANALYSIS_DB_USER:-analysis_user}
+      POSTGRES_PASSWORD: ${ANALYSIS_DB_PASSWORD:-analysis_password}
+      POSTGRES_DB: ${ANALYSIS_DB_NAME:-analysis_db}
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-analysis_user} -d $${POSTGRES_DB:-analysis_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   auth_db:
     image: postgres:15-alpine
     container_name: pl-ai-auth-db
@@ -49,7 +70,42 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # --- RIMOSSO Servizio regression_service_db ---
+  chatbot_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-chatbot-db
+    volumes:
+      - chatbot_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${CHATBOT_DB_USER:-chatbot_user}
+      POSTGRES_PASSWORD: ${CHATBOT_DB_PASSWORD:-chatbot_pass}
+      POSTGRES_DB: ${CHATBOT_DB_NAME:-chatbot_db}
+    expose: ["5432"]
+    ports: ["5436:5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-chatbot_user} -d $${POSTGRES_DB:-chatbot_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  classifier_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-classifier-db
+    volumes:
+      - classifier_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${CLASSIFIER_DB_USER:-classifier_user}
+      POSTGRES_PASSWORD: ${CLASSIFIER_DB_PASSWORD:-classifier_password}
+      POSTGRES_DB: ${CLASSIFIER_DB_NAME:-classifier_db}
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-classifier_user} -d $${POSTGRES_DB:-classifier_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   image_generator_db:
     image: postgres:15-alpine
@@ -79,7 +135,7 @@ services:
       POSTGRES_PASSWORD: ${RESOURCE_DB_PASSWORD:-resource_password}
       POSTGRES_DB: ${RESOURCE_DB_NAME:-resource_db}
     expose: ["5432"]
-    ports: ["5435:5432"] # Mantenuto per debug se necessario
+    ports: ["5435:5432"]
     networks: [pl-ai-network]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-resource_user} -d $${POSTGRES_DB:-resource_db}"]
@@ -87,81 +143,35 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-  # --- NUOVO Database per Chatbot Service ---
-  chatbot_db:
-    image: postgres:15-alpine
-    container_name: pl-ai-chatbot-db
-    volumes:
-      - chatbot_db_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: ${CHATBOT_DB_USER:-chatbot_user}
-      POSTGRES_PASSWORD: ${CHATBOT_DB_PASSWORD:-chatbot_password}
-      POSTGRES_DB: ${CHATBOT_DB_NAME:-chatbot_db}
-    expose: ["5432"]
-    networks: [pl-ai-network]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-chatbot_user} -d $${POSTGRES_DB:-chatbot_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # --- NUOVO Chatbot Service (Web Server) ---
-  chatbot_service:
-    build:
-      context: ./backend/chatbot_service
-      dockerfile: Dockerfile
-    container_name: pl-ai-chatbot-web
-    env_file: [./backend/chatbot_service/.env]
-    # Imposta SERVICE_PROCESS_TYPE=web se il tuo entrypoint.sh lo usa
-    # per avviare solo il web server. Se l'entrypoint avvia solo web di default, non serve.
-    environment:
-      - SERVICE_PROCESS_TYPE=web # Assumendo che entrypoint.sh lo supporti
-    volumes:
-      - ./backend/chatbot_service:/app
-      # Non ha un volume media dedicato qui, i file sono gestiti da resource_manager
-    secrets: # Mappa tutte le chiavi API LLM e il segreto interno
-      - openai_api_key_secret
-      - gemini_api_key_secret
-    expose: ["8006"] # Nuova porta per questo servizio
-    networks: [pl-ai-network]
-    depends_on:
-      chatbot_db: { condition: service_healthy }
-      rabbitmq: { condition: service_healthy } # Se usi Celery attivamente
-      resource_manager_service: { condition: service_started } # Per chiamate API interne RAG
-    # Healthcheck opzionale, es. se hai un endpoint admin
-    healthcheck:
-       test: ["CMD-SHELL", "curl --fail http://localhost:8006/admin/login/ || exit 1"]
-       interval: 30s
-       timeout: 10s
-       retries: 5
-       start_period: 45s
-    restart: unless-stopped
 
   # --- Message Broker ---
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
     container_name: pl-ai-rabbitmq
-    volumes: [rabbitmq_data:/var/lib/rabbitmq/]
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq/
     ports: ["15672:15672"]
     expose: ["5672"]
     networks: [pl-ai-network]
     healthcheck:
-        test: ["CMD", "rabbitmq-diagnostics", "check_running", "-q"]
-        interval: 30s
-        timeout: 10s
-        retries: 5
+      test: ["CMD", "rabbitmq-diagnostics", "check_running", "-q"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     restart: unless-stopped
 
   # --- Backend Services ---
   auth_service:
-    build: { context: ./backend/auth_service }
+    build:
+      context: ./backend/auth_service
     container_name: pl-ai-auth-service
     env_file: [./backend/auth_service/.env]
-    volumes: ['./backend/auth_service:/app']
+    volumes:
+      - ./backend/auth_service:/app
     expose: ["8000"]
     networks: [pl-ai-network]
-    depends_on: { auth_db: { condition: service_healthy } }
+    depends_on:
+      auth_db: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
       interval: 30s
@@ -170,25 +180,32 @@ services:
       start_period: 60s
     restart: unless-stopped
 
-  analysis_db:
-    image: postgres:15-alpine
-    container_name: pl-ai-analysis-db
-    volumes:
-      - analysis_db_data:/var/lib/postgresql/data
+  chatbot_service:
+    build:
+      context: ./backend/chatbot_service
+    container_name: pl-ai-chatbot-service
     environment:
-      POSTGRES_USER: ${ANALYSIS_DB_USER:-analysis_user}
-      POSTGRES_PASSWORD: ${ANALYSIS_DB_PASSWORD:-analysis_password}
-      POSTGRES_DB: ${ANALYSIS_DB_NAME:-analysis_db}
-    expose: ["5432"]
+      DB_NAME: ${CHATBOT_DB_NAME:-chatbot_db}
+      DB_USER: ${CHATBOT_DB_USER:-chatbot_user}
+      DB_PASSWORD: ${CHATBOT_DB_PASSWORD:-chatbot_pass}
+      DB_HOST: chatbot_db
+      DB_PORT: 5432
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key_secret
+      GEMINI_API_KEY_FILE: /run/secrets/gemini_api_key_secret
+      ANTHROPIC_API_KEY_FILE: /run/secrets/anthropic_api_key_secret
+    volumes:
+      - ./backend/chatbot_service:/app
+    secrets:
+      - openai_api_key_secret
+      - gemini_api_key_secret
+      - anthropic_api_key_secret
+    expose: ["8001"]
+    ports: ["8001:8001"]
     networks: [pl-ai-network]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-analysis_user} -d $${POSTGRES_DB:-analysis_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    depends_on:
+      chatbot_db: { condition: service_healthy }
     restart: unless-stopped
 
-  # --- NUOVO: Data Analysis Service (Web) ---
   data_analysis_service:
     build:
       context: ./backend/data_analysis_service
@@ -198,64 +215,29 @@ services:
     environment: [SERVICE_PROCESS_TYPE=web]
     volumes:
       - ./backend/data_analysis_service:/app
-      - analysis_results_data:/app/analysis_results_storage # Volume per risultati
-    secrets: # Mappa il secret di OpenAI
-      - openai_api_key_secret
-    expose: ["8005"] # Nuova porta
-    networks: [pl-ai-network]
-    depends_on:
-      analysis_db: { condition: service_healthy }
-      rabbitmq: { condition: service_healthy }
-      resource_manager_service: { condition: service_started } # Per chiamate interne
-    healthcheck:
-       test: ["CMD-SHELL", "curl --fail http://localhost:8005/admin/login/ || exit 1"] # Se admin è abilitato
-       interval: 30s
-       timeout: 10s
-       retries: 5
-       start_period: 45s
-    restart: unless-stopped
-  # --- NUOVO: Data Analysis Service (Worker) ---
-  data_analysis_worker:
-    build: { context: ./backend/data_analysis_service }
-    container_name: pl-ai-data-analysis-worker
-    entrypoint: ""
-    command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "analysis_tasks", "-c", "1"]
-    env_file: [./backend/data_analysis_service/.env]
-    volumes: # Accesso a codice e storage risultati
-      - ./backend/data_analysis_service:/app
       - analysis_results_data:/app/analysis_results_storage
-    secrets: # Anche il worker potrebbe aver bisogno della chiave OpenAI
+    secrets:
       - openai_api_key_secret
+    expose: ["8005"]
     networks: [pl-ai-network]
     depends_on:
       analysis_db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       resource_manager_service: { condition: service_started }
-    restart: unless-stopped
-
-  classifier_db:
-    image: postgres:15-alpine
-    container_name: pl-ai-classifier-db
-    volumes: [classifier_db_data:/var/lib/postgresql/data]
-    environment:
-      POSTGRES_USER: ${CLASSIFIER_DB_USER:-classifier_user}
-      POSTGRES_PASSWORD: ${CLASSIFIER_DB_PASSWORD:-classifier_password}
-      POSTGRES_DB: ${CLASSIFIER_DB_NAME:-classifier_db}
-    expose: ["5432"]
-    networks: [pl-ai-network]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-classifier_user} -d $${POSTGRES_DB:-classifier_db}"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD-SHELL", "curl --fail http://localhost:8005/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
       retries: 5
+      start_period: 45s
     restart: unless-stopped
 
-    # --- NUOVO Classifier Service (Web) ---
-  image_classifier_service: # Questo è il web server
-    build: { context: ./backend/image_classifier_service }
-    container_name: pl-ai-classifier-web # Nome corretto
+  image_classifier_service:
+    build:
+      context: ./backend/image_classifier_service
+    container_name: pl-ai-classifier-web
     env_file: [./backend/image_classifier_service/.env]
-    environment: [SERVICE_PROCESS_TYPE=web] # Dice all'entrypoint di avviare solo il web
+    environment: [SERVICE_PROCESS_TYPE=web]
     volumes:
       - ./backend/image_classifier_service:/app
       - models_storage_data:/app/models_storage
@@ -264,30 +246,34 @@ services:
     depends_on:
       classifier_db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
-    # healthcheck: { ... } # Opzionale
     restart: unless-stopped
 
   pl_ai_image_generator_service:
-    build: { context: ./backend/image_generator_service }
+    build:
+      context: ./backend/image_generator_service
     container_name: pl-ai-image-generator-service
     env_file: [./backend/image_generator_service/.env]
     volumes:
       - ./backend/image_generator_service:/app
       - image_generator_media:/app/mediafiles
-    secrets: [openai_api_key_secret, stability_api_key_secret]
+    secrets:
+      - openai_api_key_secret
+      - stability_api_key_secret
     expose: ["8002"]
     networks: [pl-ai-network]
-    depends_on: { image_generator_db: { condition: service_healthy } }
+    depends_on:
+      image_generator_db: { condition: service_healthy }
     healthcheck:
-       test: ["CMD-SHELL", "curl --fail http://localhost:8002/admin/login/ || exit 1"]
-       interval: 30s
-       timeout: 10s
-       retries: 5
-       start_period: 45s
+      test: ["CMD-SHELL", "curl --fail http://localhost:8002/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
     restart: unless-stopped
 
-  resource_manager_service: # Web
-    build: { context: ./backend/resource_manager_service }
+  resource_manager_service:
+    build:
+      context: ./backend/resource_manager_service
     container_name: pl-ai-resource-manager-web
     env_file: [./backend/resource_manager_service/.env]
     environment: [SERVICE_PROCESS_TYPE=web]
@@ -300,15 +286,52 @@ services:
       resource_db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
     healthcheck:
-       test: ["CMD-SHELL", "curl --fail http://localhost:8003/admin/login/ || exit 1"]
-       interval: 30s
-       timeout: 10s
-       retries: 5
-       start_period: 45s
+      test: ["CMD-SHELL", "curl --fail http://localhost:8003/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
     restart: unless-stopped
 
-  resource_manager_worker: # Celery
-    build: { context: ./backend/resource_manager_service }
+  # --- Worker Services ---
+  data_analysis_worker:
+    build:
+      context: ./backend/data_analysis_service
+    container_name: pl-ai-data-analysis-worker
+    entrypoint: ""
+    command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "analysis_tasks", "-c", "1"]
+    env_file: [./backend/data_analysis_service/.env]
+    volumes:
+      - ./backend/data_analysis_service:/app
+      - analysis_results_data:/app/analysis_results_storage
+    secrets:
+      - openai_api_key_secret
+    networks: [pl-ai-network]
+    depends_on:
+      analysis_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      resource_manager_service: { condition: service_started }
+    restart: unless-stopped
+
+  image_classifier_worker:
+    build:
+      context: ./backend/image_classifier_service
+    container_name: pl-ai-classifier-worker
+    entrypoint: ""
+    command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "classifier_tasks", "-c", "1"]
+    env_file: [./backend/image_classifier_service/.env]
+    volumes:
+      - ./backend/image_classifier_service:/app
+      - models_storage_data:/app/models_storage
+    networks: [pl-ai-network]
+    depends_on:
+      classifier_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+
+  resource_manager_worker:
+    build:
+      context: ./backend/resource_manager_service
     container_name: pl-ai-resource-manager-worker
     entrypoint: ""
     command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "resource_tasks"]
@@ -322,29 +345,10 @@ services:
       rabbitmq: { condition: service_healthy }
     restart: unless-stopped
 
-    # --- NUOVO Classifier Service (Worker) ---
-  image_classifier_worker: # Questo è il worker Celery per il classifier
-    build: { context: ./backend/image_classifier_service } # Usa la stessa immagine del web
-    container_name: pl-ai-classifier-worker # Nome corretto
-    # --- CORREZIONE FONDAMENTALE ---
-    # Sovrascrivi entrypoint e definisci il comando per avviare il worker
-    # di QUESTO servizio (che usa service_config come nome progetto)
-    entrypoint: ""
-    command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "classifier_tasks", "-c", "1"]
-    # --- FINE CORREZIONE ---
-    env_file: [./backend/image_classifier_service/.env] # Stesse variabili env
-    volumes: # Accesso a codice e storage modelli
-      - ./backend/image_classifier_service:/app
-      - models_storage_data:/app/models_storage
-    networks: [pl-ai-network]
-    depends_on: # Dipende da DB e Broker
-      classifier_db: { condition: service_healthy }
-      rabbitmq: { condition: service_healthy }
-    restart: unless-stopped
-
   # --- Frontend Service ---
   frontend:
-    build: { context: ./frontend }
+    build:
+      context: ./frontend
     container_name: pl-ai-frontend
     expose: ["3000"]
     networks: [pl-ai-network]
@@ -352,7 +356,8 @@ services:
 
   # --- API Gateway / Reverse Proxy ---
   nginx:
-    build: { context: ./nginx }
+    build:
+      context: ./nginx
     container_name: pl-ai-nginx
     ports: ["8080:80"]
     networks:
@@ -362,12 +367,11 @@ services:
       - analysis_results_data:/media_analysis_results:ro
       - image_generator_media:/media_images:ro
       - ./backend/resource_manager_service/mediafiles:/media_resources
-    depends_on: # Assicurati che dipenda da TUTTI i web services
+    depends_on:
       auth_service: { condition: service_healthy }
-      pl_ai_image_generator_service: { condition: service_healthy } # o started
+      pl_ai_image_generator_service: { condition: service_healthy }
       resource_manager_service: { condition: service_healthy }
-      image_classifier_service: { condition: service_started } # o healthy
-      data_analysis_service: { condition: service_healthy } # O started
-      chatbot_service: { condition: service_healthy } # <-- AGGIUNTO
+      image_classifier_service: { condition: service_started }
+      data_analysis_service: { condition: service_healthy }
       frontend: { condition: service_started }
     restart: unless-stopped
