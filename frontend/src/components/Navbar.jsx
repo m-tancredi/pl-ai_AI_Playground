@@ -1,6 +1,7 @@
 // src/components/Navbar.jsx
 import React, { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom'; // Aggiunto NavLink per active-styling
+import { FaTimes } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext'; // Verifica path
 
 const Navbar = () => {

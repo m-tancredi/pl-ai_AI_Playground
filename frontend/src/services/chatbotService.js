@@ -1,72 +1,76 @@
-import axios from 'axios';
+import apiClient from './apiClient';
 
-const API_BASE = '/api/chatbot';
+const API_CHATBOT_URL = '/api/chatbot'; // Prefisso API come definito in Nginx
 
-// Helper per ottenere il token JWT (adatta se usi altro metodo)
-function getAuthHeaders() {
-  const token = localStorage.getItem('jwt');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+/**
+ * Invia un messaggio al chatbot.
+ * @param {object} payload - { message, context, chatId? }
+ * @returns {Promise<object>} Promise che risolve con { response, chatId, token_info? }
+ */
+export const sendMessage = async (payload) => {
+    try {
+        const response = await apiClient.post(`${API_CHATBOT_URL}/chat/`, payload);
+        return response.data;
+    } catch (error) {
+        console.error("API Error sending message:", error.response?.data || error.message);
+        throw error;
+    }
+};
 
-// --- PROFILI CHATBOT ---
-export async function fetchChatbotProfiles() {
-  const res = await axios.get(`${API_BASE}/profiles/`, { headers: getAuthHeaders() });
-  return res.data;
-}
+/**
+ * Recupera la cronologia delle chat dell'utente.
+ * @returns {Promise<Array>} Promise che risolve con l'array delle chat
+ */
+export const getChatHistory = async () => {
+    try {
+        const response = await apiClient.get(`${API_CHATBOT_URL}/chat-history/`);
+        return response.data;
+    } catch (error) {
+        console.error("API Error getting chat history:", error.response?.data || error.message);
+        throw error;
+    }
+};
 
-export async function createChatbotProfile(data) {
-  const res = await axios.post(`${API_BASE}/profiles/`, data, { headers: getAuthHeaders() });
-  return res.data;
-}
+/**
+ * Recupera i dettagli di una chat specifica.
+ * @param {string|number} chatId - L'ID della chat
+ * @returns {Promise<object>} Promise che risolve con i dettagli della chat
+ */
+export const getChatDetail = async (chatId) => {
+    try {
+        const response = await apiClient.get(`${API_CHATBOT_URL}/chat/${chatId}/`);
+        return response.data;
+    } catch (error) {
+        console.error("API Error getting chat detail:", error.response?.data || error.message);
+        throw error;
+    }
+};
 
-export async function updateChatbotProfile(id, data) {
-  const res = await axios.patch(`${API_BASE}/profiles/${id}/`, data, { headers: getAuthHeaders() });
-  return res.data;
-}
+/**
+ * Cancella una chat specifica.
+ * @param {string|number} chatId - L'ID della chat da cancellare
+ * @returns {Promise<object>} Promise che risolve con il risultato dell'operazione
+ */
+export const deleteChat = async (chatId) => {
+    try {
+        const response = await apiClient.delete(`${API_CHATBOT_URL}/chat/${chatId}/`);
+        return response.data;
+    } catch (error) {
+        console.error("API Error deleting chat:", error.response?.data || error.message);
+        throw error;
+    }
+};
 
-export async function deleteChatbotProfile(id) {
-  await axios.delete(`${API_BASE}/profiles/${id}/`, { headers: getAuthHeaders() });
-}
-
-// --- CONVERSAZIONI ---
-export async function fetchConversations(profileId = null) {
-  const params = profileId ? { profile_id: profileId } : {};
-  const res = await axios.get(`${API_BASE}/conversations/`, { params, headers: getAuthHeaders() });
-  return res.data;
-}
-
-export async function createConversation(profileId) {
-  const res = await axios.post(`${API_BASE}/conversations/`, { profile_id: profileId }, { headers: getAuthHeaders() });
-  return res.data;
-}
-
-export async function deleteConversation(id) {
-  await axios.delete(`${API_BASE}/conversations/${id}/`, { headers: getAuthHeaders() });
-}
-
-// --- MESSAGGI ---
-export async function fetchMessages(conversationId) {
-  const res = await axios.get(`${API_BASE}/conversations/${conversationId}/messages/`, { headers: getAuthHeaders() });
-  return res.data;
-}
-
-// --- INVIO MESSAGGIO (e ricezione risposta AI) ---
-export async function sendMessage({ content, profileId, conversationId = null, ragResourceIds = [] }) {
-  if (conversationId) {
-    // Messaggio in conversazione esistente
-    const res = await axios.post(
-      `${API_BASE}/conversations/${conversationId}/send_message/`,
-      { content, profile_id: profileId, rag_resource_ids: ragResourceIds },
-      { headers: getAuthHeaders() }
-    );
-    return res.data;
-  } else {
-    // Nuova conversazione
-    const res = await axios.post(
-      `${API_BASE}/send_message/`,
-      { content, profile_id: profileId, rag_resource_ids: ragResourceIds },
-      { headers: getAuthHeaders() }
-    );
-    return res.data;
-  }
-} 
+/**
+ * Cancella tutte le chat dell'utente.
+ * @returns {Promise<object>} Promise che risolve con il risultato dell'operazione
+ */
+export const deleteAllChats = async () => {
+    try {
+        const response = await apiClient.delete(`${API_CHATBOT_URL}/chats/`);
+        return response.data;
+    } catch (error) {
+        console.error("API Error deleting all chats:", error.response?.data || error.message);
+        throw error;
+    }
+}; 

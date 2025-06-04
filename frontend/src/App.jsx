@@ -11,6 +11,7 @@ import ImageGeneratorPage from './pages/ImageGeneratorPage';
 import ResourceManagerPage from './pages/ResourceManagerPage';
 import ImageClassifierPage from './pages/ImageClassifierPage';
 import DataAnalysisPage from './pages/DataAnalysisPage';
+import ChatbotServicePage from './pages/ChatbotServicePage';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
                 <Route path="/resources" element={<ResourceManagerPage />} />
                 <Route path="/image-classifier" element={<ImageClassifierPage />} />
                 <Route path="/data-analysis" element={<DataAnalysisPage />} />
+                <Route path="/chatbot" element={<ChatbotServicePage />} />
              </Route>
 
           {/* Fallback route */}
