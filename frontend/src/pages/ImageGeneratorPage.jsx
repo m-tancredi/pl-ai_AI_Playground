@@ -23,7 +23,7 @@ const Spinner = ({ small = false }) => (
 );
 
 const Alert = ({ type = 'error', message, onClose }) => {
-    const baseStyle = 'border px-4 py-3 rounded relative mb-4 shadow-sm';
+    const baseStyle = 'border px-4 py-3 rounded relative shadow-sm';
     const typeStyle = type === 'error'
         ? 'bg-red-100 border-red-400 text-red-700'
         : 'bg-green-100 border-green-400 text-green-700';
@@ -260,8 +260,6 @@ const ImageGeneratorPage = () => {
 
     return (
         <div className="container mx-auto px-4 py-8 space-y-8">
-            <h1 className="text-3xl font-bold text-gray-800">AI Image Generator</h1>
-
              {/* Messaggi Globali */}
              {error && <Alert type="error" message={error} onClose={() => setError('')} />}
              {success && <Alert type="success" message={success} onClose={() => setSuccess('')} />}
@@ -270,7 +268,7 @@ const ImageGeneratorPage = () => {
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                  {/* Colonna Input */}
                  <div className="bg-white p-6 rounded-lg shadow-lg space-y-4 border border-gray-200">
-                     <h2 className="text-xl font-semibold border-b pb-2 mb-4 text-gray-700">Generation Parameters</h2>
+                     <h2 className="text-xl font-semibold border-b pb-2 text-gray-700">Generation Parameters</h2>
                      {/* Prompt & Enhance Button */}
                      <div>
                          <label htmlFor="prompt" className="block text-sm font-medium text-gray-700">Prompt:</label>
@@ -311,7 +309,7 @@ const ImageGeneratorPage = () => {
                      <div className="border-t pt-4 mt-4 space-y-4">
                          <h3 className="text-md font-semibold text-gray-600">Or Use Image-to-Image (Stability):</h3>
                          <div>
-                             <label htmlFor="imageFile" className="block text-sm font-medium text-gray-700 mb-1">Initial Image (PNG/JPEG):</label>
+                             <label htmlFor="imageFile" className="block text-sm font-medium text-gray-700">Initial Image (PNG/JPEG):</label>
                              <input type="file" id="imageFile" accept="image/png, image/jpeg" ref={fileInputRef} onChange={handleFileChange} className="..."/>
                              {imagePreview && (<div className="mt-2 ..."><img src={imagePreview} alt="Preview" className="max-h-40 rounded" /></div>)}
                          </div>
@@ -334,7 +332,7 @@ const ImageGeneratorPage = () => {
 
                  {/* Colonna Output */}
                  <div className="bg-gray-50 p-6 rounded-lg shadow-lg space-y-4 min-h-[400px] flex flex-col items-center justify-center border border-gray-200">
-                     <h2 className="text-xl font-semibold border-b pb-2 mb-4 w-full text-center text-gray-700">Result</h2>
+                     <h2 className="text-xl font-semibold border-b pb-2 w-full text-center text-gray-700">Result</h2>
                      {isGenerating && (<div className="text-center py-10"><Spinner /><p className="text-gray-600 mt-2">Generating...</p></div>)}
 
                      {/* Immagine Generata (Temporanea) */}
@@ -363,7 +361,7 @@ const ImageGeneratorPage = () => {
              {/* La condizione isAuthenticated assicura che venga mostrata solo a utenti loggati */}
              {isAuthenticated && (
                  <div className="mt-12 pt-8 border-t border-gray-300">
-                    <div className="flex justify-between items-center mb-6">
+                    <div className="flex justify-between items-center">
                         <h2 className="text-2xl font-bold text-gray-800">My Image Gallery</h2>
                         {/* Bottone Show/Hide */}
                         <button onClick={() => setShowGallery(!showGallery)} className="px-4 py-2 bg-white border border-gray-300 text-indigo-600 rounded-md shadow-sm hover:bg-gray-50 text-sm font-medium">

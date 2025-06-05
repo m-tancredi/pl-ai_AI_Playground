@@ -35,10 +35,10 @@ const ProtectedRoute = ({ children }) => {
   }
 
   if (!isAuthenticated) {
-    // User not authenticated, redirect to login page
+    // User not authenticated, redirect to landing page
     // Preserve the location they were trying to access using `state`
-    console.log('ProtectedRoute: Not authenticated, redirecting to login.');
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    console.log('ProtectedRoute: Not authenticated, redirecting to landing page.');
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   // User is authenticated, render the requested component

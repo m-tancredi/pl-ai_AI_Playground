@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse'; // npm install papaparse
-import { FaUpload, FaSpinner, FaTimes, FaBrain, FaChartBar, FaTable, FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaFileCsv, FaSearch, FaRedo, FaSave, FaPlay, FaChevronRight, FaMagic, FaCheck, FaCloudDownloadAlt } from 'react-icons/fa';
+import { FaUpload, FaSpinner, FaTimes, FaBrain, FaChartBar, FaTable, FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaFileCsv, FaSearch, FaRedo, FaSave, FaPlay, FaChevronRight, FaMagic, FaCheck, FaCloudDownloadAlt, FaQuestionCircle } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { listUserResources, uploadResource as uploadResourceViaRM } from '../services/resourceManagerService';
 import { suggestAlgorithm, runAnalysis, getAnalysisResults, predictInstance, createSyntheticCsvJob, getSyntheticCsvJobStatus } from '../services/dataAnalysisService';
@@ -14,29 +14,31 @@ import ConsoleLog from '../components/ConsoleLog';
 import TutorialModal from '../components/TutorialModal';
 import EditableDataTable from '../components/EditableDataTable'; // Assumendo che tu abbia creato questo
 
-// --- COMPONENTI UI MODERNI ---
-// Card moderna con ombra profonda e hover
+// --- COMPONENTI UI MODERNI CON STILE CHATBOT ---
+// Card moderna con ombra profonda e hover - stile chatbot
 const Card = ({ children, className = '' }) => (
-  <div className={`bg-white rounded-3xl shadow-2xl p-10 mb-12 transition-all duration-300 hover:shadow-3xl ${className}`}>{children}</div>
+  <div className={`bg-white rounded-2xl shadow-xl p-8 mb-8 transition-all duration-300 hover:shadow-2xl ${className}`}>{children}</div>
 );
-// Header card con icona grande
+// Header card con icona grande - stile chatbot
 const CardHeader = ({ title, icon, right }) => (
-  <div className="flex items-center justify-between mb-10">
+  <div className="flex items-center justify-between mb-8">
     <div className="flex items-center gap-4">
-      <span className="text-indigo-600 text-4xl drop-shadow-lg">{icon}</span>
-      <h2 className="text-3xl font-extrabold text-gray-800 tracking-tight drop-shadow-sm">{title}</h2>
+      <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg">
+        {icon}
+      </div>
+      <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
     </div>
     {right}
   </div>
 );
-// Bottoni grandi e moderni
+// Bottoni grandi e moderni - stile chatbot
 const ButtonPrimary = ({ children, ...props }) => (
-  <button {...props} className={`inline-flex items-center px-8 py-3 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white text-lg font-bold shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed ${props.className || ''}`}>{children}</button>
+  <button {...props} className={`inline-flex items-center px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${props.className || ''}`}>{children}</button>
 );
 const ButtonSecondary = ({ children, ...props }) => (
-  <button {...props} className={`inline-flex items-center px-8 py-3 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-800 text-lg font-semibold shadow transition disabled:opacity-50 disabled:cursor-not-allowed ${props.className || ''}`}>{children}</button>
+  <button {...props} className={`inline-flex items-center px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold shadow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${props.className || ''}`}>{children}</button>
 );
-// Step progress bar moderna
+// Step progress bar moderna - stile chatbot
 const StepProgress = ({ currentStep }) => {
   const steps = [
     { label: 'Dataset', icon: <FaTable /> },
@@ -44,91 +46,61 @@ const StepProgress = ({ currentStep }) => {
     { label: 'Risultati', icon: <FaChartBar /> },
   ];
   return (
-    <div className="flex items-center justify-center gap-0 md:gap-8 mb-14">
+    <div className="flex items-center justify-center gap-0 md:gap-8 mb-12">
       {steps.map((step, idx) => (
         <React.Fragment key={step.label}>
-          <div className={`flex flex-col items-center transition-all duration-300 ${currentStep === idx + 1 ? 'text-indigo-600 scale-110' : 'text-gray-300 scale-100'}`}> 
-            <div className={`rounded-full border-4 ${currentStep === idx + 1 ? 'border-indigo-600 bg-indigo-50 shadow-xl' : 'border-gray-200 bg-white'} w-20 h-20 flex items-center justify-center text-4xl mb-2 transition-all duration-300`}>{step.icon}</div>
-            <span className="text-base font-bold uppercase tracking-wider mt-1 drop-shadow-sm">{step.label}</span>
+          <div className={`flex flex-col items-center transition-all duration-300 ${currentStep === idx + 1 ? 'text-purple-600 scale-110' : 'text-gray-300 scale-100'}`}> 
+            <div className={`rounded-full border-4 ${currentStep === idx + 1 ? 'border-purple-600 bg-purple-50 shadow-xl' : 'border-gray-200 bg-white'} w-16 h-16 flex items-center justify-center text-2xl mb-2 transition-all duration-300`}>{step.icon}</div>
+            <span className="text-sm font-bold uppercase tracking-wider mt-1">{step.label}</span>
           </div>
-          {idx < steps.length - 1 && <FaChevronRight className="mx-4 text-gray-300 text-3xl" />}
+          {idx < steps.length - 1 && <FaChevronRight className="mx-4 text-gray-300 text-2xl" />}
         </React.Fragment>
       ))}
     </div>
   );
 };
-// Modale elegante con overlay sfumato e animazione
+// Modale elegante con overlay sfumato e animazione - stile chatbot
 const Modal = ({ show, onClose, children }) => {
   if (!show) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-black/60 to-indigo-900/40 animate-fadeIn">
-      <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-3xl w-full relative animate-fadeInUp">
-        <button onClick={onClose} className="absolute top-5 right-5 text-gray-400 hover:text-red-500 text-3xl"><FaTimes /></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 text-2xl">
+          <FaTimes />
+        </button>
         {children}
       </div>
     </div>
-);
-};
-// Alert moderno con icona grande
-const Alert = ({ type = 'error', message, onClose }) => {
-  const color = type === 'success' ? 'green' : type === 'warning' ? 'yellow' : 'red';
-  const Icon = type === 'success' ? FaCheckCircle : type === 'warning' ? FaExclamationTriangle : FaExclamationTriangle;
-    return (
-    <div className={`flex items-center gap-4 px-6 py-4 rounded-2xl shadow-lg mb-6 bg-${color}-50 border-l-8 border-${color}-400 text-${color}-800 text-lg`}>
-      <Icon className={`text-${color}-500 text-3xl`} />
-      <span className="flex-1 font-semibold">{message}</span>
-      {onClose && <button onClick={onClose} className={`ml-2 text-${color}-400 hover:text-${color}-700 text-2xl`}><FaTimes /></button>}
-        </div>
-    );
-};
-// Spinner moderno
-const Spinner = ({ small = false, color = 'indigo-500' }) => (
-  <div className={`inline-block animate-spin rounded-full border-t-4 border-b-4 border-${color} ${small ? 'h-6 w-6 mr-2' : 'h-8 w-8 mr-3'} align-middle`}></div>
-);
-// Tabella metriche moderna
-const MetricTable = ({ metrics }) => {
-  if (!metrics) return null;
-  return (
-    <table className="min-w-full text-base border rounded-2xl bg-white shadow overflow-hidden">
-      <tbody>
-        {Object.entries(metrics).map(([key, value]) => {
-          if (Array.isArray(value)) {
-            // Confusion matrix o array: visualizza come tabella
-            return (
-              <tr key={key}>
-                <td className="font-bold align-top pr-4 py-2 text-gray-700">{key}</td>
-                <td>
-                  <table className="border text-xs rounded-xl overflow-hidden">
-                    <tbody>
-                      {value.map((row, i) => (
-                        <tr key={i} className="even:bg-gray-50">
-                          {Array.isArray(row) ? row.map((cell, j) => (
-                            <td key={j} className="border px-3 py-1 text-center font-mono">{cell}</td>
-                          )) : <td className="border px-3 py-1 text-center font-mono">{row}</td>}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-            );
-          }
-          // Badge per valori numerici
-          return (
-            <tr key={key} className="even:bg-gray-50">
-              <td className="font-bold pr-4 py-2 text-gray-700">{key}</td>
-              <td>
-                <span className="inline-block bg-indigo-100 text-indigo-800 px-4 py-1 rounded-full text-lg font-mono shadow">
-                  {typeof value === 'number' ? value.toFixed(4) : value}
-                </span>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
   );
 };
+// Alert moderno con icona grande - stile chatbot
+const Alert = ({ type = 'error', message, onClose }) => {
+  const colorClasses = {
+    success: 'bg-green-50 border-green-200 text-green-700',
+    warning: 'bg-yellow-50 border-yellow-200 text-yellow-700',
+    error: 'bg-red-50 border-red-200 text-red-700'
+  };
+  const IconComponent = type === 'success' ? FaCheckCircle : FaExclamationTriangle;
+  const iconColor = type === 'success' ? 'text-green-500' : type === 'warning' ? 'text-yellow-500' : 'text-red-500';
+  
+  return (
+    <div className={`max-w-6xl mx-auto mb-6 ${colorClasses[type]} border px-4 py-3 rounded-xl flex items-center justify-between`}>
+      <div className="flex items-center gap-3">
+        <IconComponent className={`${iconColor} text-xl`} />
+        <span className="font-medium">{message}</span>
+      </div>
+      {onClose && (
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <FaTimes />
+        </button>
+      )}
+    </div>
+  );
+};
+// Spinner moderno - stile chatbot
+const Spinner = ({ small = false, color = 'purple-500' }) => (
+  <div className={`inline-block animate-spin rounded-full border-t-4 border-b-4 border-${color} ${small ? 'h-5 w-5 mr-2' : 'h-6 w-6 mr-2'} align-middle`}></div>
+);
 
 // Frasi magiche per la barra di caricamento
 const MAGIC_WORDS = [
@@ -148,7 +120,52 @@ const logMessage = (msg) => {
   }
 };
 
-// Tabella confronto suggerimenti AI interattiva
+// Tabella metriche moderna - stile chatbot
+const MetricTable = ({ metrics }) => {
+  if (!metrics) return null;
+  return (
+    <table className="min-w-full text-sm border rounded-xl bg-white shadow overflow-hidden">
+      <tbody>
+        {Object.entries(metrics).map(([key, value]) => {
+          if (Array.isArray(value)) {
+            // Confusion matrix o array: visualizza come tabella
+            return (
+              <tr key={key}>
+                <td className="font-bold align-top pr-4 py-3 text-gray-700">{key}</td>
+                <td>
+                  <table className="border text-xs rounded-lg overflow-hidden">
+                    <tbody>
+                      {value.map((row, i) => (
+                        <tr key={i} className="even:bg-gray-50">
+                          {Array.isArray(row) ? row.map((cell, j) => (
+                            <td key={j} className="border px-3 py-2 text-center font-mono">{cell}</td>
+                          )) : <td className="border px-3 py-2 text-center font-mono">{row}</td>}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            );
+          }
+          // Badge per valori numerici - stile chatbot
+          return (
+            <tr key={key} className="even:bg-purple-50">
+              <td className="font-bold pr-4 py-3 text-gray-700">{key}</td>
+              <td>
+                <span className="inline-block bg-purple-100 text-purple-800 px-4 py-2 rounded-full font-mono shadow-sm">
+                  {typeof value === 'number' ? value.toFixed(4) : value}
+                </span>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+};
+
+// Tabella confronto suggerimenti AI interattiva - stile chatbot
 const AISuggestionTable = ({ suggestions, bestSuggestion }) => {
   const [sortKey, setSortKey] = React.useState('');
   const [sortDir, setSortDir] = React.useState('desc');
@@ -210,19 +227,19 @@ const AISuggestionTable = ({ suggestions, bestSuggestion }) => {
 
     return (
     <div className="overflow-x-auto mt-4">
-      <div className="flex items-center gap-4 mb-2">
-        <label className="text-xs font-semibold">Filtra per tipo:</label>
-        <select className="border rounded px-2 py-1 text-xs" value={taskTypeFilter} onChange={e => setTaskTypeFilter(e.target.value)}>
+      <div className="flex items-center gap-4 mb-3">
+        <label className="text-sm font-semibold text-gray-700">Filtra per tipo:</label>
+        <select className="p-2 border-0 rounded-xl bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" value={taskTypeFilter} onChange={e => setTaskTypeFilter(e.target.value)}>
           <option value="">Tutti</option>
           <option value="regression">Regression</option>
           <option value="classification">Classification</option>
         </select>
       </div>
-      <table className="min-w-full text-xs border rounded-xl bg-white shadow">
+      <table className="min-w-full text-sm border rounded-xl bg-white shadow overflow-hidden">
         <thead>
-          <tr className="bg-indigo-50">
+          <tr className="bg-purple-50">
             {columns.map(col => (
-              <th key={col.key} className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => {
+              <th key={col.key} className="px-4 py-3 text-left cursor-pointer select-none font-semibold text-purple-700 hover:bg-purple-100 transition-colors" onClick={() => {
                 if (sortKey === col.key) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
                 else { setSortKey(col.key); setSortDir('desc'); }
               }}>
@@ -234,15 +251,19 @@ const AISuggestionTable = ({ suggestions, bestSuggestion }) => {
         <tbody>
           {sortedRows.map((row, i) => (
             <tr key={i} className={
-              `${isBest(row) ? 'bg-green-100 border-2 border-green-400' : (i%2===0 ? 'bg-white' : 'bg-gray-50')}`
+              `${isBest(row) ? 'bg-green-100 border-2 border-green-400' : (i%2===0 ? 'bg-white' : 'bg-gray-50')} hover:bg-purple-50 transition-colors`
             }>
-              <td className="px-3 py-2 font-bold text-indigo-700">{row.algorithm_name}</td>
-              <td className="px-3 py-2">{row.task_type}</td>
-              <td className="px-3 py-2 text-center">{row.r2 !== undefined && !isNaN(row.r2) ? row.r2.toFixed(3) : '-'}</td>
-              <td className="px-3 py-2 text-center">{row.mse !== undefined && !isNaN(row.mse) ? row.mse.toFixed(3) : '-'}</td>
-              <td className="px-3 py-2 text-center">{row.acc !== undefined && !isNaN(row.acc) ? (row.acc*100).toFixed(1)+'%' : '-'}</td>
-              <td className="px-3 py-2 text-center">{row.f1 !== undefined && !isNaN(row.f1) ? row.f1.toFixed(3) : '-'}</td>
-              <td className="px-3 py-2 max-w-xs whitespace-pre-line">{row.motivation}</td>
+              <td className="px-4 py-3 font-bold text-purple-700">{row.algorithm_name}</td>
+              <td className="px-4 py-3">
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                  {row.task_type}
+                </span>
+              </td>
+              <td className="px-4 py-3 text-center font-mono">{row.r2 !== undefined && !isNaN(row.r2) ? row.r2.toFixed(3) : '-'}</td>
+              <td className="px-4 py-3 text-center font-mono">{row.mse !== undefined && !isNaN(row.mse) ? row.mse.toFixed(3) : '-'}</td>
+              <td className="px-4 py-3 text-center font-mono">{row.acc !== undefined && !isNaN(row.acc) ? (row.acc*100).toFixed(1)+'%' : '-'}</td>
+              <td className="px-4 py-3 text-center font-mono">{row.f1 !== undefined && !isNaN(row.f1) ? row.f1.toFixed(3) : '-'}</td>
+              <td className="px-4 py-3 max-w-xs text-gray-600 text-xs">{row.motivation}</td>
             </tr>
           ))}
         </tbody>
@@ -964,299 +985,421 @@ const DataAnalysisPage = () => {
 
     // --- Rendering ---
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 py-10 px-2 md:px-8">
-            <StepProgress currentStep={currentStep} />
-            {/* Alert/banner */}
-            {error && <Alert type="error" message={error} onClose={() => setError('')} />}
-            {success && <Alert type="success" message={success} onClose={() => setSuccess('')} />}
-            {warning && <Alert type="warning" message={warning} onClose={() => setWarning('')} />}
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50 py-8 px-4">
+            <div className="max-w-7xl mx-auto">
+                <StepProgress currentStep={currentStep} />
+                
+                {/* Alert/banner */}
+                {error && <Alert type="error" message={error} onClose={() => setError('')} />}
+                {success && <Alert type="success" message={success} onClose={() => setSuccess('')} />}
+                {warning && <Alert type="warning" message={warning} onClose={() => setWarning('')} />}
 
-            {/* Step 1: Dataset */}
-            <Card>
-                <CardHeader title="1. Scegli o carica un dataset" icon={<FaTable />} right={currentStep > 1 && (selectedResource || uploadedFile) && <ButtonSecondary onClick={() => {setCurrentStep(1); resetAnalysisState(true);}}>Cambia Dataset</ButtonSecondary>} />
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {/* Risorse utente */}
-                    <div className="col-span-2">
-                        <h3 className="text-md font-semibold text-gray-700 mb-2">Le tue risorse CSV</h3>
-                        {isLoadingResources ? <Spinner /> : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-h-72 overflow-y-auto p-1 -m-1">
-                                {availableCsvResources.map(res => (
-                                    <ResourceCard key={res.id} resource={res} isSelected={selectedResource?.id === res.id} onSelect={() => handleResourceCardSelect(res)} />
-                                ))}
-            </div>
-                        )}
-                        <ButtonSecondary onClick={fetchCsvResources} disabled={isLoadingResources} className="mt-4"><FaRedo className="mr-2" />Aggiorna</ButtonSecondary>
-            </div>
-                    {/* Upload box */}
-                    <div className="flex flex-col items-center justify-center">
-                        <h3 className="text-md font-semibold text-gray-700 mb-2">Oppure carica un nuovo CSV</h3>
-                        <div {...getRootProps()} className={`p-8 border-2 ${isDragActive ? 'border-indigo-500 bg-indigo-50' : 'border-dashed border-gray-300 hover:border-gray-400'} rounded-xl text-center cursor-pointer w-full transition`}>
-                            <input {...getInputProps()} ref={fileInputRef} />
-                            <FaUpload className={`mx-auto h-12 w-12 ${isDragActive ? 'text-indigo-500' : 'text-gray-400'} mb-2`} />
-                            {isDragActive ? <p className="font-semibold text-indigo-600">Rilascia il file qui...</p> : <p className="text-gray-500">Trascina un file o clicca per selezionare</p>}
-                            {uploadedFile && <p className="text-xs text-green-600 mt-2">Pronto: {uploadedFile.name}</p>}
-                        </div>
-                        <ButtonPrimary onClick={() => setShowSyntheticModal(true)} className="mt-6"><FaMagic className="mr-2" />Crea CSV Sintetico con AI</ButtonPrimary>
-                    </div>
-                </div>
-                <div className="mt-8 flex flex-col md:flex-row md:items-center gap-4">
-                    <div className="flex-1">
-                        <label htmlFor="taskTypePreference" className="block text-sm font-medium text-gray-700 mb-1">Preferenza task:</label>
-                        <select id="taskTypePreference" value={taskTypePreference} onChange={(e) => setTaskTypePreference(e.target.value)} className="w-full p-2 border rounded-md shadow-sm">
-                            <option value="">Qualsiasi</option>
-                            <option value="regression">Regression</option>
-                            <option value="classification">Classification</option>
-                        </select>
-                    </div>
-                    <ButtonPrimary onClick={handleSuggestAlgorithm} disabled={isSuggesting || (!selectedResource && !uploadedFile)} className="w-full md:w-auto mt-4 md:mt-0"><FaSearch className="mr-2" />Ottieni suggerimenti AI {isSuggesting && <Spinner small color="white" />}</ButtonPrimary>
-                </div>
-                {currentStep > 1 && (selectedResource || uploadedFile) && (
-                    <div className="mt-6 text-sm text-gray-600 p-4 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center gap-4 cursor-pointer hover:bg-indigo-100 transition" onClick={handleOpenFullDatasetModal} title="Clicca per vedere e modificare tutto il dataset">
-                        <FaCheckCircle className="text-green-500 text-xl" />
-                        <span>Usando: <strong>{uploadedFile ? uploadedFile.name : selectedResource?.name || selectedResource?.original_filename}</strong></span>
-                        {datasetPreview && <span className="text-xs ml-4">Anteprima: {datasetPreview.num_cols} colonne, {datasetPreview.num_rows_sample} righe di esempio. <span className="underline text-indigo-600 cursor-pointer ml-2">(Clicca per vedere tutto)</span></span>}
-                    </div>
-                )}
-            </Card>
-
-            {/* Modale dataset completo */}
-            <Modal show={showFullDatasetModal} onClose={() => setShowFullDatasetModal(false)}>
-                <div>
-                    <h2 className="text-lg font-bold mb-2 flex items-center gap-2"><FaTable className="text-indigo-500" /> Dataset completo</h2>
-                    {isLoadingFullDataset ? <Spinner /> : (
-                        <>
-                            <EditableDataTable headers={fullDatasetHeaders} data={fullDataset} onDataChange={handleFullDatasetCellEdit} maxRows={fullDataset.length} />
-                            {fullDatasetError && <Alert type="error" message={fullDatasetError} onClose={()=>setFullDatasetError('')} />}
-                            <div className="flex justify-end gap-2 mt-4">
-                                <ButtonSecondary onClick={() => setShowFullDatasetModal(false)}>Chiudi</ButtonSecondary>
-                                <ButtonPrimary onClick={handleSaveFullDataset} disabled={isSavingFullDataset || !fullDatasetChanged}>
-                                    <FaSave className="mr-2" />Salva
-                                </ButtonPrimary>
-                        </div>
-                        </>
-                    )}
-                    </div>
-            </Modal>
-
-            {/* Step 2: Configura Analisi */}
-            {currentStep >= 2 && (
+                {/* Step 1: Dataset */}
                 <Card>
-                    <CardHeader title="2. Configura l'analisi" icon={<FaBrain />} right={currentStep === 3 && <ButtonSecondary onClick={() => {setCurrentStep(2); resetConfigAndResults();}}>Modifica Configurazione</ButtonSecondary>} />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        {/* Tabella preview/edit */}
-                        <div>
-                            <h3 className="text-lg font-semibold text-gray-700 mb-2">Anteprima & Modifica Dataset</h3>
-                            <EditableDataTable headers={editableDatasetHeaders} data={editableDatasetData} onDataChange={handleCellEdit} maxRows={10} />
-                            {editableDatasetHeaders.length > 0 && (
-                                <ButtonSecondary onClick={handleSaveEditedDataset} disabled={isSavingEditedDataset || !hasDataChanged} className="mt-3"><FaSave className="mr-2" />Salva Modifiche</ButtonSecondary>
-                            )}
-                            {saveEditedDatasetError && <Alert type="error" message={saveEditedDatasetError} onClose={()=>setSaveEditedDatasetError('')} />}
-                </div>
-                        {/* Parametri AI */}
-                        <div>
-                            <h3 className="text-lg font-semibold text-gray-700 mb-2">Algoritmo & Parametri</h3>
-                            {selectedAlgorithm ? (
-                                <div className="mb-3 p-4 bg-indigo-50 border rounded-xl">
-                                    <div className="text-md font-bold text-indigo-700 flex items-center gap-2">
-                                        <FaBrain className="text-indigo-400" />
-                                        {selectedAlgorithm.algorithm_name} <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full ml-2">{selectedAlgorithm.task_type}</span>
-                                    </div>
-                                    <div className="text-xs mt-2"><strong>Motivazione AI:</strong> {selectedAlgorithm.motivation}</div>
-                                    {/* Sezione espandibile per metriche dettagliate */}
-                                    <details className="mt-2 bg-white border rounded p-2 text-xs cursor-pointer">
-                                      <summary className="font-semibold text-indigo-600">Mostra dettagli metriche fit test</summary>
-                                      <div className="whitespace-pre-line mt-1">
-                                        {selectedAlgorithm.motivation}
-                                      </div>
-                                    </details>
-                                    {/* Sotto la motivazione AI, mostra la tabella di confronto */}
-                                    {selectedAlgorithm && aiSuggestions.length > 1 && (
-                                        <AISuggestionTable suggestions={aiSuggestions} bestSuggestion={selectedAlgorithm} />
-                                    )}
-                                </div>
-                            ) : (
-                                <p className="text-sm text-gray-500 italic mb-3">Nessun suggerimento AI disponibile.</p>
-                            )}
-                            {datasetPreview?.headers?.length > 0 && selectedAlgorithm?.task_type === 'regression' && (
-                                <div className="space-y-3">
-                                    <div>
-                                        <label htmlFor="features" className="text-sm font-medium">Features (X):</label>
-                                        <select multiple id="features" value={selectedFeatures} onChange={handleFeatureChange} disabled={currentStep === 3} className="w-full p-2 border rounded h-24 text-sm disabled:bg-gray-100">
-                                            {datasetPreview.headers.filter(h => h !== selectedTarget).map(h => (<option key={`feat-${h}`} value={h}>{h}</option>))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label htmlFor="target" className="text-sm font-medium">Target (Y):</label>
-                                        <select id="target" value={selectedTarget} onChange={(e) => setSelectedTarget(e.target.value)} disabled={currentStep === 3} className="w-full p-2 border rounded text-sm disabled:bg-gray-100">
-                                            <option value="">-- Seleziona Target --</option>
-                                            {datasetPreview.headers.filter(h => !selectedFeatures.includes(h)).map(h => (<option key={`target-${h}`} value={h}>{h}</option>))}
-                                        </select>
-                                    </div>
+                    <CardHeader 
+                        title="1. Scegli o carica un dataset" 
+                        icon={<FaTable />} 
+                        right={currentStep > 1 && (selectedResource || uploadedFile) && 
+                            <ButtonSecondary onClick={() => {setCurrentStep(1); resetAnalysisState(true);}}>
+                                Cambia Dataset
+                            </ButtonSecondary>
+                        } 
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        {/* Risorse utente */}
+                        <div className="col-span-2">
+                            <h3 className="text-lg font-semibold text-gray-700 mb-4">Le tue risorse CSV</h3>
+                            {isLoadingResources ? <Spinner /> : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-h-72 overflow-y-auto p-1 -m-1">
+                                    {availableCsvResources.map(res => (
+                                        <ResourceCard key={res.id} resource={res} isSelected={selectedResource?.id === res.id} onSelect={() => handleResourceCardSelect(res)} />
+                                    ))}
                                 </div>
                             )}
-                            {selectedAlgorithm?.task_type === 'classification' && (
-                                <div className="text-sm bg-green-50 p-3 rounded-xl border">Features: tutte tranne l'ultima. Target: ultima colonna.</div>
-                            )}
+                            <ButtonSecondary onClick={fetchCsvResources} disabled={isLoadingResources} className="mt-4">
+                                <FaRedo className="mr-2" />Aggiorna
+                            </ButtonSecondary>
+                        </div>
+                        {/* Upload box */}
+                        <div className="flex flex-col items-center justify-center">
+                            <h3 className="text-lg font-semibold text-gray-700 mb-4">Oppure carica un nuovo CSV</h3>
+                            <div {...getRootProps()} className={`p-8 border-2 ${isDragActive ? 'border-purple-500 bg-purple-50' : 'border-dashed border-gray-300 hover:border-gray-400'} rounded-xl text-center cursor-pointer w-full transition`}>
+                                <input {...getInputProps()} ref={fileInputRef} />
+                                <FaUpload className={`mx-auto h-12 w-12 ${isDragActive ? 'text-purple-500' : 'text-gray-400'} mb-2`} />
+                                {isDragActive ? <p className="font-semibold text-purple-600">Rilascia il file qui...</p> : <p className="text-gray-500">Trascina un file o clicca per selezionare</p>}
+                                {uploadedFile && <p className="text-xs text-green-600 mt-2">Pronto: {uploadedFile.name}</p>}
+                            </div>
+                            <ButtonPrimary onClick={() => setShowSyntheticModal(true)} className="mt-6">
+                                <FaMagic className="mr-2" />Crea CSV Sintetico con AI
+                            </ButtonPrimary>
                         </div>
                     </div>
-                    <div className="flex justify-end mt-8">
-                        <ButtonPrimary onClick={handleRunAnalysis} disabled={isRunningAnalysis || !selectedAlgorithm || (selectedAlgorithm.task_type === 'regression' && (selectedFeatures.length === 0 || !selectedTarget))}>
-                            <FaPlay className="mr-2" />Avvia Analisi {isRunningAnalysis && <Spinner small color="white" />}
+                    <div className="mt-8 flex flex-col md:flex-row md:items-center gap-4">
+                        <div className="flex-1">
+                            <label htmlFor="taskTypePreference" className="block text-sm font-medium text-gray-700 mb-1">Preferenza task:</label>
+                            <select id="taskTypePreference" value={taskTypePreference} onChange={(e) => setTaskTypePreference(e.target.value)} className="w-full p-3 border-0 rounded-xl bg-white shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                <option value="">Qualsiasi</option>
+                                <option value="regression">Regression</option>
+                                <option value="classification">Classification</option>
+                            </select>
+                        </div>
+                        <ButtonPrimary onClick={handleSuggestAlgorithm} disabled={isSuggesting || (!selectedResource && !uploadedFile)} className="w-full md:w-auto mt-4 md:mt-0">
+                            <FaSearch className="mr-2" />Ottieni suggerimenti AI {isSuggesting && <Spinner small color="white" />}
                         </ButtonPrimary>
                     </div>
+                    {currentStep > 1 && (selectedResource || uploadedFile) && (
+                        <div className="mt-6 text-sm text-gray-600 p-4 bg-purple-50 rounded-xl border border-purple-100 flex items-center gap-4 cursor-pointer hover:bg-purple-100 transition" onClick={handleOpenFullDatasetModal} title="Clicca per vedere e modificare tutto il dataset">
+                            <FaCheckCircle className="text-green-500 text-xl" />
+                            <span>Usando: <strong>{uploadedFile ? uploadedFile.name : selectedResource?.name || selectedResource?.original_filename}</strong></span>
+                            {datasetPreview && <span className="text-xs ml-4">Anteprima: {datasetPreview.num_cols} colonne, {datasetPreview.num_rows_sample} righe di esempio. <span className="underline text-purple-600 cursor-pointer ml-2">(Clicca per vedere tutto)</span></span>}
+                        </div>
+                    )}
                 </Card>
-            )}
 
-            {/* Step 3: Risultati */}
-            {currentStep === 3 && (
-                <Card>
-                    <CardHeader title="3. Risultati" icon={<FaChartBar />} right={<ButtonSecondary onClick={() => {setCurrentStep(1); resetAnalysisState(true);}}>Nuova Analisi</ButtonSecondary>} />
-                    <div className="mb-4 flex flex-wrap gap-4 items-center">
-                        {/* Barra di caricamento analisi */}
-                        {(isRunningAnalysis || isPollingResults) ? (
-                            <div className="flex-1 flex flex-col gap-2">
-                                <div className="w-full bg-gray-200 rounded-full h-5 overflow-hidden">
-                                    <div className="bg-gradient-to-r from-indigo-400 to-indigo-600 h-5 rounded-full transition-all duration-500" style={{ width: `${analysisProgress}%` }}></div>
-                </div>
-                                <div className="text-xs text-gray-600 mt-1">Analisi in corso... {Math.round(analysisProgress)}%</div>
+                {/* Modale dataset completo */}
+                <Modal show={showFullDatasetModal} onClose={() => setShowFullDatasetModal(false)}>
+                    <div>
+                        <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
+                            <FaTable className="text-purple-500" /> 
+                            Dataset completo
+                        </h2>
+                        {isLoadingFullDataset ? (
+                            <div className="flex justify-center items-center py-8">
+                                <Spinner />
+                                <span className="ml-3 text-gray-600">Caricamento dataset...</span>
                             </div>
                         ) : (
                             <>
-                                <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">Job ID: {analysisJobId}</span>
-                                <span className={`ml-2 font-medium px-2 py-1 rounded text-xs ${jobStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' : jobStatus === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>{jobStatus || 'Fetching...'}</span>
+                                <EditableDataTable headers={fullDatasetHeaders} data={fullDataset} onDataChange={handleFullDatasetCellEdit} maxRows={fullDataset.length} />
+                                {fullDatasetError && <Alert type="error" message={fullDatasetError} onClose={()=>setFullDatasetError('')} />}
+                                <div className="flex justify-end gap-3 mt-6">
+                                    <ButtonSecondary onClick={() => setShowFullDatasetModal(false)}>Chiudi</ButtonSecondary>
+                                    <ButtonPrimary onClick={handleSaveFullDataset} disabled={isSavingFullDataset || !fullDatasetChanged}>
+                                        <FaSave className="mr-2" />Salva Modifiche
+                                    </ButtonPrimary>
+                                </div>
                             </>
                         )}
-                        {(isPollingResults || ['PENDING', 'PROCESSING'].includes(jobStatus) ) && <Spinner small color="indigo-500 ml-2" />}
                     </div>
-                    {/* Mostra i risultati solo quando showResults è true */}
-                    {showResults && jobStatus === 'COMPLETED' && jobResults && (
+                </Modal>
+
+                {/* Step 2: Configura Analisi */}
+                {currentStep >= 2 && (
+                    <Card>
+                        <CardHeader 
+                            title="2. Configura l'analisi" 
+                            icon={<FaBrain />} 
+                            right={currentStep === 3 && 
+                                <ButtonSecondary onClick={() => {setCurrentStep(2); resetConfigAndResults();}}>
+                                    Modifica Configurazione
+                                </ButtonSecondary>
+                            } 
+                        />
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            {/* Tabella preview/edit */}
                             <div>
-                                <h3 className="text-lg font-semibold text-gray-700 mb-2">Metriche</h3>
-                                <MetricTable metrics={jobResults.results} />
+                                <h3 className="text-lg font-semibold text-gray-700 mb-4">Anteprima & Modifica Dataset</h3>
+                                <EditableDataTable headers={editableDatasetHeaders} data={editableDatasetData} onDataChange={handleCellEdit} maxRows={10} />
+                                {editableDatasetHeaders.length > 0 && (
+                                    <ButtonSecondary onClick={handleSaveEditedDataset} disabled={isSavingEditedDataset || !hasDataChanged} className="mt-4">
+                                        <FaSave className="mr-2" />Salva Modifiche
+                                    </ButtonSecondary>
+                                )}
+                                {saveEditedDatasetError && <Alert type="error" message={saveEditedDatasetError} onClose={()=>setSaveEditedDatasetError('')} />}
                             </div>
+                            {/* Parametri AI */}
                             <div>
-                                <h3 className="text-lg font-semibold text-gray-700 mb-2">Visualizzazione</h3>
-                                {chartDataAndOptions ? (
-                                    <div className="relative h-[300px] md:h-[400px] border rounded-xl p-2 bg-gray-50 shadow-inner">
-                                        <Plot data={chartDataAndOptions.data} layout={chartDataAndOptions.layout} useResizeHandler={true} className="w-full h-full" config={{responsive: true, displaylogo: false}}/>
-                                    </div>
-                                ) : <p className="text-sm text-gray-500 italic mt-4">Nessun dato per il grafico.</p>}
-                            </div>
-                        </div>
-                    )}
-                    {showResults && jobStatus === 'FAILED' && <Alert type="error" message={`Analisi fallita: ${jobResults?.error_message || 'Errore sconosciuto.'}`} />}
-                    {/* Predizione interattiva */}
-                    {showResults && jobStatus === 'COMPLETED' && jobResults && (
-                        <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-10">
-                            {jobResults.task_type === 'regression' && jobResults.input_parameters?.selected_features?.length > 0 && (
-                                <div className="bg-indigo-50 p-6 rounded-xl border">
-                                    <h4 className="text-md font-semibold text-gray-700 mb-2">Predizione (Regression)</h4>
-                                    <label htmlFor="regPredictX" className="text-sm font-medium">Per <span className='font-semibold'>{jobResults.input_parameters.selected_features[0]}</span> =</label>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <input type="number" id="regPredictX" value={regressionPredictFeatureValue} onChange={(e) => setRegressionPredictFeatureValue(e.target.value)} placeholder="X value" className="flex-grow p-2 border rounded-md" />
-                                        <ButtonPrimary onClick={handleRegressionPredict} disabled={isPredicting} className="!px-4 !py-2">{isPredicting ? <Spinner small color="white" /> : 'Predici'}</ButtonPrimary>
-                                    </div>
-                                    {regressionPredictionResult !== null && <p className="mt-2 text-sm font-semibold">Predetto <span className='font-semibold'>{jobResults.input_parameters.selected_target}</span>: <span className="text-indigo-600 font-mono">{regressionPredictionResult.toFixed(4)}</span></p>}
-                                </div>
-                            )}
-                            {jobResults.task_type === 'classification' && jobResults.input_parameters?.selected_features && (
-                                <div className="bg-green-50 p-6 rounded-xl border">
-                                    <h4 className="text-md font-semibold text-gray-700 mb-2">Predizione (Classification)</h4>
-                                    <div className="space-y-2">
-                                        {jobResults.input_parameters.selected_features.map(feat => (
-                                            <div key={feat}>
-                                                <label htmlFor={`cls_input_${feat}`} className="block text-sm text-gray-700">{feat}:</label>
-                                                <input type="text" id={`cls_input_${feat}`} value={classificationInputValues[feat] || ''} onChange={(e) => handleClassificationInputChange(feat, e.target.value)} placeholder={`Valore per ${feat}`} className="mt-1 w-full p-2 border rounded-md" />
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <ButtonPrimary onClick={handleClassificationPredict} disabled={isPredicting} className="mt-3 !px-4 !py-2">{isPredicting ? <Spinner small color="white" /> : 'Predici Classe'}</ButtonPrimary>
-                                    {classificationPredictionResult && <p className="mt-2 text-sm font-semibold">Classe Predetta: <span className="text-indigo-600 font-bold">{classificationPredictionResult.predicted_class}</span></p>}
-                                    {classificationPredictionResult?.probabilities && (
-                                        <div className="mt-2 text-xs">
-                                            <p className="font-medium">Probabilità:</p>
-                                            <ul className="list-disc list-inside pl-4">
-                                                {Object.entries(classificationPredictionResult.probabilities).sort(([,a],[,b]) => b-a).map(([cN,p]) => (
-                                                    <li key={cN}><span className="font-semibold">{cN}</span>: {(p*100).toFixed(1)}%</li>
-                                                ))}
-                                            </ul>
+                                <h3 className="text-lg font-semibold text-gray-700 mb-4">Algoritmo & Parametri</h3>
+                                {selectedAlgorithm ? (
+                                    <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-xl">
+                                        <div className="text-lg font-bold text-purple-700 flex items-center gap-2 mb-2">
+                                            <FaBrain className="text-purple-500" />
+                                            {selectedAlgorithm.algorithm_name} 
+                                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full ml-2">
+                                                {selectedAlgorithm.task_type}
+                                            </span>
                                         </div>
-                                    )}
+                                        <div className="text-sm mb-3">
+                                            <strong>Motivazione AI:</strong> {selectedAlgorithm.motivation}
+                                        </div>
+                                        {/* Sezione espandibile per metriche dettagliate */}
+                                        <details className="bg-white border border-purple-100 rounded-lg p-3 text-sm cursor-pointer">
+                                            <summary className="font-semibold text-purple-600">Mostra dettagli metriche fit test</summary>
+                                            <div className="whitespace-pre-line mt-2 text-gray-600">
+                                                {selectedAlgorithm.motivation}
+                                            </div>
+                                        </details>
+                                        {/* Sotto la motivazione AI, mostra la tabella di confronto */}
+                                        {selectedAlgorithm && aiSuggestions.length > 1 && (
+                                            <AISuggestionTable suggestions={aiSuggestions} bestSuggestion={selectedAlgorithm} />
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-gray-500 italic mb-4">Nessun suggerimento AI disponibile.</p>
+                                )}
+                                {datasetPreview?.headers?.length > 0 && selectedAlgorithm?.task_type === 'regression' && (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label htmlFor="features" className="block text-sm font-medium text-gray-700 mb-1">Features (X):</label>
+                                            <select multiple id="features" value={selectedFeatures} onChange={handleFeatureChange} disabled={currentStep === 3} className="w-full p-3 border-0 rounded-xl bg-white shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100 h-24">
+                                                {datasetPreview.headers.filter(h => h !== selectedTarget).map(h => (<option key={`feat-${h}`} value={h}>{h}</option>))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label htmlFor="target" className="block text-sm font-medium text-gray-700 mb-1">Target (Y):</label>
+                                            <select id="target" value={selectedTarget} onChange={(e) => setSelectedTarget(e.target.value)} disabled={currentStep === 3} className="w-full p-3 border-0 rounded-xl bg-white shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100">
+                                                <option value="">-- Seleziona Target --</option>
+                                                {datasetPreview.headers.filter(h => !selectedFeatures.includes(h)).map(h => (<option key={`target-${h}`} value={h}>{h}</option>))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
+                                {selectedAlgorithm?.task_type === 'classification' && (
+                                    <div className="text-sm bg-green-50 p-4 rounded-xl border border-green-200">
+                                        <strong>Configurazione automatica:</strong> Features: tutte tranne l'ultima. Target: ultima colonna.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex justify-end mt-8">
+                            <ButtonPrimary onClick={handleRunAnalysis} disabled={isRunningAnalysis || !selectedAlgorithm || (selectedAlgorithm.task_type === 'regression' && (selectedFeatures.length === 0 || !selectedTarget))}>
+                                <FaPlay className="mr-2" />Avvia Analisi {isRunningAnalysis && <Spinner small color="white" />}
+                            </ButtonPrimary>
+                        </div>
+                    </Card>
+                )}
+
+                {/* Step 3: Risultati */}
+                {currentStep === 3 && (
+                    <Card>
+                        <CardHeader 
+                            title="3. Risultati" 
+                            icon={<FaChartBar />} 
+                            right={
+                                <ButtonSecondary onClick={() => {setCurrentStep(1); resetAnalysisState(true);}}>
+                                    Nuova Analisi
+                                </ButtonSecondary>
+                            } 
+                        />
+                        <div className="mb-6 flex flex-wrap gap-4 items-center">
+                            {/* Barra di caricamento analisi */}
+                            {(isRunningAnalysis || isPollingResults) ? (
+                                <div className="flex-1 flex flex-col gap-2">
+                                    <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                                        <div className="bg-gradient-to-r from-purple-400 to-pink-400 h-4 rounded-full transition-all duration-500" style={{ width: `${analysisProgress}%` }}></div>
+                                    </div>
+                                    <div className="text-sm text-gray-600">Analisi in corso... {Math.round(analysisProgress)}%</div>
                                 </div>
+                            ) : (
+                                <>
+                                    <span className="text-xs font-mono bg-gray-100 px-3 py-1 rounded-full">Job ID: {analysisJobId}</span>
+                                    <span className={`ml-2 font-medium px-3 py-1 rounded-full text-xs ${jobStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' : jobStatus === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>{jobStatus || 'Fetching...'}</span>
+                                </>
                             )}
-                </div>
-            )}
-                </Card>
-            )}
-
-            {/* Modale CSV Sintetico */}
-            <Modal show={showSyntheticModal} onClose={() => {
-                if (!isSyntheticInProgress) setShowSyntheticModal(false);
-            }}>
-                <div>
-                    <h2 className="text-lg font-bold mb-2 flex items-center gap-2"><FaMagic className="text-indigo-500" /> Genera un nuovo CSV Sintetico</h2>
-                    {isSyntheticInProgress ? (
-                        <div className="my-10 w-full flex flex-col items-center">
-                            <div className="flex items-center gap-3 mb-4">
-                                <FaMagic className="text-indigo-400 animate-pulse text-3xl" />
-                                <span className="text-indigo-700 font-semibold animate-pulse text-lg">{MAGIC_WORDS[magicWordIdx]}</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-5 overflow-hidden mb-2">
-                                <div className="bg-gradient-to-r from-indigo-400 to-indigo-600 h-5 rounded-full transition-all duration-500" style={{ width: `${fakeProgress}%` }}></div>
-                            </div>
-                            <div className="text-right text-sm text-gray-500 w-full">{fakeProgress}%</div>
+                            {(isPollingResults || ['PENDING', 'PROCESSING'].includes(jobStatus) ) && <Spinner small color="purple-500" />}
                         </div>
-                    ) : syntheticJobStatus && syntheticJobStatus.status === 'COMPLETED' ? (
-                        <div className="flex flex-col items-center justify-center py-8">
-                            <FaCheckCircle className="text-green-500 text-5xl mb-4 animate-bounce" />
-                            <p className="text-xl font-semibold text-green-700 mb-2">Completato!</p>
-                            <p className="text-gray-600 mb-6">Il dataset sintetico è stato creato con successo.</p>
-                            <ButtonPrimary onClick={() => setShowSyntheticModal(false)}>Chiudi</ButtonPrimary>
-                        </div>
-                    ) : (
-                        <>
-                            <label className="block mb-2">
-                                Descrizione del dataset (prompt):
-                                <textarea className="w-full border rounded p-2 mt-1" value={syntheticPrompt} onChange={e => setSyntheticPrompt(e.target.value)} rows={3} />
-                            </label>
-                            <label className="block mb-2">
-                                Numero di righe:
-                                <input type="number" className="w-full border rounded p-2 mt-1" value={syntheticNumRows} min={10} max={1000} onChange={e => setSyntheticNumRows(Number(e.target.value))} />
-                            </label>
-                            <label className="block mb-2">
-                                Nome del dataset (opzionale):
-                                <input type="text" className="w-full border rounded p-2 mt-1" value={syntheticDatasetName} onChange={e => setSyntheticDatasetName(e.target.value)} />
-                            </label>
-                            {syntheticError && <div className="text-red-600 mb-2">{syntheticError}</div>}
-                            <div className="flex justify-end space-x-2 mt-4">
-                                <ButtonSecondary onClick={() => setShowSyntheticModal(false)}>Annulla</ButtonSecondary>
-                                <ButtonPrimary onClick={handleCreateSyntheticCsv} disabled={!syntheticPrompt || syntheticNumRows < 10}>
-                                    <FaMagic className="mr-2" /> Crea
-                                </ButtonPrimary>
+                        {/* Mostra i risultati solo quando showResults è true */}
+                        {showResults && jobStatus === 'COMPLETED' && jobResults && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-700 mb-2">Metriche</h3>
+                                    <MetricTable metrics={jobResults.results} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-700 mb-2">Visualizzazione</h3>
+                                    {chartDataAndOptions ? (
+                                        <div className="relative h-[300px] md:h-[400px] border rounded-xl p-2 bg-gray-50 shadow-inner">
+                                            <Plot data={chartDataAndOptions.data} layout={chartDataAndOptions.layout} useResizeHandler={true} className="w-full h-full" config={{responsive: true, displaylogo: false}}/>
+                                        </div>
+                                    ) : <p className="text-sm text-gray-500 italic mt-4">Nessun dato per il grafico.</p>}
+                                </div>
                             </div>
-                        </>
-                    )}
-                    {syntheticJobStatus && syntheticJobStatus.status === 'FAILED' && (
-                        <div className="mt-4 text-red-600 font-semibold">Errore: {syntheticJobStatus.error_message || 'Impossibile generare il dataset.'}</div>
-                    )}
-                </div>
-            </Modal>
+                        )}
+                        {showResults && jobStatus === 'FAILED' && <Alert type="error" message={`Analisi fallita: ${jobResults?.error_message || 'Errore sconosciuto.'}`} />}
+                        {/* Predizione interattiva */}
+                        {showResults && jobStatus === 'COMPLETED' && jobResults && (
+                            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-10">
+                                {jobResults.task_type === 'regression' && jobResults.input_parameters?.selected_features?.length > 0 && (
+                                    <div className="bg-purple-50 p-6 rounded-xl border border-purple-200">
+                                        <h4 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                                            <FaBrain className="text-purple-500" />
+                                            Predizione (Regression)
+                                        </h4>
+                                        <label htmlFor="regPredictX" className="block text-sm font-medium text-gray-700 mb-2">
+                                            Per <span className='font-semibold text-purple-600'>{jobResults.input_parameters.selected_features[0]}</span> =
+                                        </label>
+                                        <div className="flex items-center gap-3">
+                                            <input 
+                                                type="number" 
+                                                id="regPredictX" 
+                                                value={regressionPredictFeatureValue} 
+                                                onChange={(e) => setRegressionPredictFeatureValue(e.target.value)} 
+                                                placeholder="Valore X" 
+                                                className="flex-grow p-3 border-0 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                                            />
+                                            <ButtonPrimary onClick={handleRegressionPredict} disabled={isPredicting} className="!px-4 !py-3">
+                                                {isPredicting ? <Spinner small color="white" /> : 'Predici'}
+                                            </ButtonPrimary>
+                                        </div>
+                                        {regressionPredictionResult !== null && (
+                                            <div className="mt-4 p-3 bg-white rounded-lg border border-purple-100">
+                                                <p className="text-sm font-semibold text-gray-700">
+                                                    Predetto <span className='font-bold text-purple-600'>{jobResults.input_parameters.selected_target}</span>: 
+                                                    <span className="text-purple-700 font-mono text-lg ml-2">{regressionPredictionResult.toFixed(4)}</span>
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {jobResults.task_type === 'classification' && jobResults.input_parameters?.selected_features && (
+                                    <div className="bg-green-50 p-6 rounded-xl border border-green-200">
+                                        <h4 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                                            <FaBrain className="text-green-500" />
+                                            Predizione (Classification)
+                                        </h4>
+                                        <div className="space-y-3">
+                                            {jobResults.input_parameters.selected_features.map(feat => (
+                                                <div key={feat}>
+                                                    <label htmlFor={`cls_input_${feat}`} className="block text-sm font-medium text-gray-700 mb-1">{feat}:</label>
+                                                    <input 
+                                                        type="text" 
+                                                        id={`cls_input_${feat}`} 
+                                                        value={classificationInputValues[feat] || ''} 
+                                                        onChange={(e) => handleClassificationInputChange(feat, e.target.value)} 
+                                                        placeholder={`Valore per ${feat}`} 
+                                                        className="w-full p-3 border-0 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500" 
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <ButtonPrimary onClick={handleClassificationPredict} disabled={isPredicting} className="mt-4 !bg-gradient-to-r !from-green-500 !to-green-600 !hover:from-green-600 !hover:to-green-700">
+                                            {isPredicting ? <Spinner small color="white" /> : 'Predici Classe'}
+                                        </ButtonPrimary>
+                                        {classificationPredictionResult && (
+                                            <div className="mt-4 p-3 bg-white rounded-lg border border-green-100">
+                                                <p className="text-sm font-semibold text-gray-700">
+                                                    Classe Predetta: <span className="text-green-700 font-bold text-lg">{classificationPredictionResult.predicted_class}</span>
+                                                </p>
+                                            </div>
+                                        )}
+                                        {classificationPredictionResult?.probabilities && (
+                                            <div className="mt-3 p-3 bg-white rounded-lg border border-green-100">
+                                                <p className="text-sm font-medium text-gray-700 mb-2">Probabilità:</p>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {Object.entries(classificationPredictionResult.probabilities).sort(([,a],[,b]) => b-a).map(([cN,p]) => (
+                                                        <div key={cN} className="flex justify-between text-xs">
+                                                            <span className="font-medium text-gray-600">{cN}:</span>
+                                                            <span className="font-mono text-green-600">{(p*100).toFixed(1)}%</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </Card>
+                )}
 
-            {/* Nella sezione visualizzazione, aggiungi il menu a tendina per la selezione del plot */}
-            {chartDataAndOptions && Array.isArray(plotData) && plotData.length > 1 && (
-                <div className="mb-2 flex items-center gap-2">
-                    <label className="text-xs font-semibold">Tipo di grafico:</label>
-                    <select className="border rounded px-2 py-1 text-xs" value={selectedPlotIdx} onChange={e => setSelectedPlotIdx(Number(e.target.value))}>
-                        {plotData.map((p, idx) => (
-                            <option key={p.type} value={idx} title={plotTypeDescriptions[p.type] || ''}>
-                                {plotTypeIcons[p.type] ? `${plotTypeIcons[p.type]} ` : ''}{plotTypeLabels[p.type] || p.type}
-                            </option>
-                        ))}
-                    </select>
-                    <span className="text-xs text-gray-500 ml-2">{plotTypeIcons[plotData[selectedPlotIdx]?.type] || ''} {plotTypeDescriptions[plotData[selectedPlotIdx]?.type] || ''}</span>
-                </div>
-            )}
+                {/* Modale CSV Sintetico */}
+                <Modal show={showSyntheticModal} onClose={() => {
+                    if (!isSyntheticInProgress) setShowSyntheticModal(false);
+                }}>
+                    <div>
+                        <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
+                            <FaMagic className="text-purple-500" /> 
+                            Genera un nuovo CSV Sintetico
+                        </h2>
+                        {isSyntheticInProgress ? (
+                            <div className="my-10 w-full flex flex-col items-center">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <FaMagic className="text-purple-400 animate-pulse text-3xl" />
+                                    <span className="text-purple-700 font-semibold animate-pulse text-lg">{MAGIC_WORDS[magicWordIdx]}</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden mb-2">
+                                    <div className="bg-gradient-to-r from-purple-400 to-pink-400 h-4 rounded-full transition-all duration-500" style={{ width: `${fakeProgress}%` }}></div>
+                                </div>
+                                <div className="text-right text-sm text-gray-500 w-full">{fakeProgress}%</div>
+                            </div>
+                        ) : syntheticJobStatus && syntheticJobStatus.status === 'COMPLETED' ? (
+                            <div className="flex flex-col items-center justify-center py-8">
+                                <FaCheckCircle className="text-green-500 text-5xl mb-4 animate-bounce" />
+                                <p className="text-xl font-semibold text-green-700 mb-2">Completato!</p>
+                                <p className="text-gray-600 mb-6">Il dataset sintetico è stato creato con successo.</p>
+                                <ButtonPrimary onClick={() => setShowSyntheticModal(false)}>Chiudi</ButtonPrimary>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Descrizione del dataset (prompt):
+                                        </label>
+                                        <textarea 
+                                            className="w-full p-3 border-0 rounded-xl bg-gray-50 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                                            value={syntheticPrompt} 
+                                            onChange={e => setSyntheticPrompt(e.target.value)} 
+                                            rows={4} 
+                                            placeholder="Descrivi il tipo di dataset che vuoi generare..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Numero di righe:
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            className="w-full p-3 border-0 rounded-xl bg-gray-50 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                                            value={syntheticNumRows} 
+                                            min={10} 
+                                            max={1000} 
+                                            onChange={e => setSyntheticNumRows(Number(e.target.value))} 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Nome del dataset (opzionale):
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            className="w-full p-3 border-0 rounded-xl bg-gray-50 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                                            value={syntheticDatasetName} 
+                                            onChange={e => setSyntheticDatasetName(e.target.value)} 
+                                            placeholder="Nome personalizzato per il dataset"
+                                        />
+                                    </div>
+                                </div>
+                                {syntheticError && <Alert type="error" message={syntheticError} onClose={() => setSyntheticError('')} />}
+                                <div className="flex justify-end space-x-3 mt-6">
+                                    <ButtonSecondary onClick={() => setShowSyntheticModal(false)}>Annulla</ButtonSecondary>
+                                    <ButtonPrimary onClick={handleCreateSyntheticCsv} disabled={!syntheticPrompt || syntheticNumRows < 10}>
+                                        <FaMagic className="mr-2" /> Crea Dataset
+                                    </ButtonPrimary>
+                                </div>
+                            </>
+                        )}
+                        {syntheticJobStatus && syntheticJobStatus.status === 'FAILED' && (
+                            <Alert type="error" message={`Errore: ${syntheticJobStatus.error_message || 'Impossibile generare il dataset.'}`} />
+                        )}
+                    </div>
+                </Modal>
+
+                {/* Nella sezione visualizzazione, aggiungi il menu a tendina per la selezione del plot */}
+                {chartDataAndOptions && Array.isArray(plotData) && plotData.length > 1 && (
+                    <div className="mb-4 flex items-center gap-3">
+                        <label className="text-sm font-semibold text-gray-700">Tipo di grafico:</label>
+                        <select className="p-2 border-0 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" value={selectedPlotIdx} onChange={e => setSelectedPlotIdx(Number(e.target.value))}>
+                            {plotData.map((p, idx) => (
+                                <option key={p.type} value={idx} title={plotTypeDescriptions[p.type] || ''}>
+                                    {plotTypeIcons[p.type] ? `${plotTypeIcons[p.type]} ` : ''}{plotTypeLabels[p.type] || p.type}
+                                </option>
+                            ))}
+                        </select>
+                        <span className="text-sm text-gray-500 ml-2">{plotTypeIcons[plotData[selectedPlotIdx]?.type] || ''} {plotTypeDescriptions[plotData[selectedPlotIdx]?.type] || ''}</span>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

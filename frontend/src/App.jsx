@@ -1,8 +1,9 @@
 // src/App.jsx
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
+import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -17,15 +18,18 @@ function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-grow container mx-auto px-4 py-8">
+      <main className="flex-grow container mx-auto px-4 py-8 pt-28">
         <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<HomePage />} />
+          {/* Landing Page */}
+          <Route path="/" element={<LandingPage />} />
+          
+          {/* Public Auth Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          {/* Protected Routes */}
+          {/* Protected Routes - Tutte le pagine dell'app richiedono autenticazione */}
           <Route element={<ProtectedRoute />}>
+                <Route path="/home" element={<HomePage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/image-generator" element={<ImageGeneratorPage />} />
                 <Route path="/resources" element={<ResourceManagerPage />} />
@@ -43,8 +47,22 @@ function App() {
           } />
         </Routes>
       </main>
-      <footer className="bg-gray-800 text-white text-center p-4 mt-auto">
-        © {new Date().getFullYear()} PL-AI Platform
+      
+      {/* Footer with transparency effect */}
+      <footer className="bg-white/90 backdrop-blur-md text-gray-700 py-0.5 w-full fixed bottom-0 border-t border-gray-200/50 z-10">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-6">
+            <div className="flex-shrink-0 w-16">
+              <img src="/LogoFG.png" alt="Fondazione Golinelli" className="h-5" />
+            </div>
+            <div className="text-center text-xs flex-grow">
+              <p className="m-0">PL-AI è un prodotto di Fondazione Golinelli e G-lab srl Impresa Sociale -- tutti i diritti riservati.</p>
+            </div>
+            <div className="flex-shrink-0 w-16 flex justify-end">
+              <img src="/G-LAB_logo.png" alt="G-lab" className="h-5" />
+            </div>
+          </div>
+        </div>
       </footer>
     </div>
   );

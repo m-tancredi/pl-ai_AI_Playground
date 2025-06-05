@@ -55,13 +55,27 @@ const ChatbotServicePage = () => {
     const [historicalAccuracy, setHistoricalAccuracy] = useState(false);
     const [periodLanguage, setPeriodLanguage] = useState(false);
     
+    // State per layout ChatGPT-like
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [showConfig, setShowConfig] = useState(!chatStarted);
+    
     const messagesEndRef = useRef(null);
     
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
     
-    useEffect(scrollToBottom, [messages]);
+    // Solo scroll se ci sono messaggi e la chat è attiva
+    useEffect(() => {
+        if (messages.length > 0 && chatStarted) {
+            scrollToBottom();
+        }
+    }, [messages, chatStarted]);
+    
+    // Update showConfig when chatStarted changes
+    useEffect(() => {
+        setShowConfig(!chatStarted);
+    }, [chatStarted]);
     
     // Load chat history on mount
     useEffect(() => {
@@ -101,7 +115,18 @@ const ChatbotServicePage = () => {
             setError('');
             const chatData = await getChatDetail(chatId);
             setCurrentChatId(chatId);
-            setMessages(chatData.messages || []);
+            
+            // Filtra i messaggi di sistema anche quando carichi una chat
+            const filteredMessages = (chatData.messages || []).filter(message => {
+                if (message.role === 'user' && 
+                    (message.content === 'START_INTERROGATION' || 
+                     message.content === 'START_INTERVIEW')) {
+                    return false;
+                }
+                return true;
+            });
+            
+            setMessages(filteredMessages);
             
             // Update form with chat settings
             if (chatData.settings) {
@@ -220,6 +245,7 @@ const ChatbotServicePage = () => {
             
             const response = await sendMessage(payload);
             
+            // Solo mostra la risposta del bot, non il messaggio di sistema
             if (response.response) {
                 setMessages(prev => [...prev, { role: 'assistant', content: response.response, model: modelSelect }]);
             }
@@ -304,11 +330,19 @@ const ChatbotServicePage = () => {
         content += `Argomento: ${subjectSelect || 'Non specificato'}\n`;
         content += `Modello: ${modelSelect || 'Non specificato'}\n\n`;
         
-        messages.forEach(msg => {
-            if (msg.role !== 'loading') {
+        // Filtra anche i messaggi di sistema dal download
+        messages
+            .filter(msg => {
+                if (msg.role === 'user' && 
+                    (msg.content === 'START_INTERROGATION' || 
+                     msg.content === 'START_INTERVIEW')) {
+                    return false;
+                }
+                return msg.role !== 'loading';
+            })
+            .forEach(msg => {
                 content += `${msg.role === 'user' ? 'Tu' : 'Bot'}: ${msg.content}\n\n`;
-            }
-        });
+            });
         
         const blob = new Blob([content], { type: 'text/plain' });
         const url = window.URL.createObjectURL(blob);
@@ -335,33 +369,16 @@ const ChatbotServicePage = () => {
     };
     
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50 py-8 px-4">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="max-w-6xl mx-auto py-4 px-6 mb-6">
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-lg flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg">
-                            <FaRobot className="text-2xl" />
-                        </div>
-                        <div>
-                            <h1 className="text-3xl font-bold text-gray-800">CHATBOT AI</h1>
-                            <button 
-                                onClick={() => setShowTutorial(true)}
-                                className="text-gray-600 hover:text-purple-600 underline transition-colors flex items-center gap-1 text-sm"
-                            >
-                                <FaQuestionCircle />
-                                Come funziona? Apri il tutorial
-                            </button>
-                        </div>
-                    </div>
-                </div>
+        <div className="bg-gradient-to-br from-slate-50 to-gray-100 overflow-hidden" style={{ height: 'calc(100vh - 110px)' }}>
+            {/* Main Container - Si adatta allo spazio tra navbar e footer */}
+            <div className="h-full w-full bg-white flex flex-col overflow-hidden">
                 
                 {/* Alert Messages */}
                 {error && (
-                    <div className="max-w-6xl mx-auto mb-4">
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center justify-between">
+                    <div className="flex-shrink-0 p-4">
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between">
                             <span>{error}</span>
-                            <button onClick={() => setError('')} className="text-red-400 hover:text-red-600">
+                            <button onClick={() => setError('')} className="text-red-400 hover:text-red-600 ml-4">
                                 <FaTimes />
                             </button>
                         </div>
@@ -369,184 +386,196 @@ const ChatbotServicePage = () => {
                 )}
                 
                 {success && (
-                    <div className="max-w-6xl mx-auto mb-4">
-                        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center justify-between">
+                    <div className="flex-shrink-0 p-4 pt-0">
+                        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl flex items-center justify-between">
                             <span>{success}</span>
-                            <button onClick={() => setSuccess('')} className="text-green-400 hover:text-green-600">
+                            <button onClick={() => setSuccess('')} className="text-green-400 hover:text-green-600 ml-4">
                                 <FaTimes />
                             </button>
                         </div>
                     </div>
                 )}
-                
-                <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl flex flex-col h-[800px] overflow-hidden">
-                    {/* Configuration Header */}
-                    {!chatStarted && (
-                        <>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 bg-gray-50 border-b">
-                                <div className="relative">
-                                    <select 
-                                        value={gradeSelect} 
-                                        onChange={(e) => setGradeSelect(e.target.value)}
-                                        className="w-full p-3 border-0 rounded-xl bg-white shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer"
-                                    >
-                                        <option value="">Grado scolastico</option>
-                                        <option value="sec1">Scuola Sec. I grado</option>
-                                        <option value="sec2-biennio">Scuola Sec. II grado - Biennio</option>
-                                        <option value="sec2-triennio">Scuola Sec. II grado - Triennio</option>
-                                    </select>
-                                    <FaChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-                                </div>
-                                
-                                <div className="relative">
-                                    <select 
-                                        value={modeSelect} 
-                                        onChange={(e) => setModeSelect(e.target.value)}
-                                        className="w-full p-3 border-0 rounded-xl bg-white shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer"
-                                    >
-                                        <option value="">Modalità</option>
-                                        <option value="interrogazione">Modalità Interrogazione</option>
-                                        <option value="interazione">Modalità Interazione</option>
-                                        <option value="intervista">Modalità Intervista Impossibile</option>
-                                    </select>
-                                    <FaChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-                                </div>
-                                
-                                <div className="relative">
-                                    <select 
-                                        value={subjectSelect} 
-                                        onChange={(e) => setSubjectSelect(e.target.value)}
-                                        className="w-full p-3 border-0 rounded-xl bg-white shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer"
-                                    >
-                                        <option value="">Argomento</option>
-                                        <option value="ai">AI</option>
-                                        <option value="scienze">Scienze</option>
-                                        <option value="storia">Storia</option>
-                                        <option value="matematica">Matematica</option>
-                                        <option value="italiano">Italiano</option>
-                                        <option value="inglese">Inglese</option>
-                                    </select>
-                                    <FaChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-                                </div>
-                                
-                                <div className="relative">
-                                    <select 
-                                        value={modelSelect} 
-                                        onChange={(e) => setModelSelect(e.target.value)}
-                                        className="w-full p-3 border-0 rounded-xl bg-white shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer"
-                                    >
-                                        <option value="">Modello AI</option>
-                                        <option value="gpt4o-mini">GPT-4 O Mini</option>
-                                        <option value="o3-mini">O3 Mini</option>
-                                        <option value="gemini">Gemini Flash</option>
-                                    </select>
-                                    <FaChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-                                </div>
+
+                {/* Configuration Header - Solo quando chat non è iniziata */}
+                {!chatStarted && (
+                    <div className="flex-shrink-0 p-6 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-gray-200">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                            <div className="relative">
+                                <select 
+                                    value={gradeSelect} 
+                                    onChange={(e) => setGradeSelect(e.target.value)}
+                                    className="w-full p-4 border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer transition-all duration-200"
+                                >
+                                    <option value="">Grado scolastico</option>
+                                    <option value="sec1">Scuola Sec. I grado</option>
+                                    <option value="sec2-biennio">Scuola Sec. II grado - Biennio</option>
+                                    <option value="sec2-triennio">Scuola Sec. II grado - Triennio</option>
+                                </select>
+                                <FaChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
                             </div>
                             
-                            {/* Context Area */}
-                            <div className="p-6 bg-gray-50 border-b">
-                                <div className="space-y-4">
-                                    <div className="flex gap-2">
-                                        <textarea 
-                                            value={contextInput}
-                                            onChange={(e) => setContextInput(e.target.value)}
-                                            onKeyDown={handleKeyDown}
-                                            className="flex-1 p-4 border-0 rounded-xl resize-none bg-white shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500" 
-                                            rows="3" 
-                                            placeholder="Descrivi la personalità del bot e il modo in cui dovrà esserti utile..."
-                                        />
-                                        <button 
-                                            onClick={submitContext}
-                                            disabled={isSending}
-                                            className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 flex items-center gap-2 shadow-lg transition-all duration-200"
-                                        >
-                                            {isSending ? <FaSpinner className="animate-spin" /> : null}
-                                            Inizia
-                                        </button>
+                            <div className="relative">
+                                <select 
+                                    value={modeSelect} 
+                                    onChange={(e) => setModeSelect(e.target.value)}
+                                    className="w-full p-4 border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer transition-all duration-200"
+                                >
+                                    <option value="">Modalità</option>
+                                    <option value="interrogazione">Modalità Interrogazione</option>
+                                    <option value="interazione">Modalità Interazione</option>
+                                    <option value="intervista">Modalità Intervista Impossibile</option>
+                                </select>
+                                <FaChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            </div>
+                            
+                            <div className="relative">
+                                <select 
+                                    value={subjectSelect} 
+                                    onChange={(e) => setSubjectSelect(e.target.value)}
+                                    className="w-full p-4 border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer transition-all duration-200"
+                                >
+                                    <option value="">Argomento</option>
+                                    <option value="ai">AI</option>
+                                    <option value="scienze">Scienze</option>
+                                    <option value="storia">Storia</option>
+                                    <option value="matematica">Matematica</option>
+                                    <option value="italiano">Italiano</option>
+                                    <option value="inglese">Inglese</option>
+                                </select>
+                                <FaChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            </div>
+                            
+                            <div className="relative">
+                                <select 
+                                    value={modelSelect} 
+                                    onChange={(e) => setModelSelect(e.target.value)}
+                                    className="w-full p-4 border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer transition-all duration-200"
+                                >
+                                    <option value="">Modello AI</option>
+                                    <option value="gpt4o-mini">GPT-4 O Mini</option>
+                                    <option value="o3-mini">O3 Mini</option>
+                                    <option value="gemini">Gemini Flash</option>
+                                </select>
+                                <FaChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            </div>
+                        </div>
+                        
+                        {/* Context Input Area */}
+                        <div className="space-y-4">
+                            <div className="flex gap-4">
+                                <textarea 
+                                    value={contextInput}
+                                    onChange={(e) => setContextInput(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    className="flex-1 p-4 border-0 rounded-xl resize-none bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200" 
+                                    rows="3" 
+                                    placeholder="Descrivi la personalità del bot e il modo in cui dovrà esserti utile..."
+                                />
+                                <button 
+                                    onClick={submitContext}
+                                    disabled={isSending}
+                                    className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                                >
+                                    {isSending ? <FaSpinner className="animate-spin" /> : null}
+                                    <span className="font-semibold">Inizia Chat</span>
+                                </button>
+                            </div>
+                            
+                            {/* Interview Questions */}
+                            {showInterviewQuestions && (
+                                <div className="bg-white/90 backdrop-blur-sm p-6 rounded-xl border border-purple-200 shadow-lg">
+                                    <div className="text-sm text-purple-600 font-semibold mb-4">
+                                        🎭 Configurazione Intervista Impossibile
                                     </div>
-                                    
-                                    {/* Interview Questions */}
-                                    {showInterviewQuestions && (
-                                        <div className="bg-white p-4 rounded-xl border border-purple-200">
-                                            <div className="text-sm text-purple-600 mb-3 font-medium">
-                                                Per l'intervista impossibile, rispondi a queste domande:
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Quale personaggio vuoi che interpreti?
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                value={characterInput}
+                                                onChange={(e) => setCharacterInput(e.target.value)}
+                                                className="w-full p-3 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200"
+                                                placeholder="es. Leonardo da Vinci, Cleopatra, Einstein..."
+                                            />
+                                        </div>
+                                        <div className="flex gap-8">
+                                            <div className="flex items-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    id="historical-accuracy"
+                                                    checked={historicalAccuracy}
+                                                    onChange={(e) => setHistoricalAccuracy(e.target.checked)}
+                                                    className="mr-3 text-purple-500 focus:ring-purple-500 w-4 h-4"
+                                                />
+                                                <label htmlFor="historical-accuracy" className="text-sm text-gray-700 font-medium">
+                                                    Comportamento storico accurato
+                                                </label>
                                             </div>
-                                            <div className="space-y-3">
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                        Quale personaggio vuoi che interpreti?
-                                                    </label>
-                                                    <input 
-                                                        type="text" 
-                                                        value={characterInput}
-                                                        onChange={(e) => setCharacterInput(e.target.value)}
-                                                        className="w-full p-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                                        placeholder="es. Leonardo da Vinci, Cleopatra, Einstein..."
-                                                    />
-                                                </div>
-                                                <div className="flex gap-6">
-                                                    <div className="flex items-center">
-                                                        <input 
-                                                            type="checkbox" 
-                                                            id="historical-accuracy"
-                                                            checked={historicalAccuracy}
-                                                            onChange={(e) => setHistoricalAccuracy(e.target.checked)}
-                                                            className="mr-2 text-purple-500 focus:ring-purple-500"
-                                                        />
-                                                        <label htmlFor="historical-accuracy" className="text-sm text-gray-700">
-                                                            Comportamento storico accurato
-                                                        </label>
-                                                    </div>
-                                                    <div className="flex items-center">
-                                                        <input 
-                                                            type="checkbox" 
-                                                            id="period-language"
-                                                            checked={periodLanguage}
-                                                            onChange={(e) => setPeriodLanguage(e.target.checked)}
-                                                            className="mr-2 text-purple-500 focus:ring-purple-500"
-                                                        />
-                                                        <label htmlFor="period-language" className="text-sm text-gray-700">
-                                                            Linguaggio d'epoca
-                                                        </label>
-                                                    </div>
-                                                </div>
+                                            <div className="flex items-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    id="period-language"
+                                                    checked={periodLanguage}
+                                                    onChange={(e) => setPeriodLanguage(e.target.checked)}
+                                                    className="mr-3 text-purple-500 focus:ring-purple-500 w-4 h-4"
+                                                />
+                                                <label htmlFor="period-language" className="text-sm text-gray-700 font-medium">
+                                                    Linguaggio d'epoca
+                                                </label>
                                             </div>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
-                            </div>
-                        </>
-                    )}
-                    
-                    {/* Main Content */}
-                    <div className="flex flex-1 overflow-hidden">
-                        {/* Chat History Sidebar */}
-                        <div className="w-80 border-r bg-gray-50 flex flex-col">
-                            <div className="p-4 border-b space-y-3">
+                            )}
+                        </div>
+                    </div>
+                )}
+                
+                {/* Main Chat Container */}
+                <div className="flex-1 flex overflow-hidden min-h-0">
+                    {/* Chat History Sidebar */}
+                    <div className="w-80 bg-gradient-to-b from-gray-50 to-gray-100/50 border-r border-gray-200 flex flex-col">
+                        <div className="p-4 border-b border-gray-200">
+                            <div className="space-y-3">
                                 <button 
                                     onClick={startNewChat}
-                                    className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 flex items-center justify-center gap-2 shadow-lg transition-all duration-200"
+                                    className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
                                 >
-                                    <FaPlus />
-                                    Nuova Chat
+                                    <FaPlus className="w-4 h-4" />
+                                    <span className="font-semibold">Nuova Chat</span>
                                 </button>
-                                <button 
-                                    onClick={handleDeleteAllChats}
-                                    className="w-full px-4 py-3 border border-red-300 text-red-600 rounded-xl hover:bg-red-50 flex items-center justify-center gap-2 transition-colors"
-                                >
-                                    <FaTrash />
-                                    Elimina Tutto
-                                </button>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button 
+                                        onClick={handleDeleteAllChats}
+                                        className="px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 flex items-center justify-center gap-2 transition-all duration-200 text-sm"
+                                    >
+                                        <FaTrash className="w-3 h-3" />
+                                        Elimina Tutto
+                                    </button>
+                                    <button 
+                                        onClick={() => setShowTutorial(true)}
+                                        className="px-3 py-2 border border-purple-300 text-purple-600 rounded-lg hover:bg-purple-50 flex items-center justify-center gap-2 transition-all duration-200 text-sm"
+                                    >
+                                        <FaQuestionCircle className="w-3 h-3" />
+                                        Tutorial
+                                    </button>
+                                </div>
                             </div>
-                            <div className="flex-1 overflow-y-auto">
-                                {chatHistory.length === 0 ? (
-                                    <div className="p-4 text-center text-gray-500 text-sm">
-                                        Nessuna chat disponibile.<br />
-                                        Inizia una nuova conversazione!
-                                    </div>
-                                ) : (
-                                    chatHistory.map(chat => (
+                        </div>
+                        
+                        {/* Chat History List */}
+                        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+                            {chatHistory.length === 0 ? (
+                                <div className="p-6 text-center text-gray-500 text-sm">
+                                    <FaRobot className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                                    <p>Nessuna chat disponibile</p>
+                                    <p className="text-xs mt-1">Inizia una nuova conversazione!</p>
+                                </div>
+                            ) : (
+                                <div className="p-2">
+                                    {chatHistory.map(chat => (
                                         <ChatHistoryItem
                                             key={chat.id}
                                             chat={chat}
@@ -554,100 +583,135 @@ const ChatbotServicePage = () => {
                                             onClick={() => loadChat(chat.id)}
                                             onDelete={handleDeleteChat}
                                         />
-                                    ))
-                                )}
-                            </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                        
-                        {/* Chat Area */}
-                        <div className="flex-1 flex flex-col">
-                            {/* Messages Container */}
-                            <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-b from-white to-gray-50">
+                    </div>
+                    
+                    {/* Main Chat Area */}
+                    <div className="flex-1 flex flex-col bg-gradient-to-b from-white to-gray-50/30 relative overflow-hidden">
+                        {/* Chat Messages Container - Scrollabile con spazio per input bar */}
+                        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent" style={{ paddingBottom: chatStarted ? '120px' : '0' }}>
+                            <div className="p-6 space-y-4">
                                 {isLoading ? (
-                                    <div className="flex justify-center items-center h-full">
+                                    <div className="flex justify-center items-center h-64">
                                         <div className="text-center">
-                                            <FaSpinner className="animate-spin text-3xl text-purple-400 mb-4" />
-                                            <p className="text-gray-600">Caricamento chat...</p>
+                                            <FaSpinner className="animate-spin text-4xl text-purple-400 mb-4" />
+                                            <p className="text-gray-600 font-medium">Caricamento chat...</p>
                                         </div>
                                     </div>
                                 ) : messages.length === 0 && chatStarted ? (
-                                    <div className="flex justify-center items-center h-full">
-                                        <div className="text-center text-gray-500">
-                                            <FaRobot className="text-4xl mb-4 mx-auto" />
-                                            <p>La conversazione è stata avviata.<br />Scrivi un messaggio per iniziare!</p>
+                                    <div className="flex justify-center items-center h-64">
+                                        <div className="text-center">
+                                            <FaRobot className="text-5xl mx-auto mb-4 text-purple-300" />
+                                            <h3 className="text-xl font-semibold text-gray-700 mb-2">Chat Avviata!</h3>
+                                            <p className="text-gray-500">Scrivi il tuo primo messaggio per iniziare la conversazione.</p>
                                         </div>
                                     </div>
                                 ) : messages.length === 0 ? (
-                                    <div className="flex justify-center items-center h-full">
-                                        <div className="text-center text-gray-500 max-w-md">
-                                            <FaRobot className="text-6xl mb-6 mx-auto text-purple-300" />
-                                            <h3 className="text-xl font-semibold mb-2">Benvenuto nel Chatbot AI!</h3>
-                                            <p className="mb-4">
+                                    <div className="flex justify-center items-center h-64">
+                                        <div className="text-center max-w-md">
+                                            <FaRobot className="text-6xl mx-auto mb-6 text-purple-300" />
+                                            <h3 className="text-2xl font-bold text-gray-800 mb-4">Benvenuto nel Chatbot AI!</h3>
+                                            <p className="text-gray-600 mb-6 leading-relaxed">
                                                 Configura il tuo assistente virtuale selezionando le opzioni sopra e 
                                                 fornendo un contesto per personalizzare la conversazione.
                                             </p>
                                             <button 
                                                 onClick={() => setShowTutorial(true)}
-                                                className="text-purple-600 hover:text-purple-700 underline"
+                                                className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium underline transition-colors duration-200"
                                             >
+                                                <FaQuestionCircle />
                                                 Hai bisogno di aiuto? Leggi il tutorial
                                             </button>
                                         </div>
                                     </div>
                                 ) : (
                                     <>
-                                        {messages.map((message, index) => 
-                                            message.role === 'loading' ? (
-                                                <LoadingDots key={index} />
-                                            ) : (
-                                                <ChatMessage 
-                                                    key={index} 
-                                                    role={message.role} 
-                                                    content={message.content}
-                                                    model={message.model}
-                                                />
-                                            )
-                                        )}
+                                        {/* Messaggi ordinati cronologicamente (dal primo all'ultimo) */}
+                                        {messages
+                                            .filter(message => {
+                                                // Filtra i messaggi di sistema
+                                                if (message.role === 'user' && 
+                                                    (message.content === 'START_INTERROGATION' || 
+                                                     message.content === 'START_INTERVIEW')) {
+                                                    return false;
+                                                }
+                                                return true;
+                                            })
+                                            .map((message, index) => 
+                                                message.role === 'loading' ? (
+                                                    <div key={index} className="flex justify-center my-4">
+                                                        <LoadingDots />
+                                                    </div>
+                                                ) : (
+                                                    <div key={index} className="animate-fade-in">
+                                                        <ChatMessage 
+                                                            role={message.role} 
+                                                            content={message.content}
+                                                            model={message.model}
+                                                        />
+                                                    </div>
+                                                )
+                                            )}
+                                        {/* Scroll anchor */}
+                                        <div ref={messagesEndRef} />
                                     </>
                                 )}
-                                <div ref={messagesEndRef} />
                             </div>
-                            
-                            {/* Input Area */}
-                            {chatStarted && (
-                                <div className="p-6 border-t bg-white">
-                                    <div className="flex gap-3">
-                                        <textarea 
-                                            value={messageInput}
-                                            onChange={(e) => setMessageInput(e.target.value)}
-                                            onKeyDown={handleKeyDown}
-                                            className="flex-1 p-4 border border-gray-200 rounded-xl resize-none shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                            placeholder="Scrivi il tuo messaggio... (Premi Enter per inviare)"
-                                            rows="2"
-                                        />
-                                        <button 
-                                            onClick={downloadChat}
-                                            className="px-4 py-3 border border-purple-300 text-purple-600 rounded-xl hover:bg-purple-50 flex items-center justify-center transition-colors"
-                                            title="Scarica chat"
-                                        >
-                                            <FaDownload />
-                                        </button>
-                                        <button 
-                                            onClick={handleSendMessage}
-                                            disabled={isSending || !messageInput.trim()}
-                                            className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 flex items-center gap-2 shadow-lg transition-all duration-200"
-                                        >
-                                            {isSending ? <FaSpinner className="animate-spin" /> : <FaPaperPlane />}
-                                            Invia
-                                        </button>
+                        </div>
+                        
+                        {/* Floating Input Bar - Posizionata assolutamente nell'area chat */}
+                        {chatStarted && (
+                            <div className="absolute bottom-4 left-4 right-4">
+                                <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 p-4">
+                                    <div className="flex gap-4 items-end">
+                                        <div className="flex-1">
+                                            <textarea 
+                                                value={messageInput}
+                                                onChange={(e) => setMessageInput(e.target.value)}
+                                                onKeyDown={handleKeyDown}
+                                                className="w-full p-4 border-0 rounded-xl resize-none bg-gray-50/50 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all duration-200 placeholder-gray-500"
+                                                placeholder="Scrivi il tuo messaggio... (Premi Enter per inviare)"
+                                                rows="1"
+                                                style={{
+                                                    minHeight: '52px',
+                                                    maxHeight: '132px',
+                                                    scrollbarWidth: 'thin'
+                                                }}
+                                                onInput={(e) => {
+                                                    e.target.style.height = 'auto';
+                                                    e.target.style.height = Math.min(e.target.scrollHeight, 132) + 'px';
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button 
+                                                onClick={downloadChat}
+                                                className="p-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-all duration-200 hover:scale-105 shadow-sm"
+                                                title="Scarica chat"
+                                            >
+                                                <FaDownload className="w-5 h-5" />
+                                            </button>
+                                            <button 
+                                                onClick={handleSendMessage}
+                                                disabled={isSending || !messageInput.trim()}
+                                                className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                                            >
+                                                {isSending ? <FaSpinner className="animate-spin w-5 h-5" /> : <FaPaperPlane className="w-5 h-5" />}
+                                                <span className="font-semibold">Invia</span>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
             
+            {/* Tutorial Modal */}
             <ChatbotTutorialModal show={showTutorial} onClose={() => setShowTutorial(false)} />
         </div>
     );

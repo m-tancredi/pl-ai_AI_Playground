@@ -1,6 +1,6 @@
 // src/components/ClassInputBox.jsx
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FaCamera, FaTrashAlt, FaVideo, FaVideoSlash, FaPlayCircle, FaStopCircle, FaTimes } from 'react-icons/fa'; // Aggiunta FaTimes
+import { FaCamera, FaTrashAlt, FaVideo, FaVideoSlash, FaPlayCircle, FaStopCircle, FaTimes } from 'react-icons/fa';
 
 const ClassInputBox = ({ classData, onNameChange, onImagesUpdate, onRemove, canRemove }) => {
     const [webcamActive, setWebcamActive] = useState(false);
@@ -19,14 +19,13 @@ const ClassInputBox = ({ classData, onNameChange, onImagesUpdate, onRemove, canR
     useEffect(() => { isCapturingRef.current = isCapturing; }, [isCapturing]);
     useEffect(() => { webcamActiveRef.current = webcamActive; }, [webcamActive]);
 
-    const MAX_PREVIEWS = 9; // Mostra solo le ultime N preview
+    const MAX_PREVIEWS = 9;
     const CAPTURE_LIMIT = 100;
     const CAPTURE_INTERVAL = 200;
 
     // Sincronizza capturedImagesPreview con classData.images
     useEffect(() => {
-        // Mostra le ultime MAX_PREVIEWS immagini
-        setCapturedImagesPreview(classData.images.slice(-MAX_PREVIEWS).reverse()); // reverse() per mostrare le più recenti prima
+        setCapturedImagesPreview(classData.images.slice(-MAX_PREVIEWS).reverse());
     }, [classData.images]);
 
     const handleNameChange = (event) => {
@@ -80,14 +79,13 @@ const ClassInputBox = ({ classData, onNameChange, onImagesUpdate, onRemove, canR
         if (!webcamActiveRef.current) {
             setError("Activate webcam first."); return;
         }
-        if (isCapturingRef.current) { // Sta catturando -> Ferma
+        if (isCapturingRef.current) {
             console.log(`ClassInputBox (${classData.id}): Stopping image capture.`);
             if (captureIntervalRef.current) clearInterval(captureIntervalRef.current);
             captureIntervalRef.current = null;
             setIsCapturing(false);
-        } else { // Non sta catturando -> Avvia (se non al limite)
+        } else {
             if (classData.imageCount >= CAPTURE_LIMIT) {
-                // Non usiamo showAlert qui perché non è passato come prop, usiamo setError
                 setError(`Maximum ${CAPTURE_LIMIT} images per class reached.`);
                 return;
             }
@@ -99,7 +97,7 @@ const ClassInputBox = ({ classData, onNameChange, onImagesUpdate, onRemove, canR
                 if (!videoRef.current || !canvasRef.current || !isCapturingRef.current || !webcamActiveRef.current) {
                     console.log(`ClassInputBox (${classData.id}): Capture interval stopping (state ref check).`);
                     if (captureIntervalRef.current) clearInterval(captureIntervalRef.current);
-                    setIsCapturing(false); // Assicura che lo stato sia corretto
+                    setIsCapturing(false);
                     return;
                 }
                 const video = videoRef.current; const canvas = canvasRef.current;
@@ -124,90 +122,129 @@ const ClassInputBox = ({ classData, onNameChange, onImagesUpdate, onRemove, canR
         }
     }, [classData.id, classData.imageCount, onImagesUpdate]);
 
-    // --- NUOVA FUNZIONE PER ELIMINARE IMMAGINE DALLA PREVIEW ---
     const handleDeletePreviewImage = (imageIndexToRemove) => {
-        // L'indice in capturedImagesPreview è l'inverso dell'indice in classData.images
-        // a causa del .reverse() e .slice(-MAX_PREVIEWS)
-        // Se capturedImagesPreview mostra img [c,b,a] da [a,b,c,d,e]
-        // e imageIndexToRemove è 0 (img c), l'indice reale è (total - MAX_PREVIEWS + 0) se MAX_PREVIEWS < total
-        // o (total - 1 - imageIndexToRemove) se MAX_PREVIEWS >= total
-
-        // Modo più semplice: aggiorna l'array completo in onImagesUpdate
         onImagesUpdate(classData.id, (prevImagesInParent) => {
-            // Trova l'indice reale nell'array completo
-            // `capturedImagesPreview` è mostrato in ordine inverso, e potrebbe essere un sottoinsieme
-            // Per semplicità, assumiamo che l'utente stia eliminando dall'array completo
-            // e che `imageIndexToRemove` sia l'indice dell'immagine nell'array `classData.images`
-            // Questo richiede di passare l'indice corretto dal bottone di eliminazione.
-            // SE `imageIndexToRemove` si riferisce all'indice in `capturedImagesPreview`:
-            const actualIndexInFullArray = classData.images.length - 1 - (capturedImagesPreview.length - 1 - imageIndexToRemove);
-            // Questo è complicato. È più semplice passare l'URL o un ID univoco dell'immagine.
-            // Per ora, assumiamo che `imageIndexToRemove` sia l'indice dell'immagine *nell'array completo*
-            // OPPURE, ancora più semplice, passiamo l'URL dell'immagine da rimuovere.
-
-            // Passiamo l'URL dell'immagine da rimuovere (più robusto)
             const imageToRemoveDataUrl = capturedImagesPreview[imageIndexToRemove];
             return prevImagesInParent.filter(imgDataUrl => imgDataUrl !== imageToRemoveDataUrl);
         });
-        // `capturedImagesPreview` si aggiornerà automaticamente tramite l'useEffect
     };
 
-    useEffect(() => { // Cleanup
+    useEffect(() => {
         return () => { stopEverything(); };
     }, [stopEverything]);
 
     return (
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200 space-y-3 relative">
-            {canRemove && ( <button onClick={() => onRemove(classData.id)} className="absolute top-1 right-1 text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-gray-100" title="Remove Class" aria-label="Remove Class"> <FaTrashAlt size={12}/> </button> )}
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl shadow-lg border border-gray-200 space-y-4 relative transition-all duration-200 hover:shadow-xl mb-6">
+            {canRemove && (
+                <button 
+                    onClick={() => onRemove(classData.id)} 
+                    className="absolute top-3 right-3 text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-all duration-200" 
+                    title="Remove Class" 
+                    aria-label="Remove Class"
+                > 
+                    <FaTrashAlt size={14}/> 
+                </button>
+            )}
+            
             <div>
-                <label htmlFor={`class-name-${classData.id}`} className="block text-sm font-medium text-gray-700">Class Name:</label>
-                <input type="text" id={`class-name-${classData.id}`} value={classData.name} onChange={handleNameChange} placeholder={`Class ${classData.id.substring(0, 4)}...`} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 sm:text-sm focus:ring-indigo-500 focus:border-indigo-500"/>
+                <label htmlFor={`class-name-${classData.id}`} className="block text-sm font-semibold text-gray-700 mb-2">
+                    Class Name:
+                </label>
+                <input 
+                    type="text" 
+                    id={`class-name-${classData.id}`} 
+                    value={classData.name} 
+                    onChange={handleNameChange} 
+                    placeholder={`Class ${classData.id.substring(0, 4)}...`} 
+                    className="block w-full border-0 bg-white rounded-xl shadow-sm p-4 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
             </div>
-            {/* --- Layout affiancato camera/catture --- */}
-            <div className="flex flex-col md:flex-row gap-3 items-start">
+            
+            {/* Layout affiancato camera/catture */}
+            <div className="flex flex-col md:flex-row gap-4 items-start">
                 {/* Camera */}
                 <div className="flex-1 min-w-0">
-            <div className="bg-gray-100 border rounded aspect-video overflow-hidden relative flex items-center justify-center">
-                 <video ref={videoRef} className={`w-full h-full object-contain ${!webcamActive ? 'hidden' : ''}`} autoPlay playsInline muted />
-                 {!webcamActive && ( <FaCamera className="text-gray-300 text-4xl"/> )}
-                 <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
-            </div>
-                    {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                <button onClick={toggleWebcam} className={`w-full px-3 py-2 text-sm font-medium rounded-md shadow-sm flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 ${webcamActive ? 'bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-gray-500' : 'bg-blue-100 text-blue-700 hover:bg-blue-200 focus:ring-blue-500'}`}>
-                    {webcamActive ? <FaVideoSlash className="mr-2"/> : <FaVideo className="mr-2"/>}
-                    {webcamActive ? 'Stop Webcam' : 'Activate Webcam'}
-                </button>
-                <button onClick={toggleCapture} disabled={!webcamActive || (classData.imageCount >= CAPTURE_LIMIT && !isCapturing)} className={`w-full px-3 py-2 text-sm font-medium rounded-md shadow-sm flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${isCapturing ? 'bg-red-100 text-red-700 hover:bg-red-200 focus:ring-red-500' : 'bg-green-100 text-green-700 hover:bg-green-200 focus:ring-green-500'}`}>
-                    {isCapturing ? <FaStopCircle className="mr-2"/> : <FaPlayCircle className="mr-2"/>}
-                    {isCapturing ? 'Stop Capture' : 'Start Capture'}
-                </button>
-            </div>
-                    <div className="text-right mt-1">
-                        <span className={`text-sm font-medium ${classData.imageCount >= CAPTURE_LIMIT ? 'text-red-600' : 'text-gray-700'}`}>{classData.imageCount} / {CAPTURE_LIMIT} images</span>
+                    <div className="bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-gray-300 rounded-2xl aspect-video overflow-hidden relative flex items-center justify-center shadow-inner">
+                        <video 
+                            ref={videoRef} 
+                            className={`w-full h-full object-contain ${!webcamActive ? 'hidden' : ''}`} 
+                            autoPlay 
+                            playsInline 
+                            muted 
+                        />
+                        {!webcamActive && ( 
+                            <FaCamera className="text-gray-400 text-4xl"/> 
+                        )}
+                        <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
                     </div>
-            </div>
+                    
+                    {error && (
+                        <div className="mt-2 p-3 bg-red-50 rounded-xl border border-red-200">
+                            <p className="text-xs text-red-600 font-medium">{error}</p>
+                        </div>
+                    )}
+                    
+                    <div className="grid grid-cols-2 gap-3 mt-4">
+                        <button 
+                            onClick={toggleWebcam} 
+                            className={`w-full px-4 py-3 text-sm font-semibold rounded-xl shadow-sm flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 ${
+                                webcamActive 
+                                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-500' 
+                                : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 focus:ring-blue-500 shadow-lg'
+                            }`}
+                        >
+                            {webcamActive ? <FaVideoSlash className="mr-2"/> : <FaVideo className="mr-2"/>}
+                            {webcamActive ? 'Stop Webcam' : 'Activate Webcam'}
+                        </button>
+                        
+                        <button 
+                            onClick={toggleCapture} 
+                            disabled={!webcamActive || (classData.imageCount >= CAPTURE_LIMIT && !isCapturing)} 
+                            className={`w-full px-4 py-3 text-sm font-semibold rounded-xl shadow-sm flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
+                                isCapturing 
+                                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 focus:ring-red-500 shadow-lg' 
+                                : 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 focus:ring-green-500 shadow-lg'
+                            }`}
+                        >
+                            {isCapturing ? <FaStopCircle className="mr-2"/> : <FaPlayCircle className="mr-2"/>}
+                            {isCapturing ? 'Stop Capture' : 'Start Capture'}
+                        </button>
+                    </div>
+                    
+                    <div className="text-right mt-3">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
+                            classData.imageCount >= CAPTURE_LIMIT 
+                            ? 'bg-red-100 text-red-700' 
+                            : classData.imageCount >= 10 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                            {classData.imageCount} / {CAPTURE_LIMIT} images
+                        </span>
+                    </div>
+                </div>
+                
                 {/* Catture (thumbnail) */}
-             {capturedImagesPreview.length > 0 && (
-                    <div className="w-full md:w-1/4 flex-shrink-0 mt-3 md:mt-0">
-                        <p className="text-xs text-gray-500 mb-1">Recent captures:</p>
-                     <div className="grid grid-cols-3 gap-1">
+                {capturedImagesPreview.length > 0 && (
+                    <div className="w-full md:w-1/3 flex-shrink-0 mt-4 md:mt-0">
+                        <p className="text-sm font-semibold text-gray-700 mb-3">Recent captures:</p>
+                        <div className="grid grid-cols-3 gap-2">
                             {capturedImagesPreview.map((imgSrc, index) => (
-                                <div key={`preview-${classData.id}-${index}`} className="aspect-square bg-gray-200 rounded overflow-hidden relative group w-12 h-12">
-                                <img src={imgSrc} alt={`Capture ${index + 1}`} className="w-full h-full object-cover" />
-                                <button
+                                <div key={`preview-${classData.id}-${index}`} className="aspect-square bg-gray-200 rounded-xl overflow-hidden relative group shadow-sm hover:shadow-md transition-shadow">
+                                    <img src={imgSrc} alt={`Capture ${index + 1}`} className="w-full h-full object-cover" />
+                                    <button
                                         onClick={() => handleDeletePreviewImage(index)}
-                                    className="absolute top-0.5 right-0.5 p-0.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-opacity"
-                                    title="Delete this capture"
-                                    aria-label="Delete this capture"
-                                >
-                                    <FaTimes size={10} />
-                                </button>
-                             </div>
-                         ))}
-                     </div>
-                 </div>
-             )}
+                                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all duration-200 shadow-lg"
+                                        title="Delete this capture"
+                                        aria-label="Delete this capture"
+                                    >
+                                        <FaTimes size={10} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone'; // Assicurati sia installato: npm install react-dropzone
 import { v4 as uuidv4 } from 'uuid'; // Per ID classi univoci - npm install uuid
-import { FaUpload, FaPlus, FaInfoCircle, FaSpinner, FaTimes, FaVideo, FaVideoSlash, FaRedo } from 'react-icons/fa'; // Importa icone base
+import { FaUpload, FaPlus, FaInfoCircle, FaSpinner, FaTimes, FaVideo, FaVideoSlash, FaRedo, FaBrain, FaRobot, FaImages, FaQuestionCircle } from 'react-icons/fa'; // Importa icone base
 import { useAuth } from '../context/AuthContext'; // Verifica path
 // Importa funzioni API per questo servizio specifico
 import {
@@ -20,36 +20,115 @@ import PredictionDisplay from '../components/PredictionDisplay';
 import ConsoleLog from '../components/ConsoleLog';
 import TutorialModal from '../components/TutorialModal'; // Assumi esista un file TutorialModal.jsx
 
-// --- Componenti UI Base (Definiti qui per autocontenimento) ---
-const Spinner = ({ small = false }) => (
-    <div className={`inline-block animate-spin rounded-full border-t-2 border-b-2 border-indigo-500 ${small ? 'h-4 w-4 mr-1' : 'h-5 w-5 mr-2'} align-middle`}></div>
+// --- Componenti UI moderni - stile chatbot ---
+const Spinner = ({ small = false, color = 'purple-500' }) => (
+    <div className={`inline-block animate-spin rounded-full border-t-4 border-b-4 border-${color} ${small ? 'h-5 w-5 mr-2' : 'h-6 w-6 mr-2'} align-middle`}></div>
 );
 
 const Alert = ({ type = 'error', message, onClose }) => {
-    const baseStyle = 'border px-4 py-3 rounded relative mb-4 shadow-sm';
-    let typeStyle = '', iconColor = '';
-    switch (type) {
-        case 'success': typeStyle = 'bg-green-100 border-green-300 text-green-700'; iconColor = 'text-green-500 hover:text-green-700'; break;
-        case 'warning': typeStyle = 'bg-yellow-100 border-yellow-300 text-yellow-700'; iconColor = 'text-yellow-500 hover:text-yellow-700'; break;
-        case 'error': default: typeStyle = 'bg-red-100 border-red-300 text-red-700'; iconColor = 'text-red-500 hover:text-red-700'; break;
-    }
+    const colorClasses = {
+        error: 'bg-red-50 text-red-700 border-red-200',
+        warning: 'bg-orange-50 text-orange-700 border-orange-200',
+        success: 'bg-green-50 text-green-700 border-green-200',
+        info: 'bg-blue-50 text-blue-700 border-blue-200'
+    };
+
     if (!message) return null;
+
     return (
-        <div className={`${baseStyle} ${typeStyle}`} role="alert">
-            <span className="block sm:inline mr-6">{message}</span>
+        <div className={`max-w-6xl mx-auto ${colorClasses[type]} border px-4 py-3 rounded-xl flex items-center justify-between`}>
+            <span className="font-medium">{message}</span>
             {onClose && (
-                 <button onClick={onClose} className="absolute top-0 bottom-0 right-0 px-4 py-3 focus:outline-none" aria-label="Close">
-                     <svg className={`fill-current h-5 w-5 ${iconColor}`} role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.818l-2.651 3.031a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
-                 </button>
+                <button onClick={onClose} className="text-current hover:opacity-70 font-bold text-lg" aria-label="Close">
+                    ×
+                </button>
             )}
         </div>
     );
 };
 
-// Modale Alert Generico (Definito qui per sicurezza)
+// Card moderna - stile chatbot
+const Card = ({ children, className = '' }) => (
+  <div className={`bg-white rounded-2xl shadow-xl p-8 transition-all duration-300 hover:shadow-2xl ${className}`}>{children}</div>
+);
+
+// Header card con icona grande - stile chatbot
+const CardHeader = ({ title, icon, number, right }) => (
+    <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+            {number && (
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">
+                    {number}
+                </div>
+            )}
+            <div className="flex items-center gap-3">
+                <span className="text-purple-600 text-xl">{icon}</span>
+                <h2 className="text-xl font-bold text-gray-800">{title}</h2>
+            </div>
+        </div>
+        {right && right}
+    </div>
+);
+
+// Bottoni moderni - stile chatbot
+const ButtonPrimary = ({ children, ...props }) => (
+    <button {...props} className={`inline-flex items-center px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${props.className || ''}`}>{children}</button>
+);
+
+const ButtonSecondary = ({ children, ...props }) => (
+    <button {...props} className={`inline-flex items-center px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold shadow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${props.className || ''}`}>{children}</button>
+);
+
+// Progress bar moderna - stile chatbot
+const ProgressBar = ({ progress, color = 'purple' }) => (
+    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+        <div 
+            className={`bg-gradient-to-r from-${color}-400 to-${color === 'purple' ? 'pink' : color}-400 h-3 rounded-full transition-all duration-500`} 
+            style={{ width: `${progress}%` }}
+        ></div>
+    </div>
+);
+
+// Status badge moderno - stile chatbot
+const StatusBadge = ({ status, message }) => {
+    const getStatusStyle = (status) => {
+        switch (status) {
+            case 'completed': return 'bg-green-100 text-green-700';
+            case 'training': case 'sending': return 'bg-purple-100 text-purple-700';
+            case 'error': return 'bg-red-100 text-red-700';
+            default: return 'bg-gray-100 text-gray-600';
+        }
+    };
+
+    return (
+        <div className="flex items-center gap-3 mt-4">
+            <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold ${getStatusStyle(status)}`}>
+                {status.toUpperCase()}
+            </span>
+            <span className="text-sm text-gray-600 font-medium">{message}</span>
+        </div>
+    );
+};
+
+// Modale Alert moderna - stile chatbot
 const AlertModalShell = ({ isOpen, onClose, title = "Alert", children }) => {
      if (!isOpen) return null;
-     return ( <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4"> <div className="relative mx-auto p-6 border-0 w-full max-w-md shadow-xl rounded-lg bg-white"> <div className="flex justify-between items-center border-b border-gray-200 pb-3 mb-4"> <h3 className="text-lg font-medium text-gray-900">{title}</h3> <button onClick={onClose} className="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center" aria-label="Close modal"> <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"></path></svg> </button> </div> <div className="mt-2 text-sm text-gray-600">{children}</div> <div className="mt-4 pt-3 border-t border-gray-200 text-right"> <button onClick={onClose} type="button" className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"> OK </button> </div> </div> </div> );
+     return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+            <div className="relative mx-auto p-8 border-0 w-full max-w-md shadow-2xl rounded-2xl bg-white">
+                <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg">
+                        <FaInfoCircle className="text-xl" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-800">{title}</h3>
+                </div>
+                <div className="text-gray-600 mb-6 leading-relaxed">{children}</div>
+                <div className="flex justify-end">
+                    <ButtonPrimary onClick={onClose}>OK</ButtonPrimary>
+                </div>
+            </div>
+        </div>
+     );
 };
 // --- Fine UI ---
 
@@ -179,7 +258,7 @@ const ImageClassifierPage = () => {
         } finally { setIsLoadingModels(false); }
     }, [isAuthenticated, logMessage]);
 
-    useEffect(() => { fetchUserModels(); }, [fetchUserModels]); // Carica al montaggio
+    useEffect(() => { fetchUserModels(); }, [fetchUserModels]);
 
     // --- Gestione Training & Polling ---
     const stopPolling = useCallback(() => {
@@ -209,7 +288,7 @@ const ImageClassifierPage = () => {
                         setTrainingState('completed'); setModelAccuracy(statusData.accuracy);
                         setTrainingStatusMessage(`Training complete! Acc: ${statusData.accuracy ? (statusData.accuracy * 100).toFixed(1) : 'N/A'}%`);
                         logMessage(`Training model ${currentModelId.substring(0,8)} COMPLETED.`);
-                        fetchUserModels(); // Aggiorna lista modelli
+                        fetchUserModels();
                     } else {
                         setTrainingState('error'); const errorMsg = statusData.error_message || 'Unknown error';
                         setTrainingError(errorMsg); setTrainingStatusMessage('Training FAILED.');
@@ -224,7 +303,7 @@ const ImageClassifierPage = () => {
                 }
             }
         }, 5000);
-    }, [stopPolling, logMessage, fetchUserModels]); // Aggiunto fetchUserModels
+    }, [stopPolling, logMessage, fetchUserModels]);
 
     const handleTrainClick = async () => {
         const validClasses = classes.filter(cls => cls.name.trim() !== '' && cls.imageCount >= MIN_IMAGES_PER_CLASS);
@@ -271,7 +350,7 @@ const ImageClassifierPage = () => {
         setModelId(modelToLoad.id); setModelAccuracy(modelToLoad.accuracy);
         setTrainingState('completed');
         setTrainingStatusMessage(`Loaded: ${modelToLoad.name || 'Model'} (Acc: ${(modelToLoad.accuracy * 100).toFixed(1)}%)`);
-        setIsRealtimeActive(true); // Triggera avvio webcam
+        setIsRealtimeActive(true);
         setSuccess(`Model "${modelToLoad.name || 'Model'}" loaded!`);
         setClasses([ { id: uuidv4(), name: 'Class 1', images: [], imageCount: 0 }, { id: uuidv4(), name: 'Class 2', images: [], imageCount: 0 } ]);
     };
@@ -340,11 +419,11 @@ const ImageClassifierPage = () => {
     useEffect(() => {
         if (isRealtimeActive) {
             if (modelId && trainingStateRef.current === 'completed') { startRealtimePrediction(); }
-            else { setIsRealtimeActive(false); } // Condizioni non soddisfatte, forza stop
+            else { setIsRealtimeActive(false); }
         } else {
             stopRealtimePrediction();
         }
-        return () => { stopRealtimePrediction(); }; // Cleanup quando isRealtimeActive cambia o unmount
+        return () => { stopRealtimePrediction(); };
     }, [isRealtimeActive, startRealtimePrediction, stopRealtimePrediction, modelId]);
 
     useEffect(() => {
@@ -356,127 +435,211 @@ const ImageClassifierPage = () => {
         }
     }, [trainingState, modelId, logMessage]);
 
-    useEffect(() => { // Cleanup finale
+    useEffect(() => {
         return () => { stopPolling(); stopRealtimePrediction(); };
     }, [stopPolling, stopRealtimePrediction]);
 
-
     // --- Rendering ---
     return (
-        <div className="container mx-auto px-2 py-6 space-y-8 max-w-7xl">
-            {/* Header Pagina */}
-            <div className="flex flex-col md:flex-row justify-between items-center border-b pb-4 mb-6 gap-2">
-                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
-                    <span className="inline-block bg-indigo-100 text-indigo-700 rounded-full px-3 py-1 text-lg mr-2">🖼️</span>
-                    Custom Image Classifier
-                </h1>
-                <button onClick={() => setShowTutorialModal(true)} title="Mostra tutorial" className="text-indigo-600 hover:text-indigo-800 p-2 rounded-full bg-indigo-50 border border-indigo-200 shadow-sm transition">
-                    <FaInfoCircle size={24}/>
-                </button>
-            </div>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50 py-8 px-4">
+            <div className="max-w-7xl mx-auto">
+                {/* Alert/banner */}
+                {error && <Alert type="error" message={error} onClose={() => setError('')} />}
+                {warning && <Alert type="warning" message={warning} onClose={() => setWarning('')} />}
+                {success && <Alert type="success" message={success} onClose={() => setSuccess('')} />}
 
-             {/* Messaggi Principali */}
-             {error && <Alert type="error" message={error} onClose={() => setError('')} />}
-             {warning && <Alert type="warning" message={warning} onClose={() => setWarning('')} />}
-             {success && <Alert type="success" message={success} onClose={() => setSuccess('')} />}
+                {/* Layout a Grid Responsive */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
 
-            {/* Layout a Colonne Responsive */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                    {/* Step 1: Dati & Classi */}
+                    <Card className="lg:col-span-1">
+                        <CardHeader 
+                            title="Dati & Classi" 
+                            icon={<FaImages />}
+                            number="1"
+                        />
+                        {classes.map((cls) => (
+                            <ClassInputBox 
+                                key={cls.id} 
+                                classData={cls} 
+                                onNameChange={handleClassNameChange} 
+                                onImagesUpdate={handleClassImagesUpdate} 
+                                onRemove={removeClass} 
+                                canRemove={classes.length > MIN_CLASSES}
+                            />
+                        ))}
+                        {classes.length < MAX_CLASSES && (
+                            <button 
+                                onClick={addClass} 
+                                className="w-full flex items-center justify-center px-6 py-4 border-2 border-dashed border-purple-300 rounded-xl text-base font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-purple-500 mt-6 transition-all duration-200"
+                            >
+                                <FaPlus className="mr-2" /> 
+                                Aggiungi Classe ({classes.length}/{MAX_CLASSES})
+                            </button>
+                        )}
+                    </Card>
 
-                {/* Step 1: Dati & Classi */}
-                <section className="lg:col-span-1 shadow-lg rounded-xl bg-white p-6 mb-6">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><span className="text-indigo-500 text-2xl">1.</span> <span className="text-2xl">📂</span> Dati & Classi</h2>
-                    {classes.map((cls) => (
-                        <ClassInputBox key={cls.id} classData={cls} onNameChange={handleClassNameChange} onImagesUpdate={handleClassImagesUpdate} onRemove={removeClass} canRemove={classes.length > MIN_CLASSES}/>
-                    ))}
-                    {classes.length < MAX_CLASSES && (
-                        <button onClick={addClass} className="w-full flex items-center justify-center px-4 py-3 border-2 border-dashed border-indigo-300 rounded-lg text-base font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400 mt-4 transition">
-                            <FaPlus className="mr-2" /> Aggiungi Classe ({classes.length}/{MAX_CLASSES})
-                        </button>
-                    )}
-                </section>
+                    {/* Step 2: Training Modello */}
+                    <Card className="lg:col-span-1 lg:sticky lg:top-6">
+                        <CardHeader 
+                            title="Training Modello" 
+                            icon={<FaBrain />}
+                            number="2"
+                        />
+                        
+                        <ButtonPrimary 
+                            onClick={handleTrainClick} 
+                            disabled={!canTrain || trainingState === 'sending' || trainingState === 'training'} 
+                            className="w-full py-4 text-lg font-bold"
+                        >
+                            {(trainingState === 'sending' || trainingState === 'training') && <Spinner small />} 
+                            {trainingState === 'completed' && modelId && !classes.some(c => c.imageCount > 0) ? 'MODELLO CARICATO - NUOVO TRAINING?' : trainingState === 'completed' ? 'TRAINA DI NUOVO' : 'TRAINA MODELLO'}
+                        </ButtonPrimary>
+                        
+                        {/* Progress bar */}
+                        {(trainingState === 'sending' || trainingState === 'training') && (
+                            <div>
+                                <ProgressBar progress={trainingState === 'sending' ? 30 : 70} />
+                            </div>
+                        )}
+                        
+                        {/* Stato Training */}
+                        <StatusBadge status={trainingState} message={trainingStatusMessage} />
+                        
+                        {trainingError && (
+                            <div className="mt-4 p-3 bg-red-50 rounded-xl border border-red-200">
+                                <p className="text-sm text-red-600 font-medium">{trainingError}</p>
+                            </div>
+                        )}
+                        
+                        {modelId && (
+                            <div className="mt-4 p-3 bg-gray-50 rounded-xl">
+                                <p className="text-xs text-gray-500">
+                                    Model ID: <span className="font-mono font-medium">{modelId.substring(0,8)}...</span>
+                                </p>
+                            </div>
+                        )}
+                        
+                        {modelAccuracy !== null && (trainingState === 'completed' || (modelId && selectedExistingModelId === modelId)) && (
+                            <div className="mt-4 p-4 bg-green-50 rounded-xl border border-green-200">
+                                <p className="text-lg text-green-600 font-bold text-center">
+                                    Accuracy: {(modelAccuracy * 100).toFixed(1)}%
+                                </p>
+                            </div>
+                        )}
+                    </Card>
 
-                {/* Step 2: Training Modello */}
-                <section className="lg:col-span-1 shadow-lg rounded-xl bg-white p-6 mb-6 lg:sticky lg:top-6 flex flex-col items-center">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><span className="text-green-500 text-2xl">2.</span> <span className="text-2xl">⚙️</span> Training Modello</h2>
-                    <button onClick={handleTrainClick} disabled={!canTrain || trainingState === 'sending' || trainingState === 'training'} className="w-full py-3 text-lg font-bold rounded-lg shadow-md flex items-center justify-center gap-2 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                        {(trainingState === 'sending' || trainingState === 'training') && <Spinner />} 
-                        {trainingState === 'completed' && modelId && !classes.some(c => c.imageCount > 0) ? 'MODELLO CARICATO - NUOVO TRAINING?' : trainingState === 'completed' ? 'TRAINA DI NUOVO' : 'TRAINA MODELLO'}
-                    </button>
-                    {/* Progress bar */}
-                    {(trainingState === 'sending' || trainingState === 'training') && (
-                        <div className="w-full mt-4">
-                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div className="h-2 bg-indigo-500 rounded-full animate-pulse" style={{width: trainingState === 'sending' ? '30%' : '70%'}}></div>
+                    {/* Step 3: Predizione Realtime */}
+                    <Card className="lg:col-span-1 lg:sticky lg:top-6">
+                        <CardHeader 
+                            title="Predizione Realtime" 
+                            icon={<FaRobot />}
+                            number="3"
+                        />
+                        
+                        <div className="bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-gray-300 rounded-2xl aspect-video overflow-hidden flex items-center justify-center relative text-white shadow-inner">
+                            <video 
+                                ref={realtimeVideoRef} 
+                                className={`w-full h-full object-contain absolute inset-0 transition-opacity duration-300 ${isRealtimeActive ? 'opacity-100' : 'opacity-0'}`} 
+                                autoPlay 
+                                playsInline 
+                                muted 
+                            />
+                            {!isRealtimeActive && (
+                                <div className="z-10 p-6 text-center">
+                                    {(trainingState === 'completed' && modelId) || selectedExistingModelId ? (
+                                        <ButtonPrimary 
+                                            onClick={() => setIsRealtimeActive(true)} 
+                                            className="!bg-gradient-to-r !from-blue-500 !to-blue-600 !hover:from-blue-600 !hover:to-blue-700"
+                                        >
+                                            <FaVideo className="mr-2"/> 
+                                            Avvia Webcam
+                                        </ButtonPrimary>
+                                    ) : (
+                                        <p className="text-base text-gray-400 italic">Allena o carica un modello prima.</p>
+                                    )}
+                                </div>
+                            )}
+                            {isRealtimeActive && (
+                                <button 
+                                    onClick={() => setIsRealtimeActive(false)} 
+                                    title="Stop Webcam" 
+                                    className="absolute top-3 right-3 p-3 bg-red-500 hover:bg-red-600 text-white rounded-xl shadow-lg z-20 transition-all duration-200"
+                                >
+                                    <FaVideoSlash size={18}/>
+                                </button>
+                            )}
+                             <canvas ref={realtimeCanvasRef} style={{ display: 'none' }}></canvas>
+                        </div>
+                        
+                        <div className="mt-6">
+                            <PredictionDisplay predictions={realtimePredictions} />
+                        </div>
+                    </Card>
+                </div>
+
+                {/* Modelli salvati */}
+                <Card className="max-w-4xl mx-auto mt-8">
+                    <CardHeader 
+                        title="Modelli Salvati" 
+                        icon={<FaInfoCircle />}
+                        right={
+                            <ButtonSecondary onClick={fetchUserModels} disabled={isLoadingModels} className="!px-4 !py-2">
+                                {isLoadingModels ? <Spinner small /> : <FaRedo className="mr-1"/>} 
+                                Aggiorna
+                            </ButtonSecondary>
+                        }
+                    />
+                    {modelsError && <Alert type="error" message={modelsError} onClose={() => setModelsError('')} />}
+                    {isLoadingModels ? (
+                        <div className="text-center py-8">
+                            <Spinner/>
+                            <span className="ml-3 font-medium text-gray-600">Loading models...</span>
+                        </div>
+                    ) : userModels.length > 0 ? (
+                        <div className="space-y-4">
+                            <div className="flex flex-col md:flex-row gap-4 items-center">
+                                <select 
+                                    value={selectedExistingModelId} 
+                                    onChange={(e) => setSelectedExistingModelId(e.target.value)} 
+                                    className="flex-1 p-4 border-0 bg-gray-50 rounded-xl shadow-sm text-base focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                                >
+                                    <option value="">-- Seleziona un modello addestrato --</option>
+                                    {userModels.map(m => (
+                                        <option key={m.id} value={m.id} disabled={m.status !== 'COMPLETED'}>
+                                            {m.name || `Model ${m.id.substring(0,8)}`} ({m.status}) - Acc: {m.accuracy ? (m.accuracy*100).toFixed(1) : 'N/A'}%
+                                        </option>
+                                    ))}
+                                </select>
+                                <ButtonPrimary 
+                                    onClick={handleLoadExistingModel} 
+                                    disabled={!selectedExistingModelId || isRealtimeActive}
+                                    className="!bg-gradient-to-r !from-blue-500 !to-blue-600 !hover:from-blue-600 !hover:to-blue-700"
+                                >
+                                    Carica & Avvia Webcam
+                                </ButtonPrimary>
                             </div>
                         </div>
-                    )}
-                    {/* Stato Training */}
-                    <div className="mt-4 flex items-center gap-2">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${trainingState === 'completed' ? 'bg-green-100 text-green-700' : trainingState === 'training' ? 'bg-yellow-100 text-yellow-700' : trainingState === 'error' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{trainingState.toUpperCase()}</span>
-                        <span className="text-sm text-gray-600">{trainingStatusMessage}</span>
-                    </div>
-                    {trainingError && <p className="text-xs text-red-600 text-center px-1 mt-2">{trainingError}</p>}
-                    {modelId && (<p className="text-xs text-gray-500 mt-2">Model ID: <span className="font-mono">{modelId.substring(0,8)}...</span></p>)}
-                    {modelAccuracy !== null && (trainingState === 'completed' || (modelId && selectedExistingModelId === modelId)) && (
-                        <p className="text-base text-green-600 font-bold mt-2">Accuracy: {(modelAccuracy * 100).toFixed(1)}%</p>
-                    )}
-                </section>
-
-                {/* Step 3: Predizione Realtime */}
-                <section className="lg:col-span-1 shadow-lg rounded-xl bg-white p-6 mb-6 lg:sticky lg:top-6 flex flex-col items-center">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><span className="text-blue-500 text-2xl">3.</span> <span className="text-2xl">🤖</span> Predizione Realtime</h2>
-                    <div className="bg-black border border-gray-300 rounded-xl aspect-video overflow-hidden flex items-center justify-center relative text-white w-full max-w-md mx-auto">
-                        <video ref={realtimeVideoRef} className={`w-full h-full object-contain absolute inset-0 transition-opacity duration-300 ${isRealtimeActive ? 'opacity-100' : 'opacity-0'}`} autoPlay playsInline muted />
-                        {!isRealtimeActive && (
-                            <div className="z-10 p-4 text-center">
-                                {(trainingState === 'completed' && modelId) || selectedExistingModelId ? (
-                                    <button onClick={() => setIsRealtimeActive(true)} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow text-lg font-bold transition flex items-center gap-2"><FaVideo className="mr-2"/> Avvia Webcam</button>
-                                ) : (
-                                    <p className="text-base text-gray-400 italic">Allena o carica un modello prima.</p>
-                                )}
-                </div>
-                        )}
-                        {isRealtimeActive && (
-                            <button onClick={() => setIsRealtimeActive(false)} title="Stop Webcam" className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full shadow hover:bg-red-600 z-20 opacity-80 hover:opacity-100"><FaVideoSlash size={18}/></button>
-                        )}
-                         <canvas ref={realtimeCanvasRef} style={{ display: 'none' }}></canvas>
-                     </div>
-                    <div className="w-full mt-4">
-                     <PredictionDisplay predictions={realtimePredictions} />
-                 </div>
-                </section>
-            </div>
-
-            {/* Modelli salvati */}
-            <section className="max-w-2xl mx-auto bg-white shadow rounded-xl p-6 mb-8">
-                <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2"><FaInfoCircle className="text-indigo-400"/> Modelli salvati</h3>
-                {modelsError && <Alert type="error" message={modelsError} onClose={() => setModelsError('')} />}
-                {isLoadingModels ? <div className="text-center"><Spinner/></div> :
-                    userModels.length > 0 ? (
-                        <div className="flex flex-col md:flex-row gap-2 items-center">
-                            <select value={selectedExistingModelId} onChange={(e) => setSelectedExistingModelId(e.target.value)} className="flex-1 p-2 border border-gray-300 rounded-md shadow-sm bg-white text-base focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="">-- Seleziona un modello addestrato --</option>
-                                {userModels.map(m => (
-                                    <option key={m.id} value={m.id} disabled={m.status !== 'COMPLETED'}>
-                                        {m.name || `Model ${m.id.substring(0,8)}`} ({m.status}) - Acc: {m.accuracy ? (m.accuracy*100).toFixed(1) : 'N/A'}%
-                                    </option>
-                                ))}
-                            </select>
-                            <button onClick={handleLoadExistingModel} disabled={!selectedExistingModelId || isRealtimeActive} className="px-4 py-2 bg-blue-600 text-white rounded-md shadow hover:bg-blue-700 disabled:opacity-50 ml-2">Carica & Avvia Webcam</button>
-                            <button onClick={fetchUserModels} disabled={isLoadingModels} className="text-xs text-indigo-500 hover:underline ml-2 flex items-center">{isLoadingModels ? <Spinner small/> : <FaRedo className="mr-1"/>} Aggiorna</button>
-                        </div>
                     ) : (
-                        <p className="text-sm text-gray-500 italic">Nessun modello addestrato trovato.</p>
+                        <div className="text-center py-12 text-gray-500">
+                            <FaBrain className="text-4xl mx-auto mb-4 opacity-50" />
+                            <p className="text-lg font-medium">Nessun modello addestrato trovato</p>
+                            <p className="text-sm">Allena il tuo primo modello per iniziare!</p>
+                        </div>
                     )}
-            </section>
+                </Card>
 
-            {/* Console Log */}
-            <section className="max-w-3xl mx-auto mb-8">
-            <ConsoleLog logs={consoleLogs} onClear={() => setConsoleLogs([])} />
-            </section>
-            <TutorialModal isOpen={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
-            <AlertModalShell isOpen={showAlertModal} onClose={() => setShowAlertModal(false)} title={alertModalContent.title}> {alertModalContent.message} </AlertModalShell>
+                {/* Console Log */}
+                <div className="max-w-4xl mx-auto mt-8">
+                    <ConsoleLog logs={consoleLogs} onClear={() => setConsoleLogs([])} />
+                </div>
+
+                {/* Modali */}
+                <TutorialModal isOpen={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
+                <AlertModalShell isOpen={showAlertModal} onClose={() => setShowAlertModal(false)} title={alertModalContent.title}>
+                    {alertModalContent.message}
+                </AlertModalShell>
+            </div>
         </div>
     );
 };
