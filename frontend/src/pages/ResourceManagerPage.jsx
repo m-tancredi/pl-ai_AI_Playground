@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FaUpload, FaFilter, FaTimes, FaSpinner, FaFileImage, FaFilePdf, FaFileCsv, FaFileWord, FaFileAlt, FaEdit, FaTrashAlt, FaDownload, FaInfoCircle, FaQuestionCircle, FaFolder } from 'react-icons/fa';
+import { FaUpload, FaFilter, FaTimes, FaSpinner, FaFileImage, FaFilePdf, FaFileCsv, FaFileWord, FaFileAlt, FaEdit, FaTrashAlt, FaDownload, FaInfoCircle, FaQuestionCircle, FaFolder, FaSearch, FaSort, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import {
     listUserResources,
     uploadResource,
@@ -118,6 +118,17 @@ const ResourceManagerPage = () => {
     // Stato Filtri
     const [currentFilter, setCurrentFilter] = useState('all');
 
+    // Stato Ricerca
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Stato Ordinamento
+    const [sortBy, setSortBy] = useState('name'); // 'name', 'size', 'extension', 'type', 'date'
+    const [sortOrder, setSortOrder] = useState('asc'); // 'asc', 'desc'
+
+    // Stato Paginazione
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(12);
+
     // Stato Modali
     const [showEditModal, setShowEditModal] = useState(false);
     const [selectedResourceForEdit, setSelectedResourceForEdit] = useState(null);
@@ -143,6 +154,24 @@ const ResourceManagerPage = () => {
 
     // Funzione Helper per costruire URL completo
     const buildFullImageUrl = useCallback((urlOrPath) => getFullMediaUrl(urlOrPath), []);
+
+    // Funzione per ottenere l'estensione del file
+    const getFileExtension = useCallback((filename) => {
+        if (!filename) return '';
+        const parts = filename.split('.');
+        return parts.length > 1 ? parts.pop().toLowerCase() : '';
+    }, []);
+
+    // Funzione per ottenere il tipo di file
+    const getFileType = useCallback((mimeType) => {
+        if (!mimeType) return 'unknown';
+        if (mimeType.startsWith('image/')) return 'image';
+        if (mimeType === 'application/pdf') return 'pdf';
+        if (mimeType === 'text/csv') return 'csv';
+        if (mimeType.startsWith('application/vnd') || mimeType.startsWith('application/msword')) return 'document';
+        if (mimeType.startsWith('text/')) return 'text';
+        return 'unknown';
+    }, []);
 
     // --- Funzione per Fetch Storage Info ---
     const fetchStorageInfo = useCallback(async () => {
@@ -338,19 +367,169 @@ const ResourceManagerPage = () => {
         }
     };
 
-    // --- Filtro Risorse ---
-    const filteredResources = useMemo(() => {
-         if (!Array.isArray(userResources)) return [];
-         if (currentFilter === 'all') return userResources;
-         return userResources.filter(r => {
-             const mime = r.mime_type || '';
-             if (currentFilter === 'image') return mime.startsWith('image/');
-             if (currentFilter === 'pdf') return mime === 'application/pdf';
-             if (currentFilter === 'csv') return mime === 'text/csv';
-             if (currentFilter === 'document') return mime.startsWith('application/vnd') || mime.startsWith('application/msword') || mime === 'application/pdf' || mime.startsWith('text/');
-             return false;
-         });
-     }, [userResources, currentFilter]);
+    // --- Filtro, Ricerca, Ordinamento e Paginazione delle Risorse ---
+    const processedResources = useMemo(() => {
+        if (!Array.isArray(userResources)) return { resources: [], totalPages: 0, totalItems: 0 };
+        
+        let filtered = userResources;
+
+        // Applicazione filtro per tipo
+        if (currentFilter !== 'all') {
+            filtered = filtered.filter(r => {
+                const mime = r.mime_type || '';
+                if (currentFilter === 'image') return mime.startsWith('image/');
+                if (currentFilter === 'pdf') return mime === 'application/pdf';
+                if (currentFilter === 'csv') return mime === 'text/csv';
+                if (currentFilter === 'document') return mime.startsWith('application/vnd') || mime.startsWith('application/msword') || mime === 'application/pdf' || mime.startsWith('text/');
+                return false;
+            });
+        }
+
+        // Applicazione ricerca testuale
+        if (searchTerm.trim()) {
+            const search = searchTerm.toLowerCase().trim();
+            filtered = filtered.filter(r => {
+                const name = (r.name || r.original_filename || '').toLowerCase();
+                const extension = getFileExtension(r.original_filename).toLowerCase();
+                const type = getFileType(r.mime_type).toLowerCase();
+                
+                return name.includes(search) || 
+                       extension.includes(search) || 
+                       type.includes(search);
+            });
+        }
+
+        // Applicazione ordinamento
+        const sorted = [...filtered].sort((a, b) => {
+            let aValue, bValue;
+            
+            switch (sortBy) {
+                case 'name':
+                    aValue = (a.name || a.original_filename || '').toLowerCase();
+                    bValue = (b.name || b.original_filename || '').toLowerCase();
+                    break;
+                case 'size':
+                    aValue = a.file_size || a.size || 0;
+                    bValue = b.file_size || b.size || 0;
+                    break;
+                case 'extension':
+                    aValue = getFileExtension(a.original_filename);
+                    bValue = getFileExtension(b.original_filename);
+                    break;
+                case 'type':
+                    aValue = getFileType(a.mime_type);
+                    bValue = getFileType(b.mime_type);
+                    break;
+                case 'date':
+                    aValue = new Date(a.created_at || a.upload_date || 0);
+                    bValue = new Date(b.created_at || b.upload_date || 0);
+                    break;
+                default:
+                    aValue = (a.name || a.original_filename || '').toLowerCase();
+                    bValue = (b.name || b.original_filename || '').toLowerCase();
+            }
+
+            if (sortBy === 'size' || sortBy === 'date') {
+                return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+            } else {
+                if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+                if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+                return 0;
+            }
+        });
+
+        // Calcolo paginazione
+        const totalItems = sorted.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedResources = sorted.slice(startIndex, endIndex);
+
+        return {
+            resources: paginatedResources,
+            totalPages,
+            totalItems,
+            currentPage,
+            itemsPerPage
+        };
+    }, [userResources, currentFilter, searchTerm, sortBy, sortOrder, currentPage, itemsPerPage, getFileExtension, getFileType]);
+
+    // Reset della pagina quando cambiano filtri o ricerca
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [currentFilter, searchTerm, sortBy, sortOrder]);
+
+    // Componente Paginazione
+    const PaginationControls = ({ totalPages, currentPage, onPageChange }) => {
+        if (totalPages <= 1) return null;
+
+        const getPageNumbers = () => {
+            const pages = [];
+            const maxVisible = 5;
+            
+            if (totalPages <= maxVisible) {
+                for (let i = 1; i <= totalPages; i++) {
+                    pages.push(i);
+                }
+            } else {
+                const start = Math.max(1, currentPage - 2);
+                const end = Math.min(totalPages, start + maxVisible - 1);
+                
+                for (let i = start; i <= end; i++) {
+                    pages.push(i);
+                }
+                
+                if (start > 1) {
+                    pages.unshift('...');
+                    pages.unshift(1);
+                }
+                
+                if (end < totalPages) {
+                    pages.push('...');
+                    pages.push(totalPages);
+                }
+            }
+            
+            return pages;
+        };
+
+        return (
+            <div className="flex items-center justify-center gap-2 mt-8">
+                <button
+                    onClick={() => onPageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                >
+                    <FaChevronLeft />
+                </button>
+                
+                {getPageNumbers().map((page, index) => (
+                    <button
+                        key={index}
+                        onClick={() => typeof page === 'number' && onPageChange(page)}
+                        disabled={page === '...'}
+                        className={`px-4 py-2 rounded-lg font-semibold transition-colors duration-200 ${
+                            page === currentPage
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                                : page === '...'
+                                ? 'cursor-default text-gray-400'
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                        }`}
+                    >
+                        {page}
+                    </button>
+                ))}
+                
+                <button
+                    onClick={() => onPageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                >
+                    <FaChevronRight />
+                </button>
+            </div>
+        );
+    };
 
     // --- Funzione per aprire la modale di anteprima
     const handlePreviewResource = (resource) => {
@@ -446,56 +625,123 @@ const ResourceManagerPage = () => {
                         <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg">
                             <FaFileAlt className="text-xl" />
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-800">My Resources</h2>
+                        <h2 className="text-2xl font-bold text-gray-800">Le Mie Risorse</h2>
                     </div>
 
-                     <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-                        <div className="flex items-center gap-3">
-                            <label htmlFor="filter" className="text-sm font-semibold text-gray-700">Filter by type:</label>
-                            <select id="filter" value={currentFilter} onChange={(e) => setCurrentFilter(e.target.value)} className="p-3 border-0 rounded-xl bg-gray-50 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-                                <option value="all">All Types</option> 
-                                <option value="image">Images</option>
-                                <option value="document">Documents</option> 
+                    {/* Controlli: Ricerca, Filtri e Ordinamento */}
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+                        {/* Barra di Ricerca */}
+                        <div className="lg:col-span-2">
+                            <div className="relative">
+                                <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Cerca nelle risorse..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3 border-0 rounded-xl bg-gray-50 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all duration-200"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Filtro per Tipo */}
+                        <div>
+                            <select 
+                                value={currentFilter} 
+                                onChange={(e) => setCurrentFilter(e.target.value)} 
+                                className="w-full p-3 border-0 rounded-xl bg-gray-50 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            >
+                                <option value="all">Tutti i Tipi</option>
+                                <option value="image">Immagini</option>
+                                <option value="document">Documenti</option>
                                 <option value="csv">CSV</option>
                                 <option value="pdf">PDF</option>
                             </select>
                         </div>
-                        <ButtonSecondary onClick={fetchResources} disabled={isLoadingResources}>
+
+                        {/* Ordinamento */}
+                        <div>
+                            <select 
+                                value={`${sortBy}-${sortOrder}`}
+                                onChange={(e) => {
+                                    const [newSortBy, newSortOrder] = e.target.value.split('-');
+                                    setSortBy(newSortBy);
+                                    setSortOrder(newSortOrder);
+                                }}
+                                className="w-full p-3 border-0 rounded-xl bg-gray-50 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            >
+                                <option value="name-asc">Nome (A-Z)</option>
+                                <option value="name-desc">Nome (Z-A)</option>
+                                <option value="size-asc">Dimensione (Piccola)</option>
+                                <option value="size-desc">Dimensione (Grande)</option>
+                                <option value="extension-asc">Estensione (A-Z)</option>
+                                <option value="extension-desc">Estensione (Z-A)</option>
+                                <option value="type-asc">Tipo (A-Z)</option>
+                                <option value="type-desc">Tipo (Z-A)</option>
+                                <option value="date-desc">Data (Recente)</option>
+                                <option value="date-asc">Data (Meno recente)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Informazioni sui Risultati */}
+                    <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                        <div className="text-sm text-gray-600">
+                            Mostrando {processedResources.resources.length} di {processedResources.totalItems} risorse
+                            {searchTerm && (
+                                <span> - Ricerca: "<strong>{searchTerm}</strong>"</span>
+                            )}
+                        </div>
+                        <ButtonSecondary onClick={() => fetchResources(currentFilter)} disabled={isLoadingResources}>
                             <FaFilter className="mr-2" />
-                            {isLoadingResources ? <Spinner small /> : 'Refresh'}
+                            {isLoadingResources ? <Spinner small /> : 'Aggiorna'}
                         </ButtonSecondary>
-                     </div>
+                    </div>
 
                      {resourcesError && <Alert type="error" message={resourcesError} onClose={() => setResourcesError('')} />}
                      
                      {isLoadingResources ? ( 
                         <div className="text-center py-12">
                             <Spinner /> 
-                            <span className="ml-3 text-gray-600 font-medium">Loading resources...</span>
+                            <span className="ml-3 text-gray-600 font-medium">Caricamento risorse...</span>
                         </div> 
-                     ) : filteredResources.length === 0 ? (
+                     ) : processedResources.totalItems === 0 ? (
                          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                              <FaFileAlt className="text-6xl mb-4" />
                              <p className="text-xl font-semibold">Nessuna risorsa trovata</p>
-                             <p className="text-sm">Carica un file per iniziare!</p>
+                             <p className="text-sm">
+                                 {searchTerm || currentFilter !== 'all' 
+                                     ? 'Prova a modificare i filtri di ricerca'
+                                     : 'Carica un file per iniziare!'
+                                 }
+                             </p>
                          </div>
                      ) : (
-                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                             {filteredResources.map(resource => (
-                                 <ResourceCard
-                                    key={resource.id}
-                                    resource={resource}
-                                    buildFullUrl={getFullMediaUrl}
-                                    onSelect={handlePreviewResource}
-                                    onPreview={handlePreviewResource}
-                                    onEdit={handleEditResource}
-                                    onDelete={handleDeleteClick}
-                                    onDownload={handleDownloadResource}
-                                    isDeleting={isDeleting && resourceToDelete?.id === resource.id}
-                                    isSelected={selectedResourceForEdit?.id === resource.id}
-                                 />
-                             ))}
-                         </div>
+                         <>
+                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                 {processedResources.resources.map(resource => (
+                                     <ResourceCard
+                                        key={resource.id}
+                                        resource={resource}
+                                        buildFullUrl={getFullMediaUrl}
+                                        onSelect={handlePreviewResource}
+                                        onPreview={handlePreviewResource}
+                                        onEdit={handleEditResource}
+                                        onDelete={handleDeleteClick}
+                                        onDownload={handleDownloadResource}
+                                        isDeleting={isDeleting && resourceToDelete?.id === resource.id}
+                                        isSelected={selectedResourceForEdit?.id === resource.id}
+                                     />
+                                 ))}
+                             </div>
+
+                             {/* Controlli Paginazione */}
+                             <PaginationControls
+                                 totalPages={processedResources.totalPages}
+                                 currentPage={processedResources.currentPage}
+                                 onPageChange={setCurrentPage}
+                             />
+                         </>
                      )}
                 </div>
 
