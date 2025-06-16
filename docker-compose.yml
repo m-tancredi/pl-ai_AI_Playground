@@ -20,6 +20,9 @@ volumes:
   rabbitmq_data:
   resource_db_data:
   resource_media_data:
+  rag_db_data:
+  rag_uploads_data:
+  rag_embeddings_data:
 
 secrets:
   anthropic_api_key_secret:
@@ -144,6 +147,25 @@ services:
       retries: 5
     restart: unless-stopped
 
+  rag_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-rag-db
+    volumes:
+      - rag_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${RAG_DB_USER:-rag_user}
+      POSTGRES_PASSWORD: ${RAG_DB_PASSWORD:-rag_password}
+      POSTGRES_DB: ${RAG_DB_NAME:-rag_db}
+    expose: ["5432"]
+    ports: ["5437:5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-rag_user} -d $${POSTGRES_DB:-rag_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # --- Message Broker ---
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
@@ -229,7 +251,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 45s
+      start_period: 60s
     restart: unless-stopped
 
   image_classifier_service:
@@ -291,6 +313,52 @@ services:
       timeout: 10s
       retries: 5
       start_period: 45s
+    restart: unless-stopped
+
+  rag_service:
+    build:
+      context: ./backend/rag_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-rag-service
+    env_file: [./backend/rag_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=web]
+    volumes:
+      - ./backend/rag_service:/app
+      - rag_uploads_data:/app/rag_uploads
+      - rag_embeddings_data:/app/rag_embeddings
+    secrets:
+      - openai_api_key_secret
+    expose: ["8006"]
+    ports: ["8006:8006"]
+    networks: [pl-ai-network]
+    depends_on:
+      rag_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8006/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  rag_worker:
+    build:
+      context: ./backend/rag_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-rag-worker
+    env_file: [./backend/rag_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=worker]
+    volumes:
+      - ./backend/rag_service:/app
+      - rag_uploads_data:/app/rag_uploads
+      - rag_embeddings_data:/app/rag_embeddings
+    secrets:
+      - openai_api_key_secret
+    networks: [pl-ai-network]
+    depends_on:
+      rag_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
     restart: unless-stopped
 
   # --- Worker Services ---
@@ -367,11 +435,13 @@ services:
       - analysis_results_data:/media_analysis_results:ro
       - image_generator_media:/media_images:ro
       - ./backend/resource_manager_service/mediafiles:/media_resources
+      - rag_uploads_data:/media_rag_uploads:ro
     depends_on:
       auth_service: { condition: service_healthy }
       pl_ai_image_generator_service: { condition: service_healthy }
       resource_manager_service: { condition: service_healthy }
       image_classifier_service: { condition: service_started }
       data_analysis_service: { condition: service_healthy }
+      rag_service: { condition: service_healthy }
       frontend: { condition: service_started }
     restart: unless-stopped

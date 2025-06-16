@@ -65,6 +65,7 @@ const Navbar = () => {
             <li><strong>Image Classifier:</strong> Classifica e analizza immagini</li>
             <li><strong>Data Analysis:</strong> Analisi dati avanzata</li>
             <li><strong>Resources:</strong> Gestione risorse e materiali</li>
+            <li><strong>RAG Service:</strong> Chat con i tuoi documenti</li>
           </ul>
           <p>Naviga tra le sezioni usando il menu principale per accedere a tutti gli strumenti AI.</p>
         </div>
@@ -190,6 +191,30 @@ const Navbar = () => {
             </div>
           </div>
           <p>Accesso rapido a tutti i materiali per progetti AI e attività didattiche.</p>
+        </div>
+      )
+    },
+    '/rag': {
+      title: 'Tutorial RAG Service',
+      content: (
+        <div>
+          <h4 className="text-lg font-semibold mb-3">Chat con i tuoi Documenti</h4>
+          <p className="mb-4">Interagisci con i tuoi documenti usando l'intelligenza artificiale:</p>
+          <div className="space-y-3 mb-4">
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <h5 className="font-semibold text-blue-800">📄 Carica Documenti</h5>
+              <p className="text-sm text-blue-700">Supporta PDF, DOCX, TXT, CSV e Excel</p>
+            </div>
+            <div className="bg-green-50 p-3 rounded-lg">
+              <h5 className="font-semibold text-green-800">🤖 Chat Intelligente</h5>
+              <p className="text-sm text-green-700">Fai domande sui tuoi documenti e ricevi risposte precise</p>
+            </div>
+            <div className="bg-purple-50 p-3 rounded-lg">
+              <h5 className="font-semibold text-purple-800">📚 Knowledge Base</h5>
+              <p className="text-sm text-purple-700">Gestisci e organizza i tuoi documenti</p>
+            </div>
+          </div>
+          <p>Perfetto per studiare, ricercare e analizzare documenti in modo interattivo!</p>
         </div>
       )
     }
@@ -365,6 +390,11 @@ const Navbar = () => {
                         <span>Chatbot</span>
                         <TutorialButton path="/chatbot" isActive={location.pathname === '/chatbot'} />
                       </NavLink>
+                      <NavLink to="/rag" className={({isActive}) => getNavLinkClass(isActive)}>
+                        <MenuIcon iconClass="fi fi-rr-document" />
+                        <span>RAG</span>
+                        <TutorialButton path="/rag" isActive={location.pathname === '/rag'} />
+                      </NavLink>
                     </>
                   )}
                 </div>
@@ -454,6 +484,11 @@ const Navbar = () => {
                     <MenuIcon iconClass="fi fi-rr-comment-alt" />
                     <span>Chatbot</span>
                     <TutorialButton path="/chatbot" isActive={location.pathname === '/chatbot'} />
+                  </NavLink>
+                  <NavLink to="/rag" className={({isActive}) => getMobileNavLinkClass(isActive)} onClick={closeMobileMenu}>
+                    <MenuIcon iconClass="fi fi-rr-document" />
+                    <span>RAG</span>
+                    <TutorialButton path="/rag" isActive={location.pathname === '/rag'} />
                   </NavLink>
                 </>
               )}
