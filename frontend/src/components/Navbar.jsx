@@ -195,29 +195,30 @@ const Navbar = () => {
       )
     },
     '/rag': {
-      title: 'Tutorial RAG Service',
+      title: 'Tutorial RAG & Knowledge Base',
       content: (
         <div>
-          <h4 className="text-lg font-semibold mb-3">Chat con i tuoi Documenti</h4>
-          <p className="mb-4">Interagisci con i tuoi documenti usando l'intelligenza artificiale:</p>
+          <h4 className="text-lg font-semibold mb-3">Gestione Knowledge Base Multiple</h4>
+          <p className="mb-4">Organizza i tuoi documenti in collezioni tematiche e avvia chat dedicate:</p>
           <div className="space-y-3 mb-4">
             <div className="bg-blue-50 p-3 rounded-lg">
-              <h5 className="font-semibold text-blue-800">📄 Carica Documenti</h5>
-              <p className="text-sm text-blue-700">Supporta PDF, DOCX, TXT, CSV e Excel</p>
+              <h5 className="font-semibold text-blue-800">📚 Crea Knowledge Base</h5>
+              <p className="text-sm text-blue-700">Raggruppa documenti per argomento con configurazioni personalizzate</p>
             </div>
             <div className="bg-green-50 p-3 rounded-lg">
-              <h5 className="font-semibold text-green-800">🤖 Chat Intelligente</h5>
-              <p className="text-sm text-green-700">Fai domande sui tuoi documenti e ricevi risposte precise</p>
+              <h5 className="font-semibold text-green-800">💬 Chat Specifica</h5>
+              <p className="text-sm text-green-700">Avvia conversazioni limitate ai documenti di una KB specifica</p>
             </div>
             <div className="bg-purple-50 p-3 rounded-lg">
-              <h5 className="font-semibold text-purple-800">📚 Knowledge Base</h5>
-              <p className="text-sm text-purple-700">Gestisci e organizza i tuoi documenti</p>
+              <h5 className="font-semibold text-purple-800">📊 Statistiche Dettagliate</h5>
+              <p className="text-sm text-purple-700">Monitora performance e contenuti di ogni knowledge base</p>
             </div>
           </div>
-          <p>Perfetto per studiare, ricercare e analizzare documenti in modo interattivo!</p>
+          <p>Perfetto per organizzare materiali didattici per materia o progetto!</p>
         </div>
       )
-    }
+    },
+
   };
 
   const handleLogout = async () => {
@@ -391,9 +392,9 @@ const Navbar = () => {
                         <TutorialButton path="/chatbot" isActive={location.pathname === '/chatbot'} />
                       </NavLink>
                       <NavLink to="/rag" className={({isActive}) => getNavLinkClass(isActive)}>
-                        <MenuIcon iconClass="fi fi-rr-document" />
-                        <span>RAG</span>
-                        <TutorialButton path="/rag" isActive={location.pathname === '/rag'} />
+                        <MenuIcon iconClass="fi fi-rr-database" />
+                        <span>RAG & Knowledge Base</span>
+                        <TutorialButton path="/rag" isActive={location.pathname === '/rag' || location.pathname === '/knowledge-bases'} />
                       </NavLink>
                     </>
                   )}
@@ -486,9 +487,9 @@ const Navbar = () => {
                     <TutorialButton path="/chatbot" isActive={location.pathname === '/chatbot'} />
                   </NavLink>
                   <NavLink to="/rag" className={({isActive}) => getMobileNavLinkClass(isActive)} onClick={closeMobileMenu}>
-                    <MenuIcon iconClass="fi fi-rr-document" />
-                    <span>RAG</span>
-                    <TutorialButton path="/rag" isActive={location.pathname === '/rag'} />
+                    <MenuIcon iconClass="fi fi-rr-database" />
+                    <span>RAG & Knowledge Base</span>
+                    <TutorialButton path="/rag" isActive={location.pathname === '/rag' || location.pathname === '/knowledge-bases'} />
                   </NavLink>
                 </>
               )}

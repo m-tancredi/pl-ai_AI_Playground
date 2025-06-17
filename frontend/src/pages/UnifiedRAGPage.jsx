@@ -1,0 +1,487 @@
+import React, { useEffect } from 'react';
+import { useUnifiedRAG } from '../hooks/useUnifiedRAG';
+import DocumentManager from '../components/DocumentManager';
+import KnowledgeBaseManager from '../components/KnowledgeBaseManager';
+import UnifiedChat from '../components/UnifiedChat';
+import KnowledgeBaseModal from '../components/KnowledgeBaseModal';
+import KnowledgeBaseStatsModal from '../components/KnowledgeBaseStatsModal';
+import { 
+    Bars3Icon,
+    XMarkIcon,
+    DocumentTextIcon,
+    ChatBubbleLeftRightIcon,
+    ChartBarIcon,
+    Cog6ToothIcon,
+    QuestionMarkCircleIcon,
+    PlusIcon
+} from '@heroicons/react/24/outline';
+
+const UnifiedRAGPage = () => {
+    const {
+        // Stati
+        documents,
+        knowledgeBases,
+        selectedDocuments,
+        loading,
+        error,
+        uploadProgress,
+        
+        // Chat
+        activeMode,
+        currentChatHistory,
+        chatInput,
+        isChatLoading,
+        
+        // UI
+        activeTab,
+        showCreateKBModal,
+        showStatsModal,
+        selectedKB,
+        documentFilters,
+        stats,
+
+        // Azioni documenti
+        uploadDocuments,
+        deleteDocument,
+        deleteSelectedDocuments,
+        setSelectedDocuments,
+        
+        // Azioni KB
+        createKnowledgeBase,
+        deleteKnowledgeBase,
+        addDocumentsToKB,
+        removeDocumentsFromKB,
+        
+        // Chat
+        sendChatMessage,
+        switchChatMode,
+        clearChatHistory,
+        setChatInput,
+        
+        // Bulk actions
+        createKBFromSelected,
+        addSelectedToKB,
+        
+        // UI actions
+        setActiveTab,
+        setShowCreateKBModal,
+        setShowStatsModal,
+        setSelectedKB,
+        setDocumentFilters,
+        setError,
+        
+        // Typewriter
+        typewriterSettings,
+        setTypewriterSettings,
+
+        // New chat session
+        currentSession,
+        chatHistory
+    } = useUnifiedRAG();
+
+    const [sidebarOpen, setSidebarOpen] = React.useState(true);
+    const [isMobile, setIsMobile] = React.useState(false);
+    const [showTypewriterSettings, setShowTypewriterSettings] = React.useState(false);
+
+    // Gestione responsive
+    useEffect(() => {
+        const checkMobile = () => {
+            const mobile = window.innerWidth < 1024;
+            setIsMobile(mobile);
+            if (mobile) {
+                setSidebarOpen(false);
+            }
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyboard = (e) => {
+            if (e.metaKey || e.ctrlKey) {
+                switch (e.key) {
+                    case 'k':
+                        e.preventDefault();
+                        // Focus su selector modalità chat
+                        break;
+                    case 'n':
+                        e.preventDefault();
+                        setShowCreateKBModal(true);
+                        break;
+                    case 'u':
+                        e.preventDefault();
+                        // Focus su upload
+                        break;
+                    case 'Enter':
+                        if (chatInput.trim()) {
+                            e.preventDefault();
+                            sendChatMessage(chatInput);
+                        }
+                        break;
+                }
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyboard);
+        return () => document.removeEventListener('keydown', handleKeyboard);
+    }, [chatInput, sendChatMessage, setShowCreateKBModal]);
+
+    const handleKBEdit = (kbId) => {
+        const kb = knowledgeBases.find(k => k.id === kbId);
+        if (kb) {
+            setSelectedKB(kb);
+            setShowCreateKBModal(true);
+        }
+    };
+
+    const handleKBStats = (kbId) => {
+        const kb = knowledgeBases.find(k => k.id === kbId);
+        if (kb) {
+            setSelectedKB(kb);
+            setShowStatsModal(true);
+        }
+    };
+
+    const handleKBDelete = async (kbId) => {
+        if (window.confirm('Sei sicuro di voler eliminare questa Knowledge Base?')) {
+            await deleteKnowledgeBase(kbId);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Caricamento RAG Unificato</h2>
+                    <p className="text-gray-600">Preparazione dell'interfaccia...</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-50">
+            {/* Header Unificato */}
+            <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+                <div className="px-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center justify-between h-16">
+                        {/* Logo e Titolo */}
+                        <div className="flex items-center space-x-4">
+                            <button
+                                onClick={() => setSidebarOpen(!sidebarOpen)}
+                                className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 lg:hidden"
+                            >
+                                {sidebarOpen ? <XMarkIcon className="w-5 h-5" /> : <Bars3Icon className="w-5 h-5" />}
+                            </button>
+                            
+                            <div className="flex items-center space-x-3">
+                                <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
+                                    <DocumentTextIcon className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold text-gray-900">RAG & Knowledge Base</h1>
+                                    <p className="text-sm text-gray-600 hidden sm:block">
+                                        Gestione documenti e chat unificata
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Statistiche Header */}
+                        <div className="hidden md:flex items-center space-x-6 text-sm">
+                            <div className="flex items-center space-x-2">
+                                <DocumentTextIcon className="w-4 h-4 text-blue-600" />
+                                <span className="text-gray-600">{stats.totalDocuments} documenti</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <ChatBubbleLeftRightIcon className="w-4 h-4 text-purple-600" />
+                                <span className="text-gray-600">{stats.totalKnowledgeBases} KB</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <ChartBarIcon className="w-4 h-4 text-green-600" />
+                                <span className="text-gray-600">{stats.totalChunks} chunk</span>
+                            </div>
+                        </div>
+
+                        {/* Azioni Header */}
+                        <div className="flex items-center space-x-2">
+                            <button
+                                onClick={() => setShowCreateKBModal(true)}
+                                className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium flex items-center"
+                            >
+                                <PlusIcon className="w-4 h-4 mr-1" />
+                                <span className="hidden sm:inline">Nuova KB</span>
+                            </button>
+                            
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowTypewriterSettings(!showTypewriterSettings)}
+                                    className={`p-2 rounded-lg transition-colors ${
+                                        typewriterSettings.enabled 
+                                            ? 'text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100' 
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                    }`}
+                                    title="Impostazioni Typewriter"
+                                >
+                                    <Cog6ToothIcon className="w-5 h-5" />
+                                </button>
+
+                                {showTypewriterSettings && (
+                                    <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-4">
+                                        <h3 className="font-semibold text-gray-900 mb-3">Impostazioni Typewriter</h3>
+                                        
+                                        {/* Enable/Disable */}
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-sm text-gray-700">Effetto Typewriter</span>
+                                            <button
+                                                onClick={() => setTypewriterSettings(prev => ({
+                                                    ...prev,
+                                                    enabled: !prev.enabled
+                                                }))}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                                    typewriterSettings.enabled ? 'bg-green-600' : 'bg-gray-200'
+                                                }`}
+                                            >
+                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                    typewriterSettings.enabled ? 'translate-x-6' : 'translate-x-1'
+                                                }`} />
+                                            </button>
+                                        </div>
+
+                                        {/* Speed Control */}
+                                        <div className="mb-3">
+                                            <label className="block text-sm text-gray-700 mb-2">
+                                                Velocità: {typewriterSettings.speed}ms
+                                            </label>
+                                            <input
+                                                type="range"
+                                                min="20"
+                                                max="200"
+                                                step="10"
+                                                value={typewriterSettings.speed}
+                                                onChange={(e) => setTypewriterSettings(prev => ({
+                                                    ...prev,
+                                                    speed: parseInt(e.target.value)
+                                                }))}
+                                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                                disabled={!typewriterSettings.enabled}
+                                            />
+                                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                                <span>Veloce</span>
+                                                <span>Lenta</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Cursor */}
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-sm text-gray-700">Mostra Cursore</span>
+                                            <button
+                                                onClick={() => setTypewriterSettings(prev => ({
+                                                    ...prev,
+                                                    showCursor: !prev.showCursor
+                                                }))}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                                    typewriterSettings.showCursor ? 'bg-blue-600' : 'bg-gray-200'
+                                                }`}
+                                                disabled={!typewriterSettings.enabled}
+                                            >
+                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                    typewriterSettings.showCursor ? 'translate-x-6' : 'translate-x-1'
+                                                }`} />
+                                            </button>
+                                        </div>
+
+                                        {/* Skip */}
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm text-gray-700">Abilita Skip</span>
+                                            <button
+                                                onClick={() => setTypewriterSettings(prev => ({
+                                                    ...prev,
+                                                    enableSkip: !prev.enableSkip
+                                                }))}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                                    typewriterSettings.enableSkip ? 'bg-purple-600' : 'bg-gray-200'
+                                                }`}
+                                                disabled={!typewriterSettings.enabled}
+                                            >
+                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                    typewriterSettings.enableSkip ? 'translate-x-6' : 'translate-x-1'
+                                                }`} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <button
+                                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Aiuto"
+                            >
+                                <QuestionMarkCircleIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            {/* Layout Principale */}
+            <div className="flex h-[calc(100vh-4rem)]">
+                {/* Sidebar Sinistra */}
+                <div className={`${
+                    sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                } fixed inset-y-0 left-0 z-20 w-80 bg-white border-r border-gray-200 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 mt-16 lg:mt-0`}>
+                    
+                    <div className="flex flex-col h-full">
+                        {/* Tab Navigation */}
+                        <div className="flex border-b border-gray-200 bg-gray-50">
+                            <button
+                                onClick={() => setActiveTab('documents')}
+                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                                    activeTab === 'documents'
+                                        ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+                                        : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            >
+                                <DocumentTextIcon className="w-4 h-4 inline mr-2" />
+                                Documenti
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('knowledge-bases')}
+                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                                    activeTab === 'knowledge-bases'
+                                        ? 'text-purple-600 border-b-2 border-purple-600 bg-white'
+                                        : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            >
+                                <ChatBubbleLeftRightIcon className="w-4 h-4 inline mr-2" />
+                                KB
+                            </button>
+                        </div>
+
+                        {/* Contenuto Sidebar */}
+                        <div className="flex-1 overflow-y-auto p-4">
+                            {activeTab === 'documents' ? (
+                                <DocumentManager
+                                    documents={documents}
+                                    selectedDocuments={selectedDocuments}
+                                    onDocumentSelect={setSelectedDocuments}
+                                    onUpload={uploadDocuments}
+                                    onDelete={deleteDocument}
+                                    onDeleteSelected={deleteSelectedDocuments}
+                                    onCreateKBFromSelected={createKBFromSelected}
+                                    onAddSelectedToKB={addSelectedToKB}
+                                    uploadProgress={uploadProgress}
+                                    filters={documentFilters}
+                                    onFiltersChange={setDocumentFilters}
+                                    knowledgeBases={knowledgeBases}
+                                    stats={stats}
+                                    error={error}
+                                />
+                            ) : (
+                                <KnowledgeBaseManager
+                                    knowledgeBases={knowledgeBases}
+                                    activeMode={activeMode}
+                                    onCreateKB={() => setShowCreateKBModal(true)}
+                                    onEditKB={handleKBEdit}
+                                    onDeleteKB={handleKBDelete}
+                                    onStatsKB={handleKBStats}
+                                    onSwitchMode={switchChatMode}
+                                    selectedDocuments={selectedDocuments}
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Area Chat Principale */}
+                <div className="flex-1 flex flex-col lg:ml-0">
+                    <div className="flex-1 p-4">
+                        <UnifiedChat
+                            activeMode={activeMode}
+                            knowledgeBases={knowledgeBases}
+                            chatHistory={chatHistory}
+                            chatInput={chatInput}
+                            isChatLoading={isChatLoading}
+                            onSendMessage={sendChatMessage}
+                            onChatInputChange={setChatInput}
+                            onSwitchMode={switchChatMode}
+                            onClearHistory={clearChatHistory}
+                            stats={stats}
+                            typewriterSettings={typewriterSettings}
+                            onTypewriterSettingsChange={setTypewriterSettings}
+                            currentSession={currentSession}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* Overlay Mobile */}
+            {isMobile && sidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-50 z-10 lg:hidden"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
+
+            {/* Modali */}
+            {showCreateKBModal && (
+                <KnowledgeBaseModal
+                    isOpen={showCreateKBModal}
+                    onClose={() => {
+                        setShowCreateKBModal(false);
+                        setSelectedKB(null);
+                    }}
+                    onSave={createKnowledgeBase}
+                    documents={documents}
+                    selectedDocuments={selectedDocuments}
+                    knowledgeBase={selectedKB}
+                    isLoading={loading}
+                />
+            )}
+
+            {showStatsModal && selectedKB && (
+                <KnowledgeBaseStatsModal
+                    isOpen={showStatsModal}
+                    onClose={() => {
+                        setShowStatsModal(false);
+                        setSelectedKB(null);
+                    }}
+                    knowledgeBase={selectedKB}
+                />
+            )}
+
+            {/* Toast Notifications */}
+            {error && (
+                <div className="fixed bottom-4 right-4 z-50">
+                    <div className="bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center">
+                        <XMarkIcon className="w-5 h-5 mr-2" />
+                        <span>{error}</span>
+                        <button
+                            onClick={() => setError(null)}
+                            className="ml-4 text-red-200 hover:text-white"
+                        >
+                            <XMarkIcon className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Shortcuts Help */}
+            <div className="fixed bottom-4 left-4 z-40 hidden lg:block">
+                <div className="bg-gray-800 text-white px-3 py-2 rounded-lg text-xs">
+                    <div className="space-y-1">
+                        <div>⌘+N: Nuova KB</div>
+                        <div>⌘+K: Cambia modalità</div>
+                        <div>⌘+U: Upload</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default UnifiedRAGPage; 

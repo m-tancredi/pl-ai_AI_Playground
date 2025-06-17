@@ -3,7 +3,7 @@ Serializers per l'API RAG.
 """
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import RAGDocument, RAGChunk, RAGProcessingLog, RAGKnowledgeBase
+from .models import RAGDocument, RAGChunk, RAGProcessingLog, RAGKnowledgeBase, RAGChatSession, RAGChatMessage
 
 class RAGDocumentSerializer(serializers.ModelSerializer):
     """
@@ -339,4 +339,100 @@ class BulkDeleteSerializer(serializers.Serializer):
             if doc.user_id and doc.user_id != user.id:
                 raise serializers.ValidationError(f"Non hai accesso al documento: {doc.original_filename}")
         
-        return value 
+        return value
+
+class KnowledgeBaseDocumentsSerializer(serializers.Serializer):
+    """
+    Serializer per aggiungere/rimuovere documenti da una knowledge base.
+    """
+    
+    document_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        min_length=1,
+        max_length=100
+    )
+    
+    def validate_document_ids(self, value):
+        """
+        Valida che i documenti esistano e appartengano all'utente.
+        """
+        user = self.context['request'].user
+        
+        # Verifica che tutti i documenti esistano e appartengano all'utente
+        existing_docs = RAGDocument.objects.filter(
+            id__in=value,
+            user_id=user.id if user.is_authenticated else None
+        ).count()
+        
+        if existing_docs != len(value):
+            raise serializers.ValidationError(
+                "Alcuni documenti non esistono o non appartengono all'utente"
+            )
+        
+        return value
+
+# ===== CHAT SERIALIZERS =====
+
+class RAGChatSessionSerializer(serializers.ModelSerializer):
+    """
+    Serializer per il modello RAGChatSession.
+    """
+    
+    knowledge_base_name = serializers.CharField(source='knowledge_base.name', read_only=True)
+    user_id = serializers.IntegerField(read_only=True)
+    
+    class Meta:
+        model = RAGChatSession
+        fields = [
+            'id',
+            'title',
+            'mode',
+            'message_count',
+            'knowledge_base',
+            'knowledge_base_name',
+            'user_id',
+            'last_activity',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'user_id',
+            'message_count',
+            'last_activity',
+            'created_at',
+            'updated_at',
+        ]
+
+
+class RAGChatMessageSerializer(serializers.ModelSerializer):
+    """
+    Serializer per il modello RAGChatMessage.
+    """
+    
+    class Meta:
+        model = RAGChatMessage
+        fields = [
+            'id',
+            'content',
+            'is_user',
+            'sources',
+            'processing_time',
+            'model_used',
+            'created_at',
+        ]
+        read_only_fields = [
+            'id',
+            'created_at',
+        ]
+
+
+class RAGChatSessionDetailSerializer(RAGChatSessionSerializer):
+    """
+    Serializer dettagliato per RAGChatSession con messaggi.
+    """
+    
+    messages = RAGChatMessageSerializer(many=True, read_only=True)
+    
+    class Meta(RAGChatSessionSerializer.Meta):
+        fields = RAGChatSessionSerializer.Meta.fields + ['messages']

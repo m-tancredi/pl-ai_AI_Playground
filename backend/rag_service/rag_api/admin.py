@@ -5,7 +5,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import RAGDocument, RAGChunk, RAGProcessingLog, RAGKnowledgeBase
+from .models import RAGDocument, RAGChunk, RAGProcessingLog, RAGKnowledgeBase, RAGChatSession, RAGChatMessage
 
 @admin.register(RAGDocument)
 class RAGDocumentAdmin(admin.ModelAdmin):
@@ -221,6 +221,118 @@ class RAGKnowledgeBaseAdmin(admin.ModelAdmin):
         
         self.message_user(request, f'Statistiche aggiornate per {count} knowledge base.')
     update_statistics.short_description = 'Aggiorna statistiche'
+
+@admin.register(RAGChatSession)
+class RAGChatSessionAdmin(admin.ModelAdmin):
+    """
+    Admin per il modello RAGChatSession.
+    """
+    list_display = [
+        'id', 'title_preview', 'mode', 'knowledge_base_name', 
+        'message_count', 'username', 'last_activity', 'created_at'
+    ]
+    list_filter = ['mode', 'created_at', 'last_activity']
+    search_fields = ['title', 'knowledge_base__name', 'user__username']
+    readonly_fields = ['message_count', 'last_activity', 'created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Informazioni Sessione', {
+            'fields': ('title', 'mode', 'knowledge_base', 'user')
+        }),
+        ('Statistiche', {
+            'fields': ('message_count', 'last_activity'),
+            'classes': ('collapse',)
+        }),
+        ('Metadati', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def title_preview(self, obj):
+        """Anteprima del titolo."""
+        if obj.title:
+            return obj.title[:50] + "..." if len(obj.title) > 50 else obj.title
+        return f"Chat {obj.id}"
+    title_preview.short_description = 'Titolo'
+    
+    def knowledge_base_name(self, obj):
+        """Nome della knowledge base."""
+        return obj.knowledge_base.name if obj.knowledge_base else 'Globale'
+    knowledge_base_name.short_description = 'Knowledge Base'
+    
+    def username(self, obj):
+        """Nome utente."""
+        return obj.user.username if obj.user else 'Anonimo'
+    username.short_description = 'Utente'
+    
+    actions = ['clear_messages']
+    
+    def clear_messages(self, request, queryset):
+        """Cancella tutti i messaggi delle sessioni selezionate."""
+        total_messages = 0
+        for session in queryset:
+            count = session.messages.count()
+            session.messages.all().delete()
+            session.message_count = 0
+            session.title = ''
+            session.save()
+            total_messages += count
+        
+        self.message_user(request, f'{total_messages} messaggi cancellati da {queryset.count()} sessioni.')
+    clear_messages.short_description = 'Cancella messaggi delle sessioni selezionate'
+
+@admin.register(RAGChatMessage)
+class RAGChatMessageAdmin(admin.ModelAdmin):
+    """
+    Admin per il modello RAGChatMessage.
+    """
+    list_display = [
+        'id', 'session_link', 'sender_type', 'content_preview', 
+        'processing_time', 'model_used', 'created_at'
+    ]
+    list_filter = ['is_user', 'model_used', 'created_at']
+    search_fields = ['content', 'session__title', 'session__user__username']
+    readonly_fields = ['created_at']
+    
+    fieldsets = (
+        ('Messaggio', {
+            'fields': ('session', 'content', 'is_user')
+        }),
+        ('Metadati AI', {
+            'fields': ('sources', 'processing_time', 'model_used'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamp', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def session_link(self, obj):
+        """Link alla sessione."""
+        url = reverse('admin:rag_api_ragchatsession_change', args=[obj.session.id])
+        title = obj.session.title or f"Chat {obj.session.id}"
+        return format_html('<a href="{}">{}</a>', url, title)
+    session_link.short_description = 'Sessione'
+    
+    def sender_type(self, obj):
+        """Tipo di mittente con colore."""
+        if obj.is_user:
+            return format_html('<span style="color: blue; font-weight: bold;">👤 Utente</span>')
+        else:
+            return format_html('<span style="color: green; font-weight: bold;">🤖 AI</span>')
+    sender_type.short_description = 'Mittente'
+    
+    def content_preview(self, obj):
+        """Anteprima del contenuto."""
+        preview = obj.content[:100] + "..." if len(obj.content) > 100 else obj.content
+        return preview
+    content_preview.short_description = 'Contenuto'
+    
+    def get_queryset(self, request):
+        """Ottimizza le query."""
+        return super().get_queryset(request).select_related('session', 'session__user', 'session__knowledge_base')
 
 # Personalizzazione del titolo dell'admin
 admin.site.site_header = "RAG Service Administration"

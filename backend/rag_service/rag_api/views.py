@@ -18,10 +18,12 @@ from rest_framework.permissions import IsAuthenticated
 from django.core.files.storage import default_storage
 import uuid
 
-from .models import RAGDocument, RAGChunk, RAGProcessingLog, RAGKnowledgeBase
+from .models import RAGDocument, RAGChunk, RAGProcessingLog, RAGKnowledgeBase, RAGChatSession, RAGChatMessage
 from .serializers import (
     RAGDocumentSerializer, RAGDocumentDetailSerializer, RAGChatSerializer,
-    RAGDocumentUploadSerializer, RAGStatusSerializer, BulkDeleteSerializer
+    RAGDocumentUploadSerializer, RAGStatusSerializer, BulkDeleteSerializer,
+    RAGKnowledgeBaseSerializer, RAGKnowledgeBaseDetailSerializer,
+    RAGChatSessionSerializer, RAGChatSessionDetailSerializer, RAGChatMessageSerializer
 )
 from .tasks import process_rag_document_task
 from .utils.embedding_utils import get_embedding_manager
@@ -435,4 +437,445 @@ class RAGClearKnowledgeBaseView(APIView):
                 'error': 'Errore nello svuotamento della knowledge base'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# ViewSet per gestire i documenti - attualmente gestiti tramite RAGDocumentViewSet
+class RAGKnowledgeBaseViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet per la gestione delle Knowledge Base.
+    """
+    serializer_class = RAGKnowledgeBaseSerializer
+    authentication_classes = [JWTCustomAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """
+        Filtra le knowledge base per utente.
+        """
+        user = self.request.user
+        if user.is_authenticated:
+            return RAGKnowledgeBase.objects.filter(user_id=user.id)
+        return RAGKnowledgeBase.objects.none()
+    
+    def get_serializer_class(self):
+        """
+        Usa serializer dettagliato per retrieve.
+        """
+        if self.action == 'retrieve':
+            return RAGKnowledgeBaseDetailSerializer
+        return RAGKnowledgeBaseSerializer
+    
+    def perform_create(self, serializer):
+        """
+        Assegna l'utente corrente alla knowledge base.
+        """
+        serializer.save(user_id=self.request.user.id)
+    
+    @action(detail=True, methods=['post'])
+    def add_documents(self, request, pk=None):
+        """
+        Aggiunge documenti alla knowledge base.
+        """
+        try:
+            kb = self.get_object()
+            document_ids = request.data.get('document_ids', [])
+            
+            if not document_ids:
+                return Response({
+                    'error': 'Nessun documento specificato'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Verifica che i documenti appartengano all'utente
+            user_documents = RAGDocument.objects.filter(
+                id__in=document_ids,
+                user_id=request.user.id
+            )
+            
+            if user_documents.count() != len(document_ids):
+                return Response({
+                    'error': 'Alcuni documenti non sono validi o non appartengono all\'utente'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Aggiunge i documenti alla KB
+            kb.documents.add(*user_documents)
+            kb.update_statistics()
+            
+            return Response({
+                'message': f'{user_documents.count()} documenti aggiunti alla knowledge base',
+                'added_count': user_documents.count()
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Errore nell'aggiunta di documenti alla KB: {str(e)}")
+            return Response({
+                'error': 'Errore nell\'aggiunta dei documenti'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['post'])
+    def remove_documents(self, request, pk=None):
+        """
+        Rimuove documenti dalla knowledge base.
+        """
+        try:
+            kb = self.get_object()
+            document_ids = request.data.get('document_ids', [])
+            
+            if not document_ids:
+                return Response({
+                    'error': 'Nessun documento specificato'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Rimuove i documenti dalla KB
+            removed_count = 0
+            for doc_id in document_ids:
+                try:
+                    document = kb.documents.get(id=doc_id)
+                    kb.documents.remove(document)
+                    removed_count += 1
+                except RAGDocument.DoesNotExist:
+                    continue
+            
+            kb.update_statistics()
+            
+            return Response({
+                'message': f'{removed_count} documenti rimossi dalla knowledge base',
+                'removed_count': removed_count
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Errore nella rimozione di documenti dalla KB: {str(e)}")
+            return Response({
+                'error': 'Errore nella rimozione dei documenti'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['get'])
+    def statistics(self, request, pk=None):
+        """
+        Restituisce statistiche dettagliate della knowledge base.
+        """
+        try:
+            kb = self.get_object()
+            
+            # Aggiorna le statistiche
+            kb.update_statistics()
+            
+            # Calcola statistiche dettagliate
+            documents = kb.documents.all()
+            
+            stats = {
+                'knowledge_base_id': kb.id,
+                'name': kb.name,
+                'total_documents': documents.count(),
+                'processed_documents': documents.filter(status='processed').count(),
+                'processing_documents': documents.filter(status='processing').count(),
+                'failed_documents': documents.filter(status='failed').count(),
+                'total_chunks': kb.total_chunks,
+                'total_file_size': sum(doc.file_size for doc in documents),
+                'total_text_length': sum(doc.text_length for doc in documents if doc.text_length),
+                'file_types': list(documents.values_list('file_type', flat=True).distinct()),
+                'created_at': kb.created_at,
+                'updated_at': kb.updated_at,
+                'embedding_model': kb.embedding_model,
+                'chunk_size': kb.chunk_size,
+                'chunk_overlap': kb.chunk_overlap,
+            }
+            
+            return Response(stats, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Errore nel recupero delle statistiche KB: {str(e)}")
+            return Response({
+                'error': 'Errore nel recupero delle statistiche'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['post'])
+    def chat(self, request, pk=None):
+        """
+        Chat specifica per questa knowledge base.
+        """
+        try:
+            kb = self.get_object()
+            
+            # Valida i dati di input
+            serializer = RAGChatSerializer(data=request.data, context={'request': request})
+            
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            message = serializer.validated_data['message']
+            top_k = serializer.validated_data.get('top_k', 5)
+            max_tokens = serializer.validated_data.get('max_tokens', 1000)
+            
+            # Usa solo i documenti di questa KB
+            kb_document_ids = list(kb.documents.filter(
+                status='processed',
+                embeddings_created=True
+            ).values_list('id', flat=True))
+            
+            if not kb_document_ids:
+                return Response({
+                    'error': f'Nessun documento processato nella knowledge base "{kb.name}"'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Usa la logica di chat esistente ma limitata a questa KB
+            chat_view = RAGChatView()
+            
+            # Cerca i chunk più rilevanti
+            relevant_chunks = chat_view._search_relevant_chunks(message, kb_document_ids, top_k)
+            
+            if not relevant_chunks:
+                return Response({
+                    'message': message,
+                    'response': f'Non ho trovato informazioni rilevanti nella knowledge base "{kb.name}" per rispondere alla tua domanda.',
+                    'context_chunks': [],
+                    'sources': [],
+                    'knowledge_base': {
+                        'id': kb.id,
+                        'name': kb.name
+                    }
+                }, status=status.HTTP_200_OK)
+            
+            # Crea il contesto dai chunk trovati
+            context = chat_view._build_context_from_chunks(relevant_chunks)
+            
+            # Genera la risposta con OpenAI
+            response_text = chat_view._generate_openai_response(context, message, max_tokens)
+            
+            # Prepara le informazioni sui chunk e le fonti
+            context_chunks_info = chat_view._prepare_context_chunks_info(relevant_chunks)
+            sources_info = chat_view._prepare_sources_info(relevant_chunks)
+            
+            # Restituisci la risposta
+            response_data = {
+                'message': message,
+                'response': response_text,
+                'context_chunks': context_chunks_info,
+                'sources': sources_info,
+                'knowledge_base': {
+                    'id': kb.id,
+                    'name': kb.name,
+                    'description': kb.description
+                },
+                'model_used': getattr(settings, 'OPENAI_CHAT_MODEL_NAME', 'gpt-3.5-turbo')
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Errore nella chat KB: {str(e)}")
+            return Response({
+                'error': 'Errore nella generazione della risposta'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RAGChatSessionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet per la gestione delle sessioni di chat RAG.
+    """
+    serializer_class = RAGChatSessionSerializer
+    authentication_classes = [JWTCustomAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """
+        Filtra le sessioni per l'utente corrente.
+        """
+        return RAGChatSession.objects.filter(user_id=self.request.user.id)
+    
+    def get_serializer_class(self):
+        """
+        Usa serializer dettagliato per retrieve.
+        """
+        if self.action == 'retrieve':
+            return RAGChatSessionDetailSerializer
+        return RAGChatSessionSerializer
+    
+    def perform_create(self, serializer):
+        """
+        Assegna l'utente corrente alla sessione.
+        """
+        serializer.save(user_id=self.request.user.id)
+    
+    @action(detail=True, methods=['post'])
+    def send_message(self, request, pk=None):
+        """
+        Invia un messaggio in questa sessione di chat.
+        """
+        try:
+            session = self.get_object()
+            message_content = request.data.get('message', '').strip()
+            
+            if not message_content:
+                return Response({
+                    'error': 'Il messaggio non può essere vuoto'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Salva il messaggio utente
+            user_message = RAGChatMessage.objects.create(
+                session=session,
+                content=message_content,
+                is_user=True
+            )
+            
+            # Genera risposta AI
+            start_time = time.time()
+            
+            try:
+                # Determina i documenti da usare
+                if session.knowledge_base:
+                    # Chat specifica per KB
+                    document_ids = list(session.knowledge_base.documents.filter(
+                        status='processed',
+                        embeddings_created=True
+                    ).values_list('id', flat=True))
+                    
+                    if not document_ids:
+                        ai_response = f'Non ci sono documenti processati nella knowledge base "{session.knowledge_base.name}".'
+                        sources = []
+                    else:
+                        # Usa la logica di chat esistente
+                        chat_view = RAGChatView()
+                        relevant_chunks = chat_view._search_relevant_chunks(message_content, document_ids, 5)
+                        
+                        if relevant_chunks:
+                            context = chat_view._build_context_from_chunks(relevant_chunks)
+                            ai_response = chat_view._generate_openai_response(context, message_content, 1000)
+                            sources = chat_view._prepare_sources_info(relevant_chunks)
+                        else:
+                            ai_response = f'Non ho trovato informazioni rilevanti nella knowledge base "{session.knowledge_base.name}".'
+                            sources = []
+                else:
+                    # Chat globale
+                    user_documents = RAGDocument.objects.filter(
+                        user_id=request.user.id,
+                        status='processed',
+                        embeddings_created=True
+                    )
+                    
+                    if not user_documents.exists():
+                        ai_response = 'Non hai ancora documenti processati. Carica alcuni documenti per iniziare a chattare!'
+                        sources = []
+                    else:
+                        document_ids = list(user_documents.values_list('id', flat=True))
+                        chat_view = RAGChatView()
+                        relevant_chunks = chat_view._search_relevant_chunks(message_content, document_ids, 5)
+                        
+                        if relevant_chunks:
+                            context = chat_view._build_context_from_chunks(relevant_chunks)
+                            ai_response = chat_view._generate_openai_response(context, message_content, 1000)
+                            sources = chat_view._prepare_sources_info(relevant_chunks)
+                        else:
+                            ai_response = 'Non ho trovato informazioni rilevanti nei tuoi documenti per rispondere alla domanda.'
+                            sources = []
+                
+                processing_time = time.time() - start_time
+                
+                # Salva il messaggio AI
+                ai_message = RAGChatMessage.objects.create(
+                    session=session,
+                    content=ai_response,
+                    is_user=False,
+                    sources=sources,
+                    processing_time=processing_time,
+                    model_used=getattr(settings, 'OPENAI_CHAT_MODEL_NAME', 'gpt-3.5-turbo')
+                )
+                
+                # Aggiorna statistiche sessione
+                session.message_count = session.messages.count()
+                if not session.title:
+                    session.generate_title()
+                session.save()
+                
+                # Serializza i messaggi
+                user_msg_data = RAGChatMessageSerializer(user_message).data
+                ai_msg_data = RAGChatMessageSerializer(ai_message).data
+                
+                return Response({
+                    'user_message': user_msg_data,
+                    'ai_message': ai_msg_data,
+                    'session': RAGChatSessionSerializer(session).data
+                }, status=status.HTTP_200_OK)
+                
+            except Exception as e:
+                logger.error(f"Errore nella generazione risposta AI: {str(e)}")
+                
+                # Salva messaggio di errore
+                error_message = RAGChatMessage.objects.create(
+                    session=session,
+                    content='Mi dispiace, si è verificato un errore nella generazione della risposta. Riprova più tardi.',
+                    is_user=False,
+                    processing_time=time.time() - start_time
+                )
+                
+                session.message_count = session.messages.count()
+                session.save()
+                
+                user_msg_data = RAGChatMessageSerializer(user_message).data
+                error_msg_data = RAGChatMessageSerializer(error_message).data
+                
+                return Response({
+                    'user_message': user_msg_data,
+                    'ai_message': error_msg_data,
+                    'session': RAGChatSessionSerializer(session).data,
+                    'error': 'Errore nella generazione della risposta'
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            logger.error(f"Errore nell'invio messaggio: {str(e)}")
+            return Response({
+                'error': 'Errore nell\'invio del messaggio'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['delete'])
+    def clear_messages(self, request, pk=None):
+        """
+        Cancella tutti i messaggi di questa sessione.
+        """
+        try:
+            session = self.get_object()
+            deleted_count = session.messages.count()
+            session.messages.all().delete()
+            session.message_count = 0
+            session.title = ''
+            session.save()
+            
+            return Response({
+                'message': f'{deleted_count} messaggi cancellati',
+                'deleted_count': deleted_count
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Errore nella cancellazione messaggi: {str(e)}")
+            return Response({
+                'error': 'Errore nella cancellazione dei messaggi'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RAGChatSessionListView(APIView):
+    """
+    View per ottenere le sessioni di chat raggruppate per modalità.
+    """
+    authentication_classes = [JWTCustomAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Restituisce le sessioni di chat dell'utente raggruppate per modalità.
+        """
+        try:
+            user_sessions = RAGChatSession.objects.filter(user_id=request.user.id)
+            
+            # Raggruppa per modalità
+            global_sessions = user_sessions.filter(mode='global').order_by('-last_activity')
+            kb_sessions = user_sessions.exclude(mode='global').order_by('-last_activity')
+            
+            # Serializza
+            global_data = RAGChatSessionSerializer(global_sessions, many=True).data
+            kb_data = RAGChatSessionSerializer(kb_sessions, many=True).data
+            
+            return Response({
+                'global_sessions': global_data,
+                'kb_sessions': kb_data,
+                'total_sessions': user_sessions.count()
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Errore nel recupero sessioni chat: {str(e)}")
+            return Response({
+                'error': 'Errore nel recupero delle sessioni'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

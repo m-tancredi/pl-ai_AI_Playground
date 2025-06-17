@@ -228,4 +228,85 @@ class RAGKnowledgeBase(models.Model):
     @property
     def failed_documents_count(self):
         """Numero di documenti falliti."""
-        return self.documents.filter(status='failed').count() 
+        return self.documents.filter(status='failed').count()
+
+
+class RAGChatSession(models.Model):
+    """
+    Modello per rappresentare una sessione di chat RAG.
+    """
+    
+    # Proprietario - usa IntegerField per compatibilità con auth service
+    user_id = models.IntegerField()
+    
+    # Knowledge Base associata (None per chat globale)
+    knowledge_base = models.ForeignKey(RAGKnowledgeBase, on_delete=models.CASCADE, null=True, blank=True)
+    
+    # Informazioni sessione
+    title = models.CharField(max_length=200, blank=True)  # Titolo generato automaticamente
+    mode = models.CharField(max_length=50, default='global')  # 'global' o 'kb-{id}'
+    
+    # Statistiche
+    message_count = models.IntegerField(default=0)
+    last_activity = models.DateTimeField(auto_now=True)
+    
+    # Timestamp
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-last_activity']
+        indexes = [
+            models.Index(fields=['user_id', 'knowledge_base']),
+            models.Index(fields=['user_id', 'mode']),
+            models.Index(fields=['last_activity']),
+        ]
+    
+    def __str__(self):
+        kb_info = f" - {self.knowledge_base.name}" if self.knowledge_base else " - Globale"
+        return f"Chat {self.id}{kb_info} ({self.message_count} messaggi)"
+    
+    def generate_title(self):
+        """Genera un titolo automatico basato sui primi messaggi."""
+        first_user_message = self.messages.filter(is_user=True).first()
+        if first_user_message and first_user_message.content:
+            # Prendi le prime 50 caratteri del primo messaggio utente
+            title = first_user_message.content[:50]
+            if len(first_user_message.content) > 50:
+                title += "..."
+            self.title = title
+            self.save()
+        return self.title
+
+
+class RAGChatMessage(models.Model):
+    """
+    Modello per rappresentare un singolo messaggio in una chat RAG.
+    """
+    
+    # Sessione di appartenenza
+    session = models.ForeignKey(RAGChatSession, on_delete=models.CASCADE, related_name='messages')
+    
+    # Contenuto del messaggio
+    content = models.TextField()
+    is_user = models.BooleanField()  # True se messaggio utente, False se AI
+    
+    # Metadati per messaggi AI
+    sources = models.JSONField(default=list, blank=True)  # Fonti utilizzate per la risposta
+    processing_time = models.FloatField(null=True, blank=True)  # Tempo di elaborazione in secondi
+    model_used = models.CharField(max_length=100, blank=True)  # Modello AI utilizzato
+    
+    # Timestamp
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['session', 'created_at']),
+            models.Index(fields=['session', 'is_user']),
+        ]
+    
+    def __str__(self):
+        sender = "Utente" if self.is_user else "AI"
+        preview = self.content[:50] + "..." if len(self.content) > 50 else self.content
+        return f"{sender}: {preview}"
