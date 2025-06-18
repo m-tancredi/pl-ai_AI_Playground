@@ -15,5 +15,8 @@ export default defineConfig({
     //     // rewrite: (path) => path.replace(/^\/api/, '/api/v1') // Adjust if needed
     //   }
     // }
+  },
+  optimizeDeps: {
+    include: ['pdfjs-dist']
   }
 })

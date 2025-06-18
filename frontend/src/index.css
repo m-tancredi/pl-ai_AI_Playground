@@ -2,6 +2,92 @@
 @tailwind components;
 @tailwind utilities;
 
+/* React-PDF Styles */
+.react-pdf__Document {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.react-pdf__Page {
+  max-width: calc(100% - 2em);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+  margin-bottom: 1em;
+}
+
+.react-pdf__Page__textContent {
+  border: 1px solid transparent;
+  box-sizing: border-box;
+  color: transparent;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  text-align: initial;
+  top: 0;
+  -webkit-transform-origin: 0 0;
+  transform-origin: 0 0;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+  z-index: 2;
+}
+
+.react-pdf__Page__textContent .textLayer {
+  color: transparent;
+  font-family: sans-serif;
+  left: 0;
+  position: absolute;
+  top: 0;
+  -webkit-transform-origin: 0 0;
+  transform-origin: 0 0;
+  white-space: pre;
+  z-index: 2;
+}
+
+.react-pdf__Page__annotations {
+  pointer-events: none;
+  position: absolute;
+  z-index: 3;
+}
+
+.react-pdf__Page__annotations .annotationLayer {
+  left: 0;
+  pointer-events: auto;
+  position: absolute;
+  top: 0;
+  -webkit-transform-origin: 0 0;
+  transform-origin: 0 0;
+  z-index: 3;
+}
+
+/* PDF Highlight Styles */
+.pdf-highlight {
+  background-color: rgba(255, 255, 0, 0.3);
+  padding: 2px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 0, 0.8);
+}
+
+/* Scrollbar personalizzato per il PDF viewer */
+.pdf-viewer-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pdf-viewer-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.pdf-viewer-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.pdf-viewer-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
 /* ===========================================
    🎨 PL-AI DESIGN SYSTEM - COLORI PRINCIPALI
    =========================================== */

@@ -6,7 +6,7 @@ import time
 import logging
 from pathlib import Path
 from django.conf import settings
-from django.http import StreamingHttpResponse
+from django.http import StreamingHttpResponse, HttpResponse, Http404
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -17,6 +17,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from django.core.files.storage import default_storage
 import uuid
+import mimetypes
 
 from .models import RAGDocument, RAGChunk, RAGProcessingLog, RAGKnowledgeBase, RAGChatSession, RAGChatMessage
 from .serializers import (
@@ -327,6 +328,188 @@ class RAGDocumentViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': 'Errore nell\'eliminazione dei documenti'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'])
+    def search_content(self, request):
+        """
+        Cerca contenuto all'interno di un documento specifico usando AI.
+        """
+        try:
+            document_id = request.data.get('document_id')
+            query = request.data.get('query', '').strip()
+            
+            if not document_id:
+                return Response({
+                    'error': 'ID documento richiesto'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if not query:
+                return Response({
+                    'error': 'Query di ricerca richiesta'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Verifica che il documento esista e appartenga all'utente
+            try:
+                document = RAGDocument.objects.get(
+                    id=document_id,
+                    user_id=request.user.id if request.user.is_authenticated else None
+                )
+            except RAGDocument.DoesNotExist:
+                return Response({
+                    'error': 'Documento non trovato'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            if not document.extracted_text:
+                return Response({
+                    'error': 'Contenuto del documento non disponibile'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Ottieni i chunk del documento
+            chunks = document.chunks.all().order_by('chunk_index')
+            
+            if not chunks.exists():
+                # Fallback: ricerca semplice nel testo
+                results = self._simple_text_search(document.extracted_text, query)
+                return Response({
+                    'results': results,
+                    'search_type': 'simple'
+                }, status=status.HTTP_200_OK)
+            
+            # Ricerca intelligente usando embeddings
+            try:
+                embedding_manager = get_embedding_manager()
+                relevant_chunks = embedding_manager.search_similar_chunks(
+                    query=query,
+                    document_ids=[document.id],
+                    top_k=5
+                )
+                
+                # Prepara i risultati per l'evidenziazione
+                # relevant_chunks è una lista di tuple (chunk_text, score, document_id)
+                results = []
+                for chunk_text, score, doc_id in relevant_chunks:
+                    results.append({
+                        'text': chunk_text,
+                        'relevance': float(score),
+                        'chunk_index': 0,  # Non abbiamo l'indice specifico dal search_similar_chunks
+                        'start_position': 0,  # Non abbiamo la posizione specifica
+                        'end_position': len(chunk_text)
+                    })
+                
+                return Response({
+                    'results': results,
+                    'search_type': 'semantic'
+                }, status=status.HTTP_200_OK)
+                
+            except Exception as e:
+                logger.warning(f"Errore nella ricerca semantica: {str(e)}")
+                # Fallback: ricerca semplice
+                results = self._simple_text_search(document.extracted_text, query)
+                return Response({
+                    'results': results,
+                    'search_type': 'simple_fallback'
+                }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Errore nella ricerca del contenuto: {str(e)}")
+            return Response({
+                'error': 'Errore durante la ricerca'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _simple_text_search(self, text, query):
+        """
+        Ricerca semplice nel testo senza AI.
+        """
+        query_lower = query.lower()
+        sentences = text.split('.')
+        results = []
+        
+        for i, sentence in enumerate(sentences):
+            sentence = sentence.strip()
+            if len(sentence) < 10:  # Ignora frasi troppo corte
+                continue
+                
+            if query_lower in sentence.lower():
+                results.append({
+                    'text': sentence,
+                    'relevance': 1.0,
+                    'chunk_index': i,
+                    'start_position': text.find(sentence),
+                    'end_position': text.find(sentence) + len(sentence)
+                })
+        
+        # Limita a 5 risultati più rilevanti
+        return results[:5]
+    
+    @action(detail=True, methods=['get'])
+    def download_pdf(self, request, pk=None):
+        """
+        Scarica il file PDF originale del documento.
+        Supporta autenticazione tramite token nel query parameter per embedding in iframe.
+        """
+        try:
+            # Autenticazione alternativa tramite query parameter per iframe
+            token = request.GET.get('token')
+            if token and not hasattr(request, 'user') or not request.user.is_authenticated:
+                try:
+                    from rest_framework_simplejwt.tokens import UntypedToken
+                    from rest_framework_simplejwt.exceptions import InvalidToken
+                    from django.contrib.auth.models import AnonymousUser
+                    from users_api.models import User
+                    
+                    # Verifica token
+                    UntypedToken(token)
+                    # Decodifica token per ottenere user_id
+                    import jwt
+                    from django.conf import settings
+                    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+                    user_id = payload.get('user_id')
+                    
+                    if user_id:
+                        request.user = User.objects.get(id=user_id)
+                    else:
+                        request.user = AnonymousUser()
+                        
+                except (InvalidToken, jwt.DecodeError, User.DoesNotExist):
+                    return HttpResponse('Token non valido', status=401)
+            
+            document = self.get_object()
+            
+            # Verifica che il file esista
+            if not document.file_path or not os.path.exists(document.file_path):
+                return HttpResponse('File non trovato', status=404)
+            
+            # Verifica che sia un PDF
+            if not document.file_type or not document.file_type.startswith('application/pdf'):
+                return HttpResponse('Il file non è un PDF', status=400)
+            
+            # Determina il content type
+            content_type = document.file_type or 'application/pdf'
+            
+            # Leggi il file
+            try:
+                with open(document.file_path, 'rb') as pdf_file:
+                    response = HttpResponse(pdf_file.read(), content_type=content_type)
+                    response['Content-Disposition'] = f'inline; filename="{document.original_filename}"'
+                    response['Content-Length'] = document.file_size
+                    
+                    # Headers per supportare l'anteprima PDF nel browser
+                    response['Accept-Ranges'] = 'bytes'
+                    response['Cache-Control'] = 'private, max-age=3600'
+                    
+                    # Headers CORS per iframe
+                    response['X-Frame-Options'] = 'SAMEORIGIN'
+                    response['Access-Control-Allow-Origin'] = '*'
+                    
+                    return response
+                    
+            except Exception as e:
+                logger.error(f"Errore nella lettura del file PDF {document.id}: {str(e)}")
+                return HttpResponse('Errore nella lettura del file', status=500)
+                
+        except Exception as e:
+            logger.error(f"Errore nel download del PDF: {str(e)}")
+            return HttpResponse('Errore durante il download', status=500)
 
 class RAGStatusView(APIView):
     """

@@ -4,6 +4,7 @@ import { ragService } from '../services/ragService';
 import DocumentItem from '../components/DocumentItem';
 import ChatMessageBubble from '../components/ChatMessageBubble';
 import ProgressBar from '../components/ProgressBar';
+import DocumentPreviewModal from '../components/DocumentPreviewModal';
 import { PaperAirplaneIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 const RAGServicePage = () => {
@@ -14,6 +15,8 @@ const RAGServicePage = () => {
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState(null);
+    const [previewDocument, setPreviewDocument] = useState(null);
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
 
     // Configurazione Dropzone
     const onDrop = useCallback(async (acceptedFiles) => {
@@ -70,6 +73,32 @@ const RAGServicePage = () => {
         } catch (err) {
             setError(err.message);
         }
+    };
+
+    const handlePreviewDocument = async (document) => {
+        try {
+            // Verifica se il documento ha contenuto
+            if (!document.has_content || document.status !== 'processed') {
+                setError('Contenuto del documento non disponibile');
+                return;
+            }
+
+            // Se il documento non ha ancora il testo estratto nel frontend, recuperiamo i dettagli
+            if (!document.extracted_text) {
+                const response = await ragService.getDocumentDetails(document.id);
+                setPreviewDocument(response);
+            } else {
+                setPreviewDocument(document);
+            }
+            setShowPreviewModal(true);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleClosePreview = () => {
+        setShowPreviewModal(false);
+        setPreviewDocument(null);
     };
 
     const handleClearKnowledgeBase = async () => {
@@ -164,6 +193,7 @@ const RAGServicePage = () => {
                                     key={doc.id}
                                     document={doc}
                                     onDelete={handleDeleteDocument}
+                                    onPreview={handlePreviewDocument}
                                 />
                             ))}
                             {(!documents || documents.length === 0) && (
@@ -216,6 +246,13 @@ const RAGServicePage = () => {
                     {error}
                 </div>
             )}
+
+            {/* Modale Anteprima Documento */}
+            <DocumentPreviewModal
+                document={previewDocument}
+                isOpen={showPreviewModal}
+                onClose={handleClosePreview}
+            />
         </div>
     );
 };

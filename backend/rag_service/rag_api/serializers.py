@@ -13,6 +13,7 @@ class RAGDocumentSerializer(serializers.ModelSerializer):
     file_size_mb = serializers.ReadOnlyField()
     processing_duration = serializers.ReadOnlyField()
     user_id = serializers.IntegerField(read_only=True)
+    has_content = serializers.SerializerMethodField()
     
     class Meta:
         model = RAGDocument
@@ -31,6 +32,7 @@ class RAGDocumentSerializer(serializers.ModelSerializer):
             'processing_error',
             'num_chunks',
             'embeddings_created',
+            'has_content',
             'user_id',
             'created_at',
             'updated_at',
@@ -47,9 +49,16 @@ class RAGDocumentSerializer(serializers.ModelSerializer):
             'processing_error',
             'num_chunks',
             'embeddings_created',
+            'has_content',
             'created_at',
             'updated_at',
         ]
+
+    def get_has_content(self, obj):
+        """
+        Indica se il documento ha contenuto estratto disponibile.
+        """
+        return bool(obj.extracted_text and len(obj.extracted_text.strip()) > 0)
 
 class RAGDocumentDetailSerializer(RAGDocumentSerializer):
     """
@@ -60,6 +69,7 @@ class RAGDocumentDetailSerializer(RAGDocumentSerializer):
     
     class Meta(RAGDocumentSerializer.Meta):
         fields = RAGDocumentSerializer.Meta.fields + [
+            'extracted_text',
             'extracted_text_preview',
         ]
     

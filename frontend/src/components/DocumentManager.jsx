@@ -28,7 +28,8 @@ const DocumentManager = ({
     onFiltersChange,
     knowledgeBases,
     stats,
-    error
+    error,
+    onPreviewDocument
 }) => {
     // Configurazione Dropzone
     const onDrop = useCallback((acceptedFiles) => {
@@ -333,9 +334,16 @@ const DocumentManager = ({
                                     {/* Azioni */}
                                     <div className="flex items-center space-x-2">
                                         <button
-                                            onClick={() => {/* Implementare preview */}}
-                                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                            title="Anteprima"
+                                            onClick={() => onPreviewDocument && onPreviewDocument(document)}
+                                            className={`p-2 rounded-lg transition-colors ${
+                                                document.has_content && document.status === 'processed'
+                                                    ? 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' 
+                                                    : 'text-gray-300 cursor-not-allowed'
+                                            }`}
+                                            title={document.has_content && document.status === 'processed' 
+                                                ? "Visualizza anteprima documento"
+                                                : "Contenuto non disponibile"}
+                                            disabled={!document.has_content || document.status !== 'processed'}
                                         >
                                             <EyeIcon className="w-4 h-4" />
                                         </button>

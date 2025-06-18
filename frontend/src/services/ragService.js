@@ -80,6 +80,64 @@ export const ragService = {
     },
 
     /**
+     * Ottiene i dettagli completi di un documento
+     * @param {string} documentId - ID del documento
+     * @returns {Promise} - Dettagli del documento
+     */
+    getDocumentDetails: async (documentId) => {
+        try {
+            const response = await apiClient.get(`${API_RAG_URL}/documents/${documentId}/`);
+            return response.data;
+        } catch (error) {
+            throw new Error(error.response?.data?.message || 'Errore nel recupero dei dettagli del documento');
+        }
+    },
+
+    /**
+     * Cerca contenuto all'interno di un documento usando AI
+     * @param {string} documentId - ID del documento
+     * @param {string} query - Query di ricerca in linguaggio naturale
+     * @returns {Promise} - Risultati della ricerca
+     */
+    searchDocumentContent: async (documentId, query) => {
+        try {
+            const response = await apiClient.post(`${API_RAG_URL}/documents/search_content/`, {
+                document_id: documentId,
+                query: query
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(error.response?.data?.error || error.response?.data?.message || 'Errore durante la ricerca nel documento');
+        }
+    },
+
+    /**
+     * Ottiene l'URL del PDF per la visualizzazione
+     * @param {string} documentId - ID del documento
+     * @returns {string} - URL del PDF
+     */
+    getPdfUrl: (documentId) => {
+        const token = localStorage.getItem('token');
+        return `${API_RAG_URL}/documents/${documentId}/download_pdf/?token=${token}`;
+    },
+
+    /**
+     * Scarica il PDF di un documento
+     * @param {string} documentId - ID del documento
+     * @returns {Promise<Blob>} - Blob del PDF
+     */
+    downloadPdf: async (documentId) => {
+        try {
+            const response = await apiClient.get(`${API_RAG_URL}/documents/${documentId}/download_pdf/`, {
+                responseType: 'blob',
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(error.response?.data?.message || 'Errore durante il download del PDF');
+        }
+    },
+
+    /**
      * Svuota la knowledge base
      * @returns {Promise} - Risposta del server
      */

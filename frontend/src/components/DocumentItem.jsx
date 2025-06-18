@@ -1,7 +1,7 @@
 import React from 'react';
-import { TrashIcon, DocumentIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, DocumentIcon, EyeIcon } from '@heroicons/react/24/outline';
 
-const DocumentItem = ({ document, onDelete }) => {
+const DocumentItem = ({ document, onDelete, onPreview }) => {
     const getFileIcon = (fileType) => {
         switch (fileType?.toLowerCase()) {
             case 'pdf':
@@ -66,13 +66,32 @@ const DocumentItem = ({ document, onDelete }) => {
                     </div>
                 </div>
             </div>
-            <button
-                onClick={() => onDelete(document.id)}
-                className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                title="Elimina documento"
-            >
-                <TrashIcon className="w-5 h-5" />
-            </button>
+            <div className="flex items-center space-x-2">
+                {/* Pulsante Anteprima */}
+                <button
+                    onClick={() => onPreview && onPreview(document)}
+                    className={`p-2 transition-colors ${
+                        document.has_content && document.status === 'processed'
+                            ? 'text-gray-400 hover:text-blue-500' 
+                            : 'text-gray-200 cursor-not-allowed'
+                    }`}
+                    title={document.has_content && document.status === 'processed' 
+                        ? "Visualizza anteprima documento"
+                        : "Contenuto non disponibile"}
+                    disabled={!document.has_content || document.status !== 'processed'}
+                >
+                    <EyeIcon className="w-5 h-5" />
+                </button>
+                
+                {/* Pulsante Elimina */}
+                <button
+                    onClick={() => onDelete(document.id)}
+                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                    title="Elimina documento"
+                >
+                    <TrashIcon className="w-5 h-5" />
+                </button>
+            </div>
         </div>
     );
 };

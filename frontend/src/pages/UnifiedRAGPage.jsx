@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useUnifiedRAG } from '../hooks/useUnifiedRAG';
 import DocumentManager from '../components/DocumentManager';
 import KnowledgeBaseManager from '../components/KnowledgeBaseManager';
 import UnifiedChat from '../components/UnifiedChat';
 import KnowledgeBaseModal from '../components/KnowledgeBaseModal';
 import KnowledgeBaseStatsModal from '../components/KnowledgeBaseStatsModal';
+import DocumentPreviewModal from '../components/DocumentPreviewModal';
+import { ragService } from '../services/ragService';
 import { 
     Bars3Icon,
     XMarkIcon,
@@ -82,6 +84,8 @@ const UnifiedRAGPage = () => {
     const [sidebarOpen, setSidebarOpen] = React.useState(true);
     const [isMobile, setIsMobile] = React.useState(false);
     const [showTypewriterSettings, setShowTypewriterSettings] = React.useState(false);
+    const [previewDocument, setPreviewDocument] = useState(null);
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
 
     // Gestione responsive
     useEffect(() => {
@@ -149,6 +153,32 @@ const UnifiedRAGPage = () => {
         if (window.confirm('Sei sicuro di voler eliminare questa Knowledge Base?')) {
             await deleteKnowledgeBase(kbId);
         }
+    };
+
+    const handlePreviewDocument = async (document) => {
+        try {
+            // Verifica se il documento ha contenuto
+            if (!document.has_content || document.status !== 'processed') {
+                setError('Contenuto del documento non disponibile');
+                return;
+            }
+
+            // Se il documento non ha ancora il testo estratto nel frontend, recuperiamo i dettagli
+            if (!document.extracted_text) {
+                const response = await ragService.getDocumentDetails(document.id);
+                setPreviewDocument(response);
+            } else {
+                setPreviewDocument(document);
+            }
+            setShowPreviewModal(true);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleClosePreview = () => {
+        setShowPreviewModal(false);
+        setPreviewDocument(null);
     };
 
     if (loading) {
@@ -380,6 +410,7 @@ const UnifiedRAGPage = () => {
                                     knowledgeBases={knowledgeBases}
                                     stats={stats}
                                     error={error}
+                                    onPreviewDocument={handlePreviewDocument}
                                 />
                             ) : (
                                 <KnowledgeBaseManager
@@ -480,6 +511,13 @@ const UnifiedRAGPage = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Modale Anteprima Documento */}
+            <DocumentPreviewModal
+                document={previewDocument}
+                isOpen={showPreviewModal}
+                onClose={handleClosePreview}
+            />
         </div>
     );
 };
