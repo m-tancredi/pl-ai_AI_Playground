@@ -21,7 +21,12 @@ urlpatterns = [
     # Logout (Token Blacklisting)
     path('token/blacklist/', views.LogoutView.as_view(), name='token_blacklist'),
 
-    # User Profile Endpoint
+    # User Profile Endpoints
     # Retrieves or updates the currently authenticated user's profile
     path('users/me/', views.UserProfileView.as_view(), name='user_profile'),
+    
+    # Profile Image Management Endpoints
+    path('profile/upload-image/', views.ProfileImageUploadView.as_view(), name='profile_image_upload'),
+    path('profile/remove-image/', views.ProfileImageRemoveView.as_view(), name='profile_image_remove'),
+    path('profile/update/', views.ProfileUpdateView.as_view(), name='profile_update'),
 ]

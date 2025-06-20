@@ -129,6 +129,15 @@ USE_TZ = True
 STATIC_URL = 'static/'
 # STATIC_ROOT = BASE_DIR / 'staticfiles' # Uncomment if you need collectstatic
 
+# Media files (User uploaded files)
+# https://docs.djangoproject.com/en/4.2/howto/static-files/#serving-files-uploaded-by-a-user-during-development
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Ensure media directory exists
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 

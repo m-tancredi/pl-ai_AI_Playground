@@ -2,18 +2,22 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken # Required for logout serializer
 from rest_framework_simplejwt.serializers import TokenBlacklistSerializer
+from PIL import Image
+import os
 
 User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     """
-    Serializer for displaying User information (read-only).
+    Serializer for displaying User information.
     Used for the /users/me/ endpoint.
     """
+    profile_image = serializers.ImageField(required=False, allow_null=True)
+    
     class Meta:
         model = User
         # Fields to expose in the API response
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'date_joined', 'last_login')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'date_joined', 'last_login', 'profile_image')
         # Ensure sensitive fields like password are not included
         read_only_fields = ('id', 'date_joined', 'last_login')
 
@@ -97,3 +101,70 @@ class RegisterSerializer(serializers.ModelSerializer):
 #             RefreshToken(self.token).blacklist()
 #         except TokenError:
 #             self.fail('bad_token')
+
+
+class ProfileImageUploadSerializer(serializers.ModelSerializer):
+    """
+    Serializer for uploading profile images.
+    Handles validation of image files.
+    """
+    profile_image = serializers.ImageField(required=True)
+    
+    class Meta:
+        model = User
+        fields = ('profile_image',)
+    
+    def validate_profile_image(self, value):
+        """
+        Validate the uploaded image file.
+        """
+        if not value:
+            raise serializers.ValidationError("Nessun file immagine fornito.")
+        
+        # Check file size (max 5MB)
+        max_size = 5 * 1024 * 1024  # 5MB in bytes
+        if value.size > max_size:
+            raise serializers.ValidationError("File troppo grande. Massimo 5MB consentito.")
+        
+        # Check file type
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+        if value.content_type not in allowed_types:
+            raise serializers.ValidationError("Formato file non supportato. Utilizza JPG, PNG o WebP.")
+        
+        # Validate image integrity using PIL
+        try:
+            img = Image.open(value)
+            img.verify()  # Verify that this is indeed an image
+        except Exception:
+            raise serializers.ValidationError("File immagine corrotto o non valido.")
+        
+        # Reset file pointer after verification
+        value.seek(0)
+        
+        return value
+    
+    def update(self, instance, validated_data):
+        """
+        Update the user's profile image.
+        """
+        instance.profile_image = validated_data.get('profile_image', instance.profile_image)
+        instance.save()
+        return instance
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating user profile information.
+    """
+    class Meta:
+        model = User
+        fields = ('first_name', 'last_name', 'email')
+        
+    def validate_email(self, value):
+        """
+        Check that the email is unique (exclude current user).
+        """
+        user = self.instance
+        if User.objects.filter(email__iexact=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("Un utente con questa email esiste già.")
+        return value

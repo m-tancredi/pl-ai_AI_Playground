@@ -171,11 +171,19 @@ RAG_CHUNK_OVERLAP = int(os.getenv('RAG_CHUNK_OVERLAP', '200'))
 # OpenAI settings
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY') or get_secret('OPENAI_API_KEY', '')
 OPENAI_CHAT_MODEL_NAME = os.getenv('OPENAI_CHAT_MODEL_NAME', 'gpt-3.5-turbo')
-EMBEDDING_MODEL = 'text-embedding-3-small'
-EMBEDDING_DIMENSION = 1536
 
-# Sentence Transformers settings
+# OpenAI Embedding Settings (New Models 2024)
+OPENAI_EMBEDDING_MODEL = os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small')
+OPENAI_EMBEDDING_DIMENSIONS = os.getenv('OPENAI_EMBEDDING_DIMENSIONS')  # None = usa dimensioni predefinite
+if OPENAI_EMBEDDING_DIMENSIONS:
+    OPENAI_EMBEDDING_DIMENSIONS = int(OPENAI_EMBEDDING_DIMENSIONS)
+
+# Embedding Provider Configuration
+EMBEDDING_PROVIDER = os.getenv('EMBEDDING_PROVIDER', 'openai')  # 'openai' o 'sentence_transformers'
+
+# Sentence Transformers settings (fallback)
 SENTENCE_TRANSFORMER_MODEL_NAME = os.getenv('SENTENCE_TRANSFORMER_MODEL_NAME', 'all-MiniLM-L6-v2')
+EMBEDDING_DIMENSION = int(os.getenv('EMBEDDING_DIMENSION', '384'))  # Fallback per Sentence Transformers
 
 # File upload settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB

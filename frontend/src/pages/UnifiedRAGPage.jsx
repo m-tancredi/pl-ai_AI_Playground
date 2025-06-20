@@ -28,6 +28,10 @@ const UnifiedRAGPage = () => {
         error,
         uploadProgress,
         
+        // 🔥 STATI POLLING TEMPO REALE
+        processingDocuments,
+        isDocumentProcessing,
+        
         // Chat
         activeMode,
         currentChatHistory,
@@ -411,6 +415,9 @@ const UnifiedRAGPage = () => {
                                     stats={stats}
                                     error={error}
                                     onPreviewDocument={handlePreviewDocument}
+                                    // 🔥 NUOVE PROPS PER POLLING IN TEMPO REALE
+                                    processingDocuments={processingDocuments}
+                                    isDocumentProcessing={isDocumentProcessing}
                                 />
                             ) : (
                                 <KnowledgeBaseManager

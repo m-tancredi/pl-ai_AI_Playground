@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getUserProfile } from '../services/authService';
+import { uploadProfileImage, removeProfileImage, getProfileImageUrl } from '../services/profileService';
+import UserAvatar from '../components/UserAvatar';
+import ProfileImageUpload from '../components/ProfileImageUpload';
 import { 
   FaUser, 
   FaEnvelope, 
@@ -13,7 +16,8 @@ import {
   FaIdCard,
   FaStar,
   FaCheck,
-  FaSpinner
+  FaSpinner,
+  FaCamera
 } from 'react-icons/fa';
 
 const ProfilePage = () => {
@@ -22,6 +26,7 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingImage, setIsEditingImage] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -107,6 +112,59 @@ const ProfilePage = () => {
     });
   };
 
+  // Funzioni per gestire l'immagine del profilo
+  const handleImageUpload = async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('profile_image', file);
+      
+      console.log('Uploading profile image:', file);
+      
+      // Chiamata API per upload immagine
+      const response = await uploadProfileImage(formData);
+      const imageUrl = getProfileImageUrl(response.profile_image);
+      
+      // Aggiorna i dati del profilo
+      setProfileData(prev => ({ 
+        ...prev, 
+        profile_image: imageUrl 
+      }));
+      
+      // TODO: Aggiorna anche il contesto dell'utente quando sarà implementato
+      // updateUser({ ...contextUser, profile_image: imageUrl });
+      
+      console.log('Profile image uploaded successfully:', imageUrl);
+      
+    } catch (error) {
+      console.error('Error uploading profile image:', error);
+      throw new Error('Errore durante il caricamento dell\'immagine');
+    }
+  };
+
+  const handleImageRemove = async () => {
+    try {
+      console.log('Removing profile image');
+      
+      // Chiamata API per rimuovere immagine
+      await removeProfileImage();
+      
+      // Aggiorna i dati del profilo
+      setProfileData(prev => ({ 
+        ...prev, 
+        profile_image: null 
+      }));
+      
+      // TODO: Aggiorna anche il contesto dell'utente quando sarà implementato
+      // updateUser({ ...contextUser, profile_image: null });
+      
+      console.log('Profile image removed successfully');
+      
+    } catch (error) {
+      console.error('Error removing profile image:', error);
+      throw new Error('Errore durante la rimozione dell\'immagine');
+    }
+  };
+
   return (
     <div className="min-h-screen gradient-background p-4">
       <div className="max-w-6xl mx-auto">
@@ -116,14 +174,22 @@ const ProfilePage = () => {
             <div className="flex flex-col lg:flex-row items-center gap-8">
               {/* Avatar Section */}
               <div className="relative">
-                <div className="w-32 h-32 bg-gradient-primary rounded-full flex items-center justify-center shadow-custom-xl">
-                  <span className="text-4xl font-bold text-inverse">
-                    {getInitials(displayUser?.first_name, displayUser?.last_name)}
-                  </span>
-                </div>
+                <UserAvatar 
+                  user={displayUser} 
+                  size="2xl" 
+                  className="shadow-custom-xl"
+                />
                 <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-success-500 rounded-full flex items-center justify-center shadow-custom-lg">
                   <FaCheck className="text-white text-sm" />
                 </div>
+                {/* Pulsante per modificare l'immagine */}
+                <button
+                  onClick={() => setIsEditingImage(!isEditingImage)}
+                  className="absolute top-0 right-0 w-10 h-10 bg-pink-500 hover:bg-pink-600 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 hover:scale-110"
+                  title="Modifica immagine profilo"
+                >
+                  <FaCamera className="text-white text-sm" />
+                </button>
               </div>
 
               {/* User Info */}
@@ -166,6 +232,36 @@ const ProfilePage = () => {
             </div>
           </div>
         </div>
+
+        {/* Image Upload Section */}
+        {isEditingImage && (
+          <div className="animate-fade-in mb-8">
+            <div className="card-glass p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-pink-100 rounded-xl flex items-center justify-center">
+                  <FaCamera className="text-pink-600" />
+                </div>
+                <h2 className="text-xl font-bold text-default">Modifica Immagine Profilo</h2>
+              </div>
+              
+              <ProfileImageUpload
+                currentImage={displayUser?.profile_image}
+                onImageChange={handleImageUpload}
+                onImageRemove={handleImageRemove}
+                disabled={loading}
+              />
+              
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => setIsEditingImage(false)}
+                  className="px-6 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Annulla
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

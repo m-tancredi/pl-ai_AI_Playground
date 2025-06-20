@@ -9,7 +9,10 @@ import {
     CheckIcon,
     XMarkIcon,
     CloudArrowUpIcon,
-    EyeIcon
+    EyeIcon,
+    ClockIcon,
+    CheckCircleIcon,
+    ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
 import DocumentItem from './DocumentItem';
 import ProgressBar from './ProgressBar';
@@ -29,7 +32,9 @@ const DocumentManager = ({
     knowledgeBases,
     stats,
     error,
-    onPreviewDocument
+    onPreviewDocument,
+    processingDocuments,
+    isDocumentProcessing
 }) => {
     // Configurazione Dropzone
     const onDrop = useCallback((acceptedFiles) => {
@@ -66,12 +71,46 @@ const DocumentManager = ({
         }
     };
 
-    const getStatusColor = (status) => {
+    // 🎨 DESIGN PERFETTO - Nuovi stili per stati
+    const getStatusConfig = (status, isProcessing = false) => {
+        if (isProcessing) {
+            return {
+                color: 'text-blue-600 bg-blue-100 border-blue-300',
+                icon: ClockIcon,
+                label: 'Elaborazione...',
+                animation: 'animate-pulse'
+            };
+        }
+
         switch (status) {
-            case 'processed': return 'text-green-600 bg-green-100';
-            case 'processing': return 'text-yellow-600 bg-yellow-100';
-            case 'failed': return 'text-red-600 bg-red-100';
-            default: return 'text-gray-600 bg-gray-100';
+            case 'processed': 
+                return {
+                    color: 'text-green-600 bg-green-100 border-green-300',
+                    icon: CheckCircleIcon,
+                    label: 'Processato',
+                    animation: ''
+                };
+            case 'processing': 
+                return {
+                    color: 'text-blue-600 bg-blue-100 border-blue-300',
+                    icon: ClockIcon,
+                    label: 'Elaborazione...',
+                    animation: 'animate-pulse'
+                };
+            case 'failed': 
+                return {
+                    color: 'text-red-600 bg-red-100 border-red-300',
+                    icon: ExclamationCircleIcon,
+                    label: 'Fallito',
+                    animation: ''
+                };
+            default: 
+                return {
+                    color: 'text-gray-600 bg-gray-100 border-gray-300',
+                    icon: ClockIcon,
+                    label: status,
+                    animation: ''
+                };
         }
     };
 
@@ -237,19 +276,22 @@ const DocumentManager = ({
                 </div>
             )}
 
-            {/* Lista Documenti */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div className="p-4 border-b border-gray-200">
+            {/* 🎯 SEZIONE DOCUMENTI - DESIGN SUBLIME */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                            <DocumentTextIcon className="w-5 h-5 mr-2 text-gray-600" />
-                            Documenti ({documents.length})
+                        <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                            <DocumentTextIcon className="w-6 h-6 mr-3 text-blue-600" />
+                            Documenti 
+                            <span className="ml-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                                {documents.length}
+                            </span>
                         </h3>
                         
                         {documents.length > 0 && (
                             <button
                                 onClick={handleSelectAll}
-                                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all duration-200"
                             >
                                 {selectedDocuments.length === documents.length ? 'Deseleziona tutto' : 'Seleziona tutto'}
                             </button>
@@ -257,107 +299,149 @@ const DocumentManager = ({
                     </div>
                 </div>
 
-                <div className="divide-y divide-gray-100">
+                {/* 📋 LISTA DOCUMENTI - CARD PERFETTE */}
+                <div className="p-2">
                     {documents.length === 0 ? (
-                        <div className="text-center py-12">
-                            <DocumentTextIcon className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        <div className="text-center py-16">
+                            <div className="w-24 h-24 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
+                                <DocumentTextIcon className="w-12 h-12 text-gray-400" />
+                            </div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3">
                                 Nessun documento trovato
                             </h3>
-                            <p className="text-gray-600 mb-4">
+                            <p className="text-gray-600 max-w-md mx-auto leading-relaxed">
                                 {filters.search || filters.status !== 'all' || filters.knowledgeBase !== 'all'
-                                    ? 'Prova a modificare i filtri di ricerca'
-                                    : 'Carica i tuoi primi documenti per iniziare'
+                                    ? 'Prova a modificare i filtri di ricerca per vedere più risultati'
+                                    : 'Carica i tuoi primi documenti trascinandoli nell\'area di upload sopra'
                                 }
                             </p>
                         </div>
                     ) : (
-                        documents.map(document => (
-                            <div
-                                key={document.id}
-                                className={`p-4 hover:bg-gray-50 transition-colors ${
-                                    selectedDocuments.includes(document.id) ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                                }`}
-                            >
-                                <div className="flex items-center space-x-4">
-                                    {/* Checkbox */}
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedDocuments.includes(document.id)}
-                                        onChange={() => handleDocumentToggle(document.id)}
-                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                    />
+                        <div className="space-y-3">
+                            {documents.map(document => {
+                                const isProcessing = isDocumentProcessing && typeof isDocumentProcessing === 'function' && isDocumentProcessing(document.id);
+                                const statusConfig = getStatusConfig(document.status, isProcessing);
+                                const StatusIcon = statusConfig.icon;
+                                
+                                return (
+                                    <div
+                                        key={document.id}
+                                        className={`group relative p-6 rounded-xl border-2 transition-all duration-300 hover:shadow-lg ${
+                                            selectedDocuments.includes(document.id) 
+                                                ? 'bg-blue-50 border-blue-300 shadow-md transform scale-[1.02]' 
+                                                : 'bg-white border-gray-200 hover:border-blue-300 hover:bg-blue-50/30'
+                                        } ${isProcessing ? 'ring-2 ring-blue-300 ring-opacity-50' : ''}`}
+                                    >
+                                        {/* 🔥 INDICATORE POLLING ATTIVO */}
+                                        {isProcessing && (
+                                            <div className="absolute top-2 right-2">
+                                                <div className="w-3 h-3 bg-blue-500 rounded-full animate-ping"></div>
+                                                <div className="absolute top-0 right-0 w-3 h-3 bg-blue-600 rounded-full"></div>
+                                            </div>
+                                        )}
 
-                                    {/* Icona File */}
-                                    <div className="text-2xl">
-                                        {getFileTypeIcon(document.file_type)}
-                                    </div>
+                                        <div className="flex items-start space-x-5">
+                                            {/* Checkbox */}
+                                            <div className="flex-shrink-0 pt-1">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedDocuments.includes(document.id)}
+                                                    onChange={() => handleDocumentToggle(document.id)}
+                                                    className="w-5 h-5 text-blue-600 border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 transition-all"
+                                                />
+                                            </div>
 
-                                    {/* Info Documento */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between">
-                                            <h4 className="text-sm font-medium text-gray-900 truncate">
-                                                {document.original_filename}
-                                            </h4>
-                                            <div className="flex items-center space-x-2">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(document.status)}`}>
-                                                    {document.status === 'processed' ? 'Processato' :
-                                                     document.status === 'processing' ? 'Elaborazione' :
-                                                     document.status === 'failed' ? 'Fallito' : document.status}
-                                                </span>
+                                            {/* Icona File Grande */}
+                                            <div className="flex-shrink-0">
+                                                <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center text-3xl shadow-sm">
+                                                    {getFileTypeIcon(document.file_type)}
+                                                </div>
+                                            </div>
+
+                                            {/* Info Documento */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex-1 min-w-0">
+                                                        <h4 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+                                                            {document.original_filename}
+                                                        </h4>
+                                                        
+                                                        <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
+                                                            <span className="font-medium">{document.file_size_mb} MB</span>
+                                                            {document.num_chunks && (
+                                                                <span className="flex items-center">
+                                                                    <DocumentTextIcon className="w-4 h-4 mr-1" />
+                                                                    {document.num_chunks} chunk
+                                                                </span>
+                                                            )}
+                                                            <span>{new Date(document.uploaded_at).toLocaleDateString('it-IT')}</span>
+                                                        </div>
+
+                                                        {/* Knowledge Bases */}
+                                                        {document.knowledge_bases && document.knowledge_bases.length > 0 && (
+                                                            <div className="flex flex-wrap gap-2 mb-3">
+                                                                {document.knowledge_bases.map(kb => (
+                                                                    <span
+                                                                        key={kb.id}
+                                                                        className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium border border-purple-200"
+                                                                    >
+                                                                        📚 {kb.name}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Status Badge */}
+                                                    <div className={`flex items-center px-3 py-2 rounded-lg border font-medium text-sm ${statusConfig.color} ${statusConfig.animation}`}>
+                                                        <StatusIcon className="w-4 h-4 mr-2" />
+                                                        {statusConfig.label}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Azioni */}
+                                            <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                <button
+                                                    onClick={() => onPreviewDocument && onPreviewDocument(document)}
+                                                    className={`p-3 rounded-lg transition-all duration-200 ${
+                                                        document.has_content && document.status === 'processed'
+                                                            ? 'text-gray-600 hover:text-blue-600 hover:bg-blue-100 hover:scale-110' 
+                                                            : 'text-gray-300 cursor-not-allowed'
+                                                    }`}
+                                                    title={document.has_content && document.status === 'processed' 
+                                                        ? "Visualizza anteprima documento"
+                                                        : "Contenuto non disponibile"}
+                                                    disabled={!document.has_content || document.status !== 'processed'}
+                                                >
+                                                    <EyeIcon className="w-5 h-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => onDelete(document.id)}
+                                                    className="p-3 text-gray-600 hover:text-red-600 hover:bg-red-100 rounded-lg transition-all duration-200 hover:scale-110"
+                                                    title="Elimina documento"
+                                                >
+                                                    <TrashIcon className="w-5 h-5" />
+                                                </button>
                                             </div>
                                         </div>
-                                        
-                                        <div className="mt-1 flex items-center text-xs text-gray-500 space-x-4">
-                                            <span>{document.file_size_mb} MB</span>
-                                            {document.num_chunks && (
-                                                <span>{document.num_chunks} chunk</span>
-                                            )}
-                                            <span>{new Date(document.uploaded_at).toLocaleDateString('it-IT')}</span>
-                                        </div>
 
-                                        {/* Knowledge Bases */}
-                                        {document.knowledge_bases && document.knowledge_bases.length > 0 && (
-                                            <div className="mt-2 flex flex-wrap gap-1">
-                                                {document.knowledge_bases.map(kb => (
-                                                    <span
-                                                        key={kb.id}
-                                                        className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium"
-                                                    >
-                                                        📚 {kb.name}
-                                                    </span>
-                                                ))}
+                                        {/* 🔥 BARRA DI PROGRESSO PER DOCUMENTI IN ELABORAZIONE */}
+                                        {isProcessing && (
+                                            <div className="mt-4 pt-4 border-t border-blue-200">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-sm font-medium text-blue-700">Elaborazione in corso...</span>
+                                                    <span className="text-sm text-blue-600">In tempo reale</span>
+                                                </div>
+                                                <div className="w-full bg-blue-100 rounded-full h-2">
+                                                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full animate-pulse" style={{width: '60%'}}></div>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
-
-                                    {/* Azioni */}
-                                    <div className="flex items-center space-x-2">
-                                        <button
-                                            onClick={() => onPreviewDocument && onPreviewDocument(document)}
-                                            className={`p-2 rounded-lg transition-colors ${
-                                                document.has_content && document.status === 'processed'
-                                                    ? 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' 
-                                                    : 'text-gray-300 cursor-not-allowed'
-                                            }`}
-                                            title={document.has_content && document.status === 'processed' 
-                                                ? "Visualizza anteprima documento"
-                                                : "Contenuto non disponibile"}
-                                            disabled={!document.has_content || document.status !== 'processed'}
-                                        >
-                                            <EyeIcon className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => onDelete(document.id)}
-                                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                            title="Elimina"
-                                        >
-                                            <TrashIcon className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))
+                                );
+                            })}
+                        </div>
                     )}
                 </div>
             </div>

@@ -67,28 +67,18 @@ const KnowledgeBaseManager = ({
                 </div>
             )}
 
-            {/* Modalità Chat Globale */}
-            <div 
-                className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                    activeMode === 'global' 
-                        ? 'border-blue-500 bg-blue-50' 
-                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                }`}
-                onClick={() => onSwitchMode('global')}
-            >
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                            <ChatBubbleLeftRightIcon className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div>
-                            <h4 className="font-medium text-gray-900">Chat Globale</h4>
-                            <p className="text-xs text-gray-500">Tutti i documenti</p>
-                        </div>
+            {/* 🎯 DESIGN CLEAN & MINIMAL - Focus esclusivo su Knowledge Base dedicate */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl">
+                <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                        <DocumentTextIcon className="w-5 h-5 text-purple-600" />
                     </div>
-                    {activeMode === 'global' && (
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    )}
+                    <div>
+                        <h4 className="font-semibold text-gray-900">🎯 Chat Dedicate per Knowledge Base</h4>
+                        <p className="text-sm text-gray-600 mt-1">
+                            Ogni Knowledge Base ha ora la sua chat dedicata per conversazioni più mirate e contestualizzate
+                        </p>
+                    </div>
                 </div>
             </div>
 

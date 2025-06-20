@@ -3,7 +3,13 @@ from django.contrib.auth import get_user_model
 from rest_framework import generics, permissions, status, views
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
-from .serializers import RegisterSerializer, UserSerializer
+from rest_framework.parsers import MultiPartParser, FormParser
+from .serializers import (
+    RegisterSerializer, 
+    UserSerializer, 
+    ProfileImageUploadSerializer,
+    ProfileUpdateSerializer
+)
 
 User = get_user_model()
 
@@ -81,3 +87,111 @@ class LogoutView(views.APIView):
 # are provided by rest_framework_simplejwt and are included directly in urls.py.
 # You don't need to implement them here unless you need significant customization
 # beyond what serializers and settings allow.
+
+
+class ProfileImageUploadView(generics.UpdateAPIView):
+    """
+    API view for uploading profile images.
+    Requires authentication and accepts multipart/form-data.
+    """
+    queryset = User.objects.all()
+    serializer_class = ProfileImageUploadSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+    parser_classes = (MultiPartParser, FormParser)
+    
+    def get_object(self):
+        """
+        Return the currently authenticated user.
+        """
+        return self.request.user
+    
+    def update(self, request, *args, **kwargs):
+        """
+        Handle profile image upload.
+        """
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        
+        if serializer.is_valid():
+            serializer.save()
+            # Return user data with the new profile image URL
+            user_serializer = UserSerializer(instance)
+            return Response({
+                'message': 'Immagine del profilo caricata con successo.',
+                'user': user_serializer.data,
+                'profile_image': instance.profile_image.url if instance.profile_image else None
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProfileImageRemoveView(views.APIView):
+    """
+    API view for removing profile images.
+    Requires authentication.
+    """
+    permission_classes = (permissions.IsAuthenticated,)
+    
+    def delete(self, request):
+        """
+        Remove the user's profile image.
+        """
+        user = request.user
+        
+        if not user.profile_image:
+            return Response({
+                'message': 'Nessuna immagine del profilo da rimuovere.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Use the model method to delete the image
+            user.delete_profile_image()
+            
+            # Return updated user data
+            user_serializer = UserSerializer(user)
+            return Response({
+                'message': 'Immagine del profilo rimossa con successo.',
+                'user': user_serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'message': 'Errore durante la rimozione dell\'immagine del profilo.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ProfileUpdateView(generics.UpdateAPIView):
+    """
+    API view for updating user profile information.
+    Requires authentication.
+    """
+    queryset = User.objects.all()
+    serializer_class = ProfileUpdateSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+    
+    def get_object(self):
+        """
+        Return the currently authenticated user.
+        """
+        return self.request.user
+    
+    def update(self, request, *args, **kwargs):
+        """
+        Handle profile update.
+        """
+        partial = kwargs.pop('partial', True)  # Allow partial updates by default
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        
+        if serializer.is_valid():
+            serializer.save()
+            # Return updated user data
+            user_serializer = UserSerializer(instance)
+            return Response({
+                'message': 'Profilo aggiornato con successo.',
+                'user': user_serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

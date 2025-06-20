@@ -5,7 +5,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     RAGChatView, RAGDocumentViewSet, RAGStatusView, RAGClearKnowledgeBaseView,
-    RAGKnowledgeBaseViewSet, RAGChatSessionViewSet, RAGChatSessionListView
+    RAGKnowledgeBaseViewSet, RAGChatSessionViewSet, RAGChatSessionListView,
+    RAGEmbeddingInfoView, RAGEmbeddingBenchmarkView
 )
 
 # Router per i ViewSet
@@ -26,6 +27,10 @@ urlpatterns = [
     
     # Endpoint per le sessioni di chat
     path('chat-sessions/list/', RAGChatSessionListView.as_view(), name='chat-sessions-list'),
+    
+    # Endpoint per la gestione degli embeddings
+    path('embeddings/info/', RAGEmbeddingInfoView.as_view(), name='embeddings-info'),
+    path('embeddings/benchmark/', RAGEmbeddingBenchmarkView.as_view(), name='embeddings-benchmark'),
     
     # Include le route del router (documenti, KB, chat sessions)
     path('', include(router.urls)),
@@ -52,3 +57,8 @@ urlpatterns = [
 # POST   /api/knowledge-bases/{id}/remove_documents/ - Rimuovi documenti dalla KB
 # GET    /api/knowledge-bases/{id}/statistics/ - Statistiche dettagliate KB
 # POST   /api/knowledge-bases/{id}/chat/ - Chat specifica per KB
+#
+# EMBEDDINGS:
+# GET    /api/embeddings/info/      - Informazioni sui modelli di embedding
+# POST   /api/embeddings/info/      - Cambia provider di embedding
+# POST   /api/embeddings/benchmark/ - Benchmark dei modelli di embedding

@@ -45,12 +45,13 @@ const UnifiedChat = ({
     };
 
     const getCurrentModeInfo = () => {
-        if (activeMode === 'global') {
+        // 🎯 SOLO KNOWLEDGE BASE - NO CHAT GLOBALE
+        if (!activeMode || !activeMode.startsWith('kb-')) {
             return {
-                name: 'Chat Globale',
-                description: `Tutti i documenti (${stats.processedDocuments})`,
-                icon: GlobeAltIcon,
-                color: 'blue'
+                name: 'Seleziona una Knowledge Base',
+                description: 'Nessuna KB attiva - seleziona per iniziare',
+                icon: DocumentTextIcon,
+                color: 'gray'
             };
         }
         
@@ -67,8 +68,8 @@ const UnifiedChat = ({
         }
         
         return {
-            name: 'Modalità sconosciuta',
-            description: 'Errore',
+            name: 'Knowledge Base non trovata',
+            description: 'KB non disponibile',
             icon: XMarkIcon,
             color: 'red'
         };
@@ -108,37 +109,28 @@ const UnifiedChat = ({
                             {showModeSelector && (
                                 <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
                                     <div className="p-2">
-                                        {/* Modalità Globale */}
-                                        <button
-                                            onClick={() => {
-                                                onSwitchMode('global');
-                                                setShowModeSelector(false);
-                                            }}
-                                            className={`w-full flex items-center p-3 rounded-lg transition-colors ${
-                                                activeMode === 'global' 
-                                                    ? 'bg-blue-50 border-2 border-blue-200' 
-                                                    : 'hover:bg-gray-50'
-                                            }`}
-                                        >
-                                            <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                                                <GlobeAltIcon className="w-4 h-4 text-blue-600" />
+                                        {/* 🎯 SOLO KNOWLEDGE BASES - NO CHAT GLOBALE */}
+                                        {knowledgeBases.length === 0 ? (
+                                            <div className="p-4 text-center text-gray-500">
+                                                <DocumentTextIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                                                <p className="text-sm">Nessuna Knowledge Base</p>
+                                                <p className="text-xs mt-1">Crea una KB per iniziare</p>
                                             </div>
-                                            <div className="text-left">
-                                                <div className="font-medium text-gray-900">Chat Globale</div>
-                                                <div className="text-sm text-gray-600">
-                                                    Tutti i documenti ({stats.processedDocuments})
+                                        ) : (
+                                            <>
+                                                <div className="mb-3 p-2 bg-purple-50 rounded-lg">
+                                                    <p className="text-xs text-purple-800 font-medium">
+                                                        🎯 Chat dedicate per Knowledge Base
+                                                    </p>
+                                                    <p className="text-xs text-purple-600 mt-1">
+                                                        Seleziona una KB per conversazioni contestualizzate
+                                                    </p>
                                                 </div>
-                                            </div>
-                                            {activeMode === 'global' && (
-                                                <div className="ml-auto w-2 h-2 bg-blue-500 rounded-full"></div>
-                                            )}
-                                        </button>
-
-                                        {/* Separator */}
-                                        {knowledgeBases.length > 0 && (
-                                            <div className="my-2 border-t border-gray-200"></div>
+                                                
+                                                {/* Knowledge Bases */}
+                                            </>
                                         )}
-
+                                        
                                         {/* Knowledge Bases */}
                                         {knowledgeBases.map(kb => {
                                             const kbMode = `kb-${kb.id}`;
@@ -214,8 +206,8 @@ const UnifiedChat = ({
                 <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
                     <div className="flex items-center space-x-4">
                         <span>💬 {chatHistory.length} messaggi</span>
-                        {activeMode !== 'global' && (
-                            <span>📚 KB specifica</span>
+                        {activeMode && activeMode.startsWith('kb-') && (
+                            <span>📚 KB: {modeInfo.name}</span>
                         )}
                     </div>
                     {isChatLoading && (
@@ -235,12 +227,15 @@ const UnifiedChat = ({
                             <IconComponent className={`w-8 h-8 text-${modeInfo.color}-600`} />
                         </div>
                         <h3 className="text-lg font-medium text-gray-900 mb-2">
-                            {activeMode === 'global' ? 'Chat Globale Pronta!' : `Chat con ${modeInfo.name}`}
+                            {activeMode && activeMode.startsWith('kb-') 
+                                ? `Chat con ${modeInfo.name}` 
+                                : 'Seleziona una Knowledge Base'
+                            }
                         </h3>
                         <p className="text-gray-600 mb-4">
-                            {activeMode === 'global' 
-                                ? `Fai domande sui tuoi ${stats.processedDocuments} documenti processati`
-                                : `Fai domande specifiche sui documenti di questa Knowledge Base`
+                            {activeMode && activeMode.startsWith('kb-')
+                                ? `Fai domande specifiche sui documenti di questa Knowledge Base`
+                                : 'Seleziona una Knowledge Base per iniziare una conversazione contestualizzata'
                             }
                         </p>
                         <div className="bg-gray-50 rounded-lg p-4 max-w-md mx-auto">
@@ -260,7 +255,7 @@ const UnifiedChat = ({
                                 key={message.id || index} 
                                 message={message}
                                 showSources={true}
-                                showKnowledgeBase={activeMode === 'global'}
+                                showKnowledgeBase={false} // Non mostrare più KB (sempre specifica ora)
                                 enableTypewriter={typewriterSettings?.enabled && !message.isUser}
                                 typewriterSpeed={typewriterSettings?.speed || 50}
                             />
@@ -279,12 +274,12 @@ const UnifiedChat = ({
                             value={chatInput}
                             onChange={(e) => onChatInputChange(e.target.value)}
                             placeholder={
-                                activeMode === 'global' 
-                                    ? "Fai una domanda sui tuoi documenti..." 
-                                    : `Fai una domanda su ${modeInfo.name}...`
+                                activeMode && activeMode.startsWith('kb-')
+                                    ? `Fai una domanda su ${modeInfo.name}...`
+                                    : 'Seleziona una Knowledge Base per iniziare...'
                             }
                             className="w-full p-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            disabled={isChatLoading}
+                            disabled={isChatLoading || !activeMode || !activeMode.startsWith('kb-')}
                         />
                         {chatInput.trim() && (
                             <button
@@ -320,7 +315,11 @@ const UnifiedChat = ({
                         <span>⌘ + K per cambiare modalità</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                        <span>Modalità: {activeMode === 'global' ? 'Globale' : 'KB Specifica'}</span>
+                        <span>Modalità: {
+                            activeMode && activeMode.startsWith('kb-') 
+                                ? `KB: ${modeInfo.name}` 
+                                : 'Nessuna KB selezionata'
+                        }</span>
                     </div>
                 </div>
             </div>

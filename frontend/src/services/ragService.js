@@ -94,20 +94,41 @@ export const ragService = {
     },
 
     /**
-     * Cerca contenuto all'interno di un documento usando AI
+     * 🧠 Cerca contenuto all'interno di un documento usando AI Ultra-Intelligente
      * @param {string} documentId - ID del documento
      * @param {string} query - Query di ricerca in linguaggio naturale
-     * @returns {Promise} - Risultati della ricerca
+     * @param {Object} options - Opzioni di ricerca avanzate
+     * @returns {Promise} - Risultati della ricerca con analytics e clustering
      */
-    searchDocumentContent: async (documentId, query) => {
+    searchDocumentContent: async (documentId, query, options = {}) => {
         try {
-            const response = await apiClient.post(`${API_RAG_URL}/documents/search_content/`, {
+            const searchPayload = {
                 document_id: documentId,
-                query: query
-            });
+                query: query,
+                options: {
+                    top_k: options.top_k || 10,
+                    include_context: options.include_context !== false,
+                    similarity_threshold: options.similarity_threshold || 0.7,
+                    enable_clustering: options.enable_clustering !== false,
+                    ...options
+                }
+            };
+
+            const response = await apiClient.post(`${API_RAG_URL}/documents/search_content/`, searchPayload);
+            
+            // 🎯 Log delle informazioni di ricerca per debugging
+            if (response.data.provider_info) {
+                console.log('🔥 Ricerca AI completata:', {
+                    provider: response.data.provider_info.provider,
+                    model: response.data.provider_info.model,
+                    search_type: response.data.search_type,
+                    results_count: response.data.results?.length || 0
+                });
+            }
+
             return response.data;
         } catch (error) {
-            throw new Error(error.response?.data?.error || error.response?.data?.message || 'Errore durante la ricerca nel documento');
+            throw new Error(error.response?.data?.error || error.response?.data?.message || 'Errore durante la ricerca AI nel documento');
         }
     },
 

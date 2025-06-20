@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ragService } from '../services/ragService';
 
 export const useUnifiedRAG = () => {
@@ -11,10 +11,10 @@ export const useUnifiedRAG = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
 
     // ========== STATI CHAT UNIFICATA ==========
-    const [activeMode, setActiveMode] = useState('global'); // 'global' | 'kb-{id}'
+    // 🎯 SOLO CHAT PER KB - NO CHAT GLOBALE
+    const [activeMode, setActiveMode] = useState(''); // Solo 'kb-{id}'
     const [chatSessions, setChatSessions] = useState({
-        global: null,
-        kb: {}
+        kb: {} // Solo chat per Knowledge Base
     });
     const [currentSession, setCurrentSession] = useState(null);
     const [chatHistory, setChatHistory] = useState([]);
@@ -45,6 +45,86 @@ export const useUnifiedRAG = () => {
         knowledgeBase: 'all'
     });
 
+    // ========== 🔥 SISTEMA POLLING INTELLIGENTE ==========
+    const pollingIntervalsRef = useRef(new Map());
+    const isPollingActiveRef = useRef(false);
+    
+    // Gestione documenti in elaborazione
+    const [processingDocuments, setProcessingDocuments] = useState(new Set());
+    
+    // 🎯 POLLING INTELLIGENTE PER STATO DOCUMENTI
+    const startDocumentPolling = useCallback((documentIds) => {
+        if (!Array.isArray(documentIds)) return;
+        
+        console.log('🔄 Avvio polling per documenti:', documentIds);
+        
+        documentIds.forEach(docId => {
+            if (pollingIntervalsRef.current.has(docId)) {
+                clearInterval(pollingIntervalsRef.current.get(docId));
+            }
+            
+            const intervalId = setInterval(async () => {
+                try {
+                    const document = await ragService.getDocumentDetails(docId);
+                    console.log(`📊 Stato documento ${docId}:`, document.status);
+                    
+                    // Aggiorna stato nel componente
+                    setDocuments(prev => prev.map(doc => 
+                        doc.id === docId ? { ...doc, ...document } : doc
+                    ));
+                    
+                    // Se il processamento è completato, ferma il polling
+                    if (document.status === 'processed' || document.status === 'failed') {
+                        console.log(`✅ Polling completato per documento ${docId}: ${document.status}`);
+                        clearInterval(pollingIntervalsRef.current.get(docId));
+                        pollingIntervalsRef.current.delete(docId);
+                        
+                        setProcessingDocuments(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(docId);
+                            return newSet;
+                        });
+                        
+                        // Ricarica dati se tutti i documenti sono processati
+                        if (pollingIntervalsRef.current.size === 0) {
+                            await loadInitialData();
+                        }
+                    }
+                } catch (error) {
+                    console.error(`❌ Errore polling documento ${docId}:`, error);
+                    // Rimuovi dal polling in caso di errore persistente
+                    clearInterval(pollingIntervalsRef.current.get(docId));
+                    pollingIntervalsRef.current.delete(docId);
+                    setProcessingDocuments(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(docId);
+                        return newSet;
+                    });
+                }
+            }, 3000); // Polling ogni 3 secondi per un'esperienza fluida
+            
+            pollingIntervalsRef.current.set(docId, intervalId);
+            setProcessingDocuments(prev => new Set([...prev, docId]));
+        });
+    }, []);
+    
+    // 🛑 FERMA TUTTO IL POLLING
+    const stopAllPolling = useCallback(() => {
+        console.log('🛑 Ferma tutti i polling attivi');
+        pollingIntervalsRef.current.forEach((intervalId) => {
+            clearInterval(intervalId);
+        });
+        pollingIntervalsRef.current.clear();
+        setProcessingDocuments(new Set());
+    }, []);
+    
+    // 🧹 CLEANUP AUTOMATICO
+    useEffect(() => {
+        return () => {
+            stopAllPolling();
+        };
+    }, [stopAllPolling]);
+
     // ========== CARICAMENTO DATI INIZIALI ==========
     const loadInitialData = useCallback(async () => {
         try {
@@ -57,11 +137,29 @@ export const useUnifiedRAG = () => {
             ]);
 
             setDocuments(docsResponse.results || docsResponse);
-            setKnowledgeBases(kbResponse.results || kbResponse);
+            const knowledgeBasesData = kbResponse.results || kbResponse;
+            setKnowledgeBases(knowledgeBasesData);
+
+            // 🎯 IDENTIFICA DOCUMENTI IN PROCESSING E AVVIA POLLING
+            const docs = docsResponse.results || docsResponse;
+            const processingDocs = docs.filter(doc => doc.status === 'processing').map(doc => doc.id);
+            
+            if (processingDocs.length > 0) {
+                console.log('🔄 Trovati documenti in elaborazione:', processingDocs);
+                startDocumentPolling(processingDocs);
+            }
+
+            // 🎯 SELEZIONA AUTOMATICAMENTE LA PRIMA KB SE NON C'È MODALITÀ ATTIVA
+            if (!activeMode && knowledgeBasesData.length > 0) {
+                const firstKBWithDocs = knowledgeBasesData.find(kb => kb.processed_documents_count > 0);
+                if (firstKBWithDocs) {
+                    setActiveMode(`kb-${firstKBWithDocs.id}`);
+                }
+            }
 
             // Inizializza cronologie chat per ogni KB
             const kbHistories = {};
-            (kbResponse.results || kbResponse).forEach(kb => {
+            knowledgeBasesData.forEach(kb => {
                 kbHistories[`kb-${kb.id}`] = [];
             });
             setChatSessions(prev => ({ ...prev, ...kbHistories }));
@@ -71,29 +169,45 @@ export const useUnifiedRAG = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [activeMode, startDocumentPolling]); // Include startDocumentPolling nelle dipendenze
 
-    // ========== GESTIONE DOCUMENTI ==========
+    // ========== 🚀 UPLOAD ULTRA-FLUIDO ==========
     const uploadDocuments = useCallback(async (files) => {
         try {
             setError(null);
+            const uploadedDocuments = [];
             
             for (const file of files) {
                 const formData = new FormData();
                 formData.append('file', file);
 
-                await ragService.uploadDocument(formData, (progress) => {
+                console.log('📤 Avvio upload per:', file.name);
+                
+                const uploadResponse = await ragService.uploadDocument(formData, (progress) => {
                     setUploadProgress(progress);
                 });
+                
+                // Aggiungi immediatamente alla lista documenti
+                if (uploadResponse.document) {
+                    setDocuments(prev => [uploadResponse.document, ...prev]);
+                    uploadedDocuments.push(uploadResponse.document.id);
+                    console.log('✅ Upload completato per:', file.name);
+                }
             }
 
-            await loadInitialData();
             setUploadProgress(0);
+            
+            // 🔥 AVVIA POLLING AUTOMATICO PER I NUOVI DOCUMENTI
+            if (uploadedDocuments.length > 0) {
+                console.log('🎯 Avvio polling automatico per nuovi upload');
+                startDocumentPolling(uploadedDocuments);
+            }
+            
         } catch (err) {
             setError(err.message);
             setUploadProgress(0);
         }
-    }, [loadInitialData]);
+    }, [startDocumentPolling]);
 
     const deleteDocument = useCallback(async (documentId) => {
         try {
@@ -158,9 +272,14 @@ export const useUnifiedRAG = () => {
                 return newHistories;
             });
 
-            // Se era la KB attiva, torna alla modalità globale
+            // Se era la KB attiva, seleziona la prima KB disponibile o disattiva
             if (activeMode === `kb-${kbId}`) {
-                setActiveMode('global');
+                const remainingKBs = knowledgeBases.filter(kb => kb.id !== kbId);
+                if (remainingKBs.length > 0) {
+                    setActiveMode(`kb-${remainingKBs[0].id}`);
+                } else {
+                    setActiveMode(''); // Nessuna KB disponibile
+                }
             }
 
             await loadInitialData();
@@ -200,14 +319,10 @@ export const useUnifiedRAG = () => {
                 return;
             }
             
+            // 🎯 SOLO SESSIONI KB - NO GLOBALE
             const sessions = {
-                global: (sessionsData.global_sessions && sessionsData.global_sessions.length > 0) 
-                    ? sessionsData.global_sessions[0] 
-                    : null,
                 kb: {}
             };
-            
-            console.log('🔍 Sessione globale trovata:', sessions.global);
             
             // Organizza le sessioni KB per ID con controllo sicurezza
             if (sessionsData.kb_sessions && Array.isArray(sessionsData.kb_sessions)) {
@@ -218,6 +333,8 @@ export const useUnifiedRAG = () => {
                         console.log(`📖 Sessione KB ${session.knowledge_base}:`, session.id);
                     }
                 });
+            } else {
+                console.log('📚 Nessuna sessione KB trovata');
             }
             
             console.log('✅ Sessioni organizzate:', sessions);
@@ -238,11 +355,15 @@ export const useUnifiedRAG = () => {
         try {
             let session = null;
             
-            if (activeMode === 'global') {
-                session = chatSessions.global;
-            } else {
+            // 🎯 SOLO MODALITÀ KB - NO GLOBALE
+            if (activeMode && activeMode.startsWith('kb-')) {
                 const kbId = activeMode.replace('kb-', '');
                 session = chatSessions.kb[kbId];
+            } else {
+                console.log('⚠️ Nessuna modalità KB attiva');
+                setCurrentSession(null);
+                setChatHistory([]);
+                return;
             }
             
             if (session && session.id) {
@@ -285,9 +406,14 @@ export const useUnifiedRAG = () => {
     // ========== CREAZIONE NUOVA SESSIONE ==========
     const createNewSession = useCallback(async () => {
         try {
+            // 🎯 RICHIEDE KB - NO SESSIONI GLOBALI
+            if (!activeMode || !activeMode.startsWith('kb-')) {
+                throw new Error('È necessario selezionare una Knowledge Base per creare una chat');
+            }
+            
             const sessionData = {
                 title: `Chat ${new Date().toLocaleString()}`,
-                knowledge_base: activeMode === 'global' ? null : activeMode.replace('kb-', '')
+                knowledge_base: activeMode.replace('kb-', '')
             };
             
             console.log('Creazione sessione con dati:', sessionData);
@@ -303,12 +429,8 @@ export const useUnifiedRAG = () => {
             // Aggiorna le sessioni locali
             setChatSessions(prev => {
                 const updated = { ...prev };
-                if (activeMode === 'global') {
-                    updated.global = newSession;
-                } else {
-                    const kbId = activeMode.replace('kb-', '');
-                    updated.kb[kbId] = newSession;
-                }
+                const kbId = activeMode.replace('kb-', '');
+                updated.kb[kbId] = newSession;
                 return updated;
             });
             
@@ -427,6 +549,12 @@ export const useUnifiedRAG = () => {
 
     // ========== CAMBIO MODALITÀ ==========
     const switchChatMode = useCallback(async (newMode) => {
+        // 🎯 VERIFICA CHE SIA UNA MODALITÀ KB VALIDA
+        if (!newMode || !newMode.startsWith('kb-')) {
+            console.error('❌ Modalità non valida:', newMode);
+            return;
+        }
+        
         setActiveMode(newMode);
         // loadCurrentSession verrà chiamato automaticamente dall'useEffect
     }, []);
@@ -496,6 +624,10 @@ export const useUnifiedRAG = () => {
         error,
         uploadProgress,
         
+        // 🔥 STATI POLLING TEMPO REALE
+        processingDocuments,
+        isDocumentProcessing: (docId) => processingDocuments ? processingDocuments.has(docId) : false,
+        
         // Chat
         activeMode,
         chatSessions,
@@ -546,6 +678,10 @@ export const useUnifiedRAG = () => {
         typewriterSettings,
         setTypewriterSettings,
         streamingMessages,
+        
+        // 🔥 CONTROLLI POLLING
+        startDocumentPolling,
+        stopAllPolling,
         
         // Utility
         loadInitialData

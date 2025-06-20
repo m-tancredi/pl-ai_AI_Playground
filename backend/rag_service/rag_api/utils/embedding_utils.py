@@ -1,5 +1,5 @@
 """
-Utility per la gestione degli embeddings usando Sentence Transformers.
+Utility per la gestione degli embeddings usando OpenAI e Sentence Transformers.
 """
 import os
 import logging
@@ -10,21 +10,39 @@ from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from django.conf import settings
 import faiss
-from config.llm_clients import get_openai_client
+from config.llm_clients import get_openai_client, get_openai_embedding_client
 
 logger = logging.getLogger(__name__)
 
 class EmbeddingManager:
     """
-    Gestisce la generazione e il recupero degli embedding.
+    Gestisce la generazione e il recupero degli embedding con supporto per OpenAI e Sentence Transformers.
     """
     def __init__(self):
-        # Usa solo Sentence Transformers per ora (evita problemi con OpenAI client)
-        self.client = None  # get_openai_client()
-        self.model = getattr(settings, 'EMBEDDING_MODEL', 'text-embedding-ada-002')
-        self.dimension = getattr(settings, 'EMBEDDING_DIMENSION', 384)
+        # Configurazione provider di embeddings
+        self.provider = getattr(settings, 'EMBEDDING_PROVIDER', 'openai')  # 'openai' o 'sentence_transformers'
+        
+        # Client OpenAI per embeddings
+        self.openai_embedding_client = None
+        if self.provider == 'openai':
+            try:
+                self.openai_embedding_client = get_openai_embedding_client()
+                model_info = self.openai_embedding_client.get_model_info()
+                self.dimension = model_info['dimensions']
+                logger.info(f"EmbeddingManager inizializzato con OpenAI: {model_info['model']} ({self.dimension}D)")
+            except Exception as e:
+                logger.warning(f"Fallback a Sentence Transformers per errore OpenAI: {str(e)}")
+                self.provider = 'sentence_transformers'
+        
+        # Configurazione Sentence Transformers (sempre inizializzata per fallback)
         self.model_name = getattr(settings, 'SENTENCE_TRANSFORMER_MODEL_NAME', 'all-MiniLM-L6-v2')
         self.model_instance = None
+        
+        if self.provider == 'sentence_transformers':
+            self.dimension = getattr(settings, 'EMBEDDING_DIMENSION', 384)
+            logger.info(f"EmbeddingManager inizializzato con Sentence Transformers: {self.model_name}")
+        
+        # Configurazioni comuni
         self.embeddings_root = Path(settings.RAG_EMBEDDINGS_ROOT)
         self.embeddings_root.mkdir(exist_ok=True)
         
@@ -32,7 +50,7 @@ class EmbeddingManager:
         self._faiss_indices = {}
         self._chunk_mappings = {}
         
-        logger.info(f"EmbeddingManager inizializzato con modello: {self.model_name}")
+        logger.info(f"Provider attivo: {self.provider}, Dimensioni: {self.dimension}")
     
     def _load_model(self):
         """
@@ -49,28 +67,32 @@ class EmbeddingManager:
     
     def get_embedding(self, text: str) -> List[float]:
         """
-        Genera l'embedding per un testo usando il modello configurato.
+        Genera l'embedding per un testo usando il provider configurato.
         """
         try:
-            response = self.client.embeddings.create(
-                model=self.model,
-                input=text
-            )
-            return response.data[0].embedding
+            if self.provider == 'openai' and self.openai_embedding_client:
+                return self.openai_embedding_client.create_embedding(text)
+            else:
+                # Fallback a Sentence Transformers
+                self._load_model()
+                embedding = self.model_instance.encode(text)
+                return embedding.tolist()
         except Exception as e:
             logger.error(f"Errore nella generazione dell'embedding: {str(e)}")
             raise
 
     def get_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
         """
-        Genera gli embedding per una lista di testi.
+        Genera gli embedding per una lista di testi usando il provider configurato.
         """
         try:
-            response = self.client.embeddings.create(
-                model=self.model,
-                input=texts
-            )
-            return [data.embedding for data in response.data]
+            if self.provider == 'openai' and self.openai_embedding_client:
+                return self.openai_embedding_client.create_embeddings_batch(texts)
+            else:
+                # Fallback a Sentence Transformers
+                self._load_model()
+                embeddings = self.model_instance.encode(texts)
+                return [emb.tolist() for emb in embeddings]
         except Exception as e:
             logger.error(f"Errore nella generazione degli embedding in batch: {str(e)}")
             raise
@@ -79,9 +101,12 @@ class EmbeddingManager:
         """
         Calcola la similarità del coseno tra due vettori.
         """
-        vec1 = np.array(vec1)
-        vec2 = np.array(vec2)
-        return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+        if self.provider == 'openai' and self.openai_embedding_client:
+            return self.openai_embedding_client.cosine_similarity(vec1, vec2)
+        else:
+            vec1 = np.array(vec1)
+            vec2 = np.array(vec2)
+            return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
     def find_most_similar(self, query_embedding: List[float], 
                          embeddings: List[List[float]], 
@@ -105,13 +130,22 @@ class EmbeddingManager:
         if not texts:
             return np.array([])
         
-        self._load_model()
-        
         try:
-            logger.info(f"Creazione embeddings per {len(texts)} testi")
-            embeddings = self.model_instance.encode(texts, show_progress_bar=True)
-            logger.info(f"Embeddings creati: shape {embeddings.shape}")
-            return embeddings
+            logger.info(f"Creazione embeddings per {len(texts)} testi usando provider: {self.provider}")
+            
+            if self.provider == 'openai' and self.openai_embedding_client:
+                # Usa OpenAI
+                embeddings_list = self.openai_embedding_client.create_embeddings_batch(texts)
+                embeddings = np.array(embeddings_list)
+                logger.info(f"Embeddings OpenAI creati: shape {embeddings.shape}")
+                return embeddings
+            else:
+                # Usa Sentence Transformers
+                self._load_model()
+                embeddings = self.model_instance.encode(texts, show_progress_bar=True)
+                logger.info(f"Embeddings Sentence Transformers creati: shape {embeddings.shape}")
+                return embeddings
+                
         except Exception as e:
             logger.error(f"Errore nella creazione degli embeddings: {str(e)}")
             raise Exception(f"Errore nella creazione degli embeddings: {str(e)}")
@@ -249,6 +283,9 @@ class EmbeddingManager:
             # Concatena tutti gli embeddings
             combined_embeddings = np.vstack(all_embeddings)
             
+            # Assicurati che sia float32 e contiguoso per FAISS
+            combined_embeddings = np.ascontiguousarray(combined_embeddings, dtype=np.float32)
+            
             # Normalizza gli embeddings per la ricerca coseno
             faiss.normalize_L2(combined_embeddings)
             
@@ -257,7 +294,7 @@ class EmbeddingManager:
             index = faiss.IndexFlatIP(dimension)
             
             # Aggiungi embeddings all'indice
-            index.add(combined_embeddings.astype(np.float32))
+            index.add(combined_embeddings)
             
             logger.info(f"Indice FAISS creato con {index.ntotal} embeddings da {len(document_ids)} documenti")
             
@@ -284,9 +321,10 @@ class EmbeddingManager:
             if not document_ids:
                 return []
             
-            # Crea embedding per la query
-            self._load_model()
-            query_embedding = self.model_instance.encode([query])
+            # Crea embedding per la query usando il provider corretto
+            query_embedding = self.get_embedding(query)
+            query_embedding = np.array([query_embedding], dtype=np.float32)
+            query_embedding = np.ascontiguousarray(query_embedding)
             faiss.normalize_L2(query_embedding)
             
             # Crea o recupera l'indice FAISS
@@ -300,7 +338,7 @@ class EmbeddingManager:
                 chunk_mapping = self._chunk_mappings[index_key]
             
             # Ricerca
-            scores, indices = index.search(query_embedding.astype(np.float32), top_k)
+            scores, indices = index.search(query_embedding, top_k)
             
             results = []
             for score, idx in zip(scores[0], indices[0]):
@@ -361,6 +399,87 @@ class EmbeddingManager:
         self._faiss_indices.clear()
         self._chunk_mappings.clear()
         logger.info("Cache degli indici FAISS pulita")
+    
+    def get_embedding_info(self) -> Dict[str, Any]:
+        """
+        Restituisce informazioni sul provider e modello di embedding attualmente in uso.
+        
+        Returns:
+            Dict[str, Any]: Informazioni dettagliate sul sistema di embedding
+        """
+        info = {
+            'provider': self.provider,
+            'dimensions': self.dimension,
+            'embeddings_root': str(self.embeddings_root),
+        }
+        
+        if self.provider == 'openai' and self.openai_embedding_client:
+            # Aggiungi informazioni OpenAI
+            model_info = self.openai_embedding_client.get_model_info()
+            info.update({
+                'model': model_info['model'],
+                'supports_custom_dimensions': model_info['supports_custom_dimensions'],
+                'default_dimensions': model_info['default_dimensions'],
+                'api_version': model_info['api_version']
+            })
+        else:
+            # Aggiungi informazioni Sentence Transformers
+            info.update({
+                'model': self.model_name,
+                'supports_custom_dimensions': False,
+                'default_dimensions': self.dimension,
+                'fallback_reason': 'OpenAI non disponibile' if hasattr(self, '_openai_fallback') else None
+            })
+        
+        return info
+    
+    def switch_provider(self, provider: str) -> bool:
+        """
+        Cambia il provider di embedding a runtime.
+        
+        Args:
+            provider (str): 'openai' o 'sentence_transformers'
+            
+        Returns:
+            bool: True se il cambio è riuscito
+        """
+        if provider == self.provider:
+            logger.info(f"Provider già impostato su: {provider}")
+            return True
+        
+        try:
+            if provider == 'openai':
+                # Prova a inizializzare OpenAI
+                if self.openai_embedding_client is None:
+                    self.openai_embedding_client = get_openai_embedding_client()
+                model_info = self.openai_embedding_client.get_model_info()
+                old_dimension = self.dimension
+                self.dimension = model_info['dimensions']
+                self.provider = 'openai'
+                logger.info(f"Switched to OpenAI: {model_info['model']} ({self.dimension}D)")
+                
+                # Avvisa se le dimensioni sono cambiate
+                if old_dimension != self.dimension:
+                    logger.warning(f"Dimensioni cambiate da {old_dimension} a {self.dimension}. "
+                                 "Potrebbero essere necessari nuovi embeddings.")
+                
+            elif provider == 'sentence_transformers':
+                self.provider = 'sentence_transformers'
+                # Ricarica il modello se necessario
+                if self.model_instance is None:
+                    self._load_model()
+                logger.info(f"Switched to Sentence Transformers: {self.model_name}")
+            
+            else:
+                raise ValueError(f"Provider non supportato: {provider}")
+            
+            # Pulisci la cache perché potrebbe non essere più valida
+            self.clear_cache()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Errore nel cambio provider a {provider}: {str(e)}")
+            return False
 
 # Istanza globale del manager degli embeddings
 _embedding_manager = None

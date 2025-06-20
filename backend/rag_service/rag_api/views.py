@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, JSONParser
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError
 from django.core.files.storage import default_storage
 import uuid
 import mimetypes
@@ -76,13 +77,18 @@ class RAGChatView(APIView):
             relevant_chunks = self._search_relevant_chunks(message, search_document_ids, top_k)
             
             if not relevant_chunks:
+                # Per domande senza contesto rilevante, usa comunque l'AI con prompt appropriato
+                context_empty = "Nessun documento rilevante trovato nella knowledge base."
+                response_text = self._generate_openai_response(context_empty, message, max_tokens)
+                
                 return Response({
                     'message': message,
-                    'response': 'Non ho trovato informazioni rilevanti nei documenti per rispondere alla tua domanda.',
+                    'response': response_text,
                     'context_chunks': [],
                     'sources': [],
                     'processing_time': time.time() - start_time,
-                    'model_used': getattr(settings, 'OPENAI_CHAT_MODEL_NAME', 'gpt-3.5-turbo')
+                    'model_used': getattr(settings, 'OPENAI_CHAT_MODEL_NAME', 'gpt-3.5-turbo'),
+                    'note': 'Risposta basata su conoscenza generale (nessun documento rilevante trovato)'
                 }, status=status.HTTP_200_OK)
             
             # Crea il contesto dai chunk trovati
@@ -332,11 +338,19 @@ class RAGDocumentViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def search_content(self, request):
         """
-        Cerca contenuto all'interno di un documento specifico usando AI.
+        🧠 Ricerca AI Ultra-Intelligente usando OpenAI embeddings.
+        Supporta ricerca semantica avanzata, clustering e analisi contesto.
         """
         try:
             document_id = request.data.get('document_id')
             query = request.data.get('query', '').strip()
+            search_options = request.data.get('options', {})
+            
+            # 🎯 Opzioni di ricerca avanzate
+            top_k = search_options.get('top_k', 10)  # Aumentato per migliori risultati
+            include_context = search_options.get('include_context', True)
+            similarity_threshold = search_options.get('similarity_threshold', 0.4)  # 🔥 Soglia ridotta per più risultati
+            enable_clustering = search_options.get('enable_clustering', True)
             
             if not document_id:
                 return Response({
@@ -364,82 +378,357 @@ class RAGDocumentViewSet(viewsets.ModelViewSet):
                     'error': 'Contenuto del documento non disponibile'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Ottieni i chunk del documento
-            chunks = document.chunks.all().order_by('chunk_index')
-            
-            if not chunks.exists():
-                # Fallback: ricerca semplice nel testo
-                results = self._simple_text_search(document.extracted_text, query)
-                return Response({
-                    'results': results,
-                    'search_type': 'simple'
-                }, status=status.HTTP_200_OK)
-            
-            # Ricerca intelligente usando embeddings
+            # 🚀 RICERCA AI ULTRA-INTELLIGENTE
             try:
                 embedding_manager = get_embedding_manager()
+                
+                # ⚡ Verifica provider OpenAI
+                provider_info = embedding_manager.get_embedding_info()
+                logger.info(f"🔥 Ricerca con provider: {provider_info['provider']} - Modello: {provider_info.get('model', 'N/A')}")
+                
+                # 🧠 Ricerca semantica potenziata
                 relevant_chunks = embedding_manager.search_similar_chunks(
                     query=query,
                     document_ids=[document.id],
-                    top_k=5
+                    top_k=top_k
                 )
                 
-                # Prepara i risultati per l'evidenziazione
-                # relevant_chunks è una lista di tuple (chunk_text, score, document_id)
-                results = []
-                for chunk_text, score, doc_id in relevant_chunks:
-                    results.append({
-                        'text': chunk_text,
-                        'relevance': float(score),
-                        'chunk_index': 0,  # Non abbiamo l'indice specifico dal search_similar_chunks
-                        'start_position': 0,  # Non abbiamo la posizione specifica
-                        'end_position': len(chunk_text)
-                    })
+                if not relevant_chunks:
+                    # 🔄 Fallback intelligente
+                    logger.warning(f"Nessun chunk trovato con ricerca semantica per documento {document_id}")
+                    results = self._enhanced_text_search(document.extracted_text, query)
+                    return Response({
+                        'results': results,
+                        'search_type': 'enhanced_fallback',
+                        'provider_info': provider_info,
+                        'message': 'Ricerca testuale potenziata utilizzata come fallback'
+                    }, status=status.HTTP_200_OK)
+                
+                # 📊 Log dettagliato dei chunk trovati
+                logger.info(f"🔍 Chunk trovati: {len(relevant_chunks)}")
+                for i, (chunk_text, score, doc_id) in enumerate(relevant_chunks[:3]):  # Log primi 3
+                    logger.info(f"  Chunk {i+1}: score={score:.4f}, text_preview='{chunk_text[:100]}...'")
+                logger.info(f"🎯 Soglia similarità: {similarity_threshold}")
+                
+                # 🎯 Elaborazione risultati con AI insights
+                results = self._process_semantic_results(
+                    relevant_chunks, 
+                    query, 
+                    document, 
+                    similarity_threshold,
+                    include_context,
+                    enable_clustering
+                )
+                
+                # 📊 Statistiche ricerca
+                search_stats = {
+                    'total_chunks_analyzed': len(relevant_chunks),
+                    'high_confidence_results': len([r for r in results if r.get('confidence', 0) > 0.8]),
+                    'avg_relevance': sum(r.get('relevance', 0) for r in results) / len(results) if results else 0,
+                    'semantic_clusters': len(set(r.get('cluster_id', 0) for r in results)) if enable_clustering else 0
+                }
                 
                 return Response({
                     'results': results,
-                    'search_type': 'semantic'
+                    'search_type': 'semantic_ultra_intelligent',
+                    'provider_info': provider_info,
+                    'search_stats': search_stats,
+                    'query_analysis': self._analyze_query_intent(query),
+                    'message': f'🧠 Ricerca AI completata con {provider_info["provider"]} embeddings'
                 }, status=status.HTTP_200_OK)
                 
             except Exception as e:
                 logger.warning(f"Errore nella ricerca semantica: {str(e)}")
-                # Fallback: ricerca semplice
-                results = self._simple_text_search(document.extracted_text, query)
+                # 🔄 Fallback ultra-smart
+                results = self._enhanced_text_search(document.extracted_text, query)
                 return Response({
                     'results': results,
-                    'search_type': 'simple_fallback'
+                    'search_type': 'enhanced_fallback',
+                    'error_info': str(e),
+                    'message': 'Fallback a ricerca testuale potenziata'
                 }, status=status.HTTP_200_OK)
             
         except Exception as e:
             logger.error(f"Errore nella ricerca del contenuto: {str(e)}")
             return Response({
-                'error': 'Errore durante la ricerca'
+                'error': 'Errore durante la ricerca AI'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    def _simple_text_search(self, text, query):
+    def _process_semantic_results(self, relevant_chunks, query, document, similarity_threshold, include_context, enable_clustering):
         """
-        Ricerca semplice nel testo senza AI.
+        🎯 Elaborazione intelligente dei risultati di ricerca semantica.
+        """
+        results = []
+        clusters = {}
+        
+        logger.info(f"🎯 Processamento {len(relevant_chunks)} chunk con soglia {similarity_threshold}")
+        
+        for i, (chunk_text, score, doc_id) in enumerate(relevant_chunks):
+            # 🔍 Analisi chunk
+            chunk_analysis = self._analyze_chunk_relevance(chunk_text, query, score)
+            
+            # 🎨 Clustering semantico
+            cluster_id = 0
+            if enable_clustering:
+                cluster_id = self._assign_semantic_cluster(chunk_text, clusters)
+            
+            # 📍 Posizione nel documento
+            position_info = self._find_chunk_position(chunk_text, document.extracted_text)
+            
+            # 🎯 Converti highlight spans da posizioni relative a assolute
+            absolute_highlight_spans = []
+            if chunk_analysis['highlight_spans'] and position_info['start'] != -1:
+                for span in chunk_analysis['highlight_spans']:
+                    absolute_highlight_spans.append({
+                        'start': position_info['start'] + span['start'],
+                        'end': position_info['start'] + span['end'],
+                        'type': span['type'],
+                        'word': span.get('word', '')
+                    })
+            
+            result = {
+                'text': chunk_text,
+                'relevance': float(score),
+                'confidence': chunk_analysis['confidence'],
+                'chunk_index': i,
+                'start_position': position_info['start'],
+                'end_position': position_info['end'],
+                'cluster_id': cluster_id,
+                'semantic_score': chunk_analysis['semantic_score'],
+                'keyword_matches': chunk_analysis['keyword_matches'],
+                'context_snippet': self._extract_context_snippet(chunk_text, document.extracted_text) if include_context else None,
+                'highlight_spans': absolute_highlight_spans  # Posizioni assolute nel documento
+            }
+            
+            # 🎯 Filtra per soglia di similarità
+            if score >= similarity_threshold:
+                results.append(result)
+                logger.debug(f"✅ Chunk {i+1} accettato: score={score:.4f} >= {similarity_threshold}")
+            else:
+                logger.debug(f"❌ Chunk {i+1} rifiutato: score={score:.4f} < {similarity_threshold}")
+        
+        # 🏆 Ordina per rilevanza composita
+        results.sort(key=lambda x: x['semantic_score'], reverse=True)
+        
+        logger.info(f"🏆 Risultati finali: {len(results)} chunk accettati su {len(relevant_chunks)} analizzati")
+        
+        return results[:10]  # Top 10 risultati
+    
+    def _analyze_chunk_relevance(self, chunk_text, query, base_score):
+        """
+        🧠 Analisi intelligente della rilevanza del chunk.
+        """
+        chunk_lower = chunk_text.lower()
+        query_lower = query.lower()
+        query_words = query_lower.split()
+        
+        # 🔍 Analisi keyword
+        keyword_matches = []
+        total_matches = 0
+        
+        for word in query_words:
+            if len(word) > 2:  # Ignora parole troppo corte
+                matches = chunk_lower.count(word)
+                if matches > 0:
+                    keyword_matches.append({
+                        'word': word,
+                        'count': matches,
+                        'positions': [i for i in range(len(chunk_text)) if chunk_text.lower().startswith(word, i)]
+                    })
+                    total_matches += matches
+        
+        # 📊 Calcolo confidence composita
+        keyword_boost = min(total_matches * 0.1, 0.3)  # Max boost 0.3
+        length_penalty = max(0, (len(chunk_text) - 1000) * -0.0001)  # Penalizza chunk troppo lunghi
+        
+        confidence = base_score + keyword_boost + length_penalty
+        confidence = max(0.0, min(1.0, confidence))  # Clamp tra 0 e 1
+        
+        # 🎯 Score semantico potenziato
+        semantic_multiplier = 1.0
+        if any('definizione' in word or 'cos\'' in word for word in query_words):
+            semantic_multiplier = 1.2  # Boost per query definitive
+        
+        semantic_score = confidence * semantic_multiplier
+        
+        # 🖍️ Highlight spans per evidenziazione (posizioni relative al chunk)
+        highlight_spans = []
+        for match in keyword_matches:
+            for pos in match['positions']:
+                if pos < len(chunk_text):  # Verifica validità posizione
+                    highlight_spans.append({
+                        'start': pos,
+                        'end': min(pos + len(match['word']), len(chunk_text)),
+                        'type': 'keyword',
+                        'word': match['word']
+                    })
+        
+        return {
+            'confidence': confidence,
+            'semantic_score': semantic_score,
+            'keyword_matches': keyword_matches,
+            'highlight_spans': highlight_spans
+        }
+    
+    def _assign_semantic_cluster(self, chunk_text, clusters):
+        """
+        🎨 Clustering semantico intelligente.
+        """
+        # Semplice clustering basato su argomenti chiave
+        keywords = {
+            'tecnico': ['tecnico', 'sistema', 'processo', 'metodo', 'algoritmo'],
+            'business': ['costo', 'prezzo', 'business', 'commerciale', 'vendita'],
+            'legale': ['legale', 'normativa', 'regolamento', 'privacy', 'gdpr'],
+            'generale': []  # Default cluster
+        }
+        
+        chunk_lower = chunk_text.lower()
+        
+        for cluster_name, cluster_keywords in keywords.items():
+            if any(keyword in chunk_lower for keyword in cluster_keywords):
+                cluster_id = hash(cluster_name) % 100  # ID numerico per cluster
+                clusters[cluster_id] = cluster_name
+                return cluster_id
+        
+        return 0  # Cluster generale
+    
+    def _find_chunk_position(self, chunk_text, full_text):
+        """
+        📍 Trova la posizione del chunk nel testo completo con ricerca intelligente.
+        """
+        try:
+            # Ricerca diretta
+            start_pos = full_text.find(chunk_text)
+            if start_pos != -1:
+                return {
+                    'start': start_pos,
+                    'end': start_pos + len(chunk_text)
+                }
+            
+            # 🔍 Ricerca parziale se il chunk non è trovato esattamente
+            # Prova con le prime e ultime parole del chunk
+            chunk_words = chunk_text.strip().split()
+            if len(chunk_words) >= 3:
+                # Cerca usando le prime 3 parole
+                first_words = ' '.join(chunk_words[:3])
+                start_pos = full_text.find(first_words)
+                if start_pos != -1:
+                    return {
+                        'start': start_pos,
+                        'end': start_pos + len(chunk_text)
+                    }
+                
+                # Cerca usando le ultime 3 parole
+                last_words = ' '.join(chunk_words[-3:])
+                end_pos = full_text.find(last_words)
+                if end_pos != -1:
+                    estimated_start = max(0, end_pos - len(chunk_text) + len(last_words))
+                    return {
+                        'start': estimated_start,
+                        'end': estimated_start + len(chunk_text)
+                    }
+            
+        except Exception as e:
+            logger.warning(f"Errore nella ricerca posizione chunk: {e}")
+        
+        # Fallback: posizione non trovata
+        return {'start': -1, 'end': -1}
+    
+    def _extract_context_snippet(self, chunk_text, full_text, context_length=200):
+        """
+        📝 Estrae snippet di contesto attorno al chunk.
+        """
+        try:
+            start_pos = full_text.find(chunk_text)
+            if start_pos != -1:
+                context_start = max(0, start_pos - context_length)
+                context_end = min(len(full_text), start_pos + len(chunk_text) + context_length)
+                
+                context = full_text[context_start:context_end]
+                
+                # Aggiungi indicatori se il contesto è troncato
+                if context_start > 0:
+                    context = "..." + context
+                if context_end < len(full_text):
+                    context = context + "..."
+                
+                return context
+        except:
+            pass
+        
+        return chunk_text[:context_length] + "..." if len(chunk_text) > context_length else chunk_text
+    
+    def _analyze_query_intent(self, query):
+        """
+        🎯 Analizza l'intento della query per ottimizzare la ricerca.
         """
         query_lower = query.lower()
-        sentences = text.split('.')
+        
+        intent_patterns = {
+            'definition': ['cos\'è', 'cosa è', 'definizione', 'significato', 'che cosa'],
+            'comparison': ['differenza', 'confronto', 'versus', 'vs', 'migliore'],
+            'procedure': ['come', 'procedura', 'passi', 'step', 'istruzioni'],
+            'quantitative': ['quanto', 'prezzo', 'costo', 'numero', 'percentuale'],
+            'temporal': ['quando', 'data', 'scadenza', 'tempo', 'periodo']
+        }
+        
+        detected_intents = []
+        for intent, patterns in intent_patterns.items():
+            if any(pattern in query_lower for pattern in patterns):
+                detected_intents.append(intent)
+        
+        return {
+            'detected_intents': detected_intents,
+            'primary_intent': detected_intents[0] if detected_intents else 'general',
+            'query_complexity': 'complex' if len(query.split()) > 5 else 'simple',
+            'contains_question_words': any(word in query_lower for word in ['chi', 'cosa', 'come', 'quando', 'dove', 'perché'])
+        }
+    
+    def _enhanced_text_search(self, text, query):
+        """
+        🔄 Ricerca testuale potenziata con analisi intelligente.
+        """
+        query_lower = query.lower()
+        query_words = query_lower.split()
+        
+        # 📚 Divide in frasi più intelligentemente
+        import re
+        sentences = re.split(r'[.!?]+', text)
         results = []
         
         for i, sentence in enumerate(sentences):
             sentence = sentence.strip()
-            if len(sentence) < 10:  # Ignora frasi troppo corte
+            if len(sentence) < 20:  # Ignora frasi troppo corte
                 continue
-                
-            if query_lower in sentence.lower():
+            
+            sentence_lower = sentence.lower()
+            
+            # 🎯 Calcolo relevance avanzato
+            word_matches = sum(1 for word in query_words if word in sentence_lower)
+            phrase_match = query_lower in sentence_lower
+            
+            relevance = 0
+            if phrase_match:
+                relevance = 0.9  # Boost per match esatto
+            elif word_matches > 0:
+                relevance = min(0.8, word_matches * 0.2)  # Boost per parole matchate
+            
+            if relevance > 0:
                 results.append({
                     'text': sentence,
-                    'relevance': 1.0,
+                    'relevance': relevance,
+                    'confidence': relevance * 0.9,  # Confidence leggermente inferiore
                     'chunk_index': i,
                     'start_position': text.find(sentence),
-                    'end_position': text.find(sentence) + len(sentence)
+                    'end_position': text.find(sentence) + len(sentence),
+                    'search_type': 'textual_enhanced',
+                    'word_matches': word_matches,
+                    'exact_phrase_match': phrase_match
                 })
         
-        # Limita a 5 risultati più rilevanti
-        return results[:5]
+        # 🏆 Ordina per rilevanza
+        results.sort(key=lambda x: x['relevance'], reverse=True)
+        return results[:8]  # Top 8 risultati
     
     @action(detail=True, methods=['get'])
     def download_pdf(self, request, pk=None):
@@ -804,15 +1093,20 @@ class RAGKnowledgeBaseViewSet(viewsets.ModelViewSet):
             relevant_chunks = chat_view._search_relevant_chunks(message, kb_document_ids, top_k)
             
             if not relevant_chunks:
+                # Per domande senza contesto rilevante nella KB, usa comunque l'AI
+                context_empty = f'Nessun documento rilevante trovato nella knowledge base "{kb.name}" per questa domanda.'
+                response_text = chat_view._generate_openai_response(context_empty, message, max_tokens)
+                
                 return Response({
                     'message': message,
-                    'response': f'Non ho trovato informazioni rilevanti nella knowledge base "{kb.name}" per rispondere alla tua domanda.',
+                    'response': response_text,
                     'context_chunks': [],
                     'sources': [],
                     'knowledge_base': {
                         'id': kb.id,
                         'name': kb.name
-                    }
+                    },
+                    'note': f'Risposta basata su conoscenza generale (nessun documento rilevante nella KB "{kb.name}")'
                 }, status=status.HTTP_200_OK)
             
             # Crea il contesto dai chunk trovati
@@ -872,7 +1166,14 @@ class RAGChatSessionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """
         Assegna l'utente corrente alla sessione.
+        🎯 RICHIEDE KNOWLEDGE BASE - NO CHAT GLOBALE
         """
+        # Verifica che sia stata specificata una Knowledge Base
+        if not serializer.validated_data.get('knowledge_base'):
+            raise ValidationError({
+                'knowledge_base': 'È obbligatorio specificare una Knowledge Base. La chat globale è stata eliminata.'
+            })
+        
         serializer.save(user_id=self.request.user.id)
     
     @action(detail=True, methods=['post'])
@@ -900,52 +1201,35 @@ class RAGChatSessionViewSet(viewsets.ModelViewSet):
             start_time = time.time()
             
             try:
-                # Determina i documenti da usare
-                if session.knowledge_base:
-                    # Chat specifica per KB
-                    document_ids = list(session.knowledge_base.documents.filter(
-                        status='processed',
-                        embeddings_created=True
-                    ).values_list('id', flat=True))
-                    
-                    if not document_ids:
-                        ai_response = f'Non ci sono documenti processati nella knowledge base "{session.knowledge_base.name}".'
-                        sources = []
-                    else:
-                        # Usa la logica di chat esistente
-                        chat_view = RAGChatView()
-                        relevant_chunks = chat_view._search_relevant_chunks(message_content, document_ids, 5)
-                        
-                        if relevant_chunks:
-                            context = chat_view._build_context_from_chunks(relevant_chunks)
-                            ai_response = chat_view._generate_openai_response(context, message_content, 1000)
-                            sources = chat_view._prepare_sources_info(relevant_chunks)
-                        else:
-                            ai_response = f'Non ho trovato informazioni rilevanti nella knowledge base "{session.knowledge_base.name}".'
-                            sources = []
+                # 🎯 SOLO CHAT SPECIFICHE PER KB - NO CHAT GLOBALE
+                if not session.knowledge_base:
+                    return Response({
+                        'error': 'Ogni chat deve essere associata a una Knowledge Base specifica. La chat globale è stata eliminata per migliorare la contestualizzazione.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Chat specifica per KB
+                document_ids = list(session.knowledge_base.documents.filter(
+                    status='processed',
+                    embeddings_created=True
+                ).values_list('id', flat=True))
+                
+                if not document_ids:
+                    ai_response = f'Non ci sono documenti processati nella knowledge base "{session.knowledge_base.name}". Aggiungi e processa alcuni documenti per iniziare a chattare!'
+                    sources = []
                 else:
-                    # Chat globale
-                    user_documents = RAGDocument.objects.filter(
-                        user_id=request.user.id,
-                        status='processed',
-                        embeddings_created=True
-                    )
+                    # Usa la logica di chat esistente
+                    chat_view = RAGChatView()
+                    relevant_chunks = chat_view._search_relevant_chunks(message_content, document_ids, 5)
                     
-                    if not user_documents.exists():
-                        ai_response = 'Non hai ancora documenti processati. Carica alcuni documenti per iniziare a chattare!'
-                        sources = []
+                    if relevant_chunks:
+                        context = chat_view._build_context_from_chunks(relevant_chunks)
+                        ai_response = chat_view._generate_openai_response(context, message_content, 1000)
+                        sources = chat_view._prepare_sources_info(relevant_chunks)
                     else:
-                        document_ids = list(user_documents.values_list('id', flat=True))
-                        chat_view = RAGChatView()
-                        relevant_chunks = chat_view._search_relevant_chunks(message_content, document_ids, 5)
-                        
-                        if relevant_chunks:
-                            context = chat_view._build_context_from_chunks(relevant_chunks)
-                            ai_response = chat_view._generate_openai_response(context, message_content, 1000)
-                            sources = chat_view._prepare_sources_info(relevant_chunks)
-                        else:
-                            ai_response = 'Non ho trovato informazioni rilevanti nei tuoi documenti per rispondere alla domanda.'
-                            sources = []
+                        # Usa l'AI anche senza contesto specifico dalla KB
+                        context_empty = f'Nessun documento rilevante trovato nella knowledge base "{session.knowledge_base.name}" per questa domanda.'
+                        ai_response = chat_view._generate_openai_response(context_empty, message_content, 1000)
+                        sources = []
                 
                 processing_time = time.time() - start_time
                 
@@ -1038,23 +1322,34 @@ class RAGChatSessionListView(APIView):
     
     def get(self, request):
         """
-        Restituisce le sessioni di chat dell'utente raggruppate per modalità.
+        Restituisce le sessioni di chat dell'utente per Knowledge Base.
+        🎯 SOLO CHAT SPECIFICHE PER KB - NO CHAT GLOBALE
         """
         try:
-            user_sessions = RAGChatSession.objects.filter(user_id=request.user.id)
+            # Solo sessioni associate a Knowledge Base
+            kb_sessions = RAGChatSession.objects.filter(
+                user_id=request.user.id,
+                knowledge_base__isnull=False  # Solo sessioni con KB
+            ).order_by('-last_activity')
             
-            # Raggruppa per modalità
-            global_sessions = user_sessions.filter(mode='global').order_by('-last_activity')
-            kb_sessions = user_sessions.exclude(mode='global').order_by('-last_activity')
+            # Organizza per Knowledge Base
+            kb_sessions_by_kb = {}
+            for session in kb_sessions:
+                kb_id = session.knowledge_base.id
+                if kb_id not in kb_sessions_by_kb:
+                    kb_sessions_by_kb[kb_id] = []
+                kb_sessions_by_kb[kb_id].append(session)
             
-            # Serializza
-            global_data = RAGChatSessionSerializer(global_sessions, many=True).data
-            kb_data = RAGChatSessionSerializer(kb_sessions, many=True).data
+            # Serializza le sessioni per ogni KB
+            kb_data = []
+            for kb_id, sessions in kb_sessions_by_kb.items():
+                if sessions:  # Prendi la sessione più recente per ogni KB
+                    recent_session = sessions[0]  # È già ordinata per -last_activity
+                    kb_data.append(RAGChatSessionSerializer(recent_session).data)
             
             return Response({
-                'global_sessions': global_data,
                 'kb_sessions': kb_data,
-                'total_sessions': user_sessions.count()
+                'total_sessions': len(kb_data)
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
@@ -1062,3 +1357,218 @@ class RAGChatSessionListView(APIView):
             return Response({
                 'error': 'Errore nel recupero delle sessioni'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RAGEmbeddingInfoView(APIView):
+    """
+    View per ottenere informazioni sui modelli di embedding e consentire il cambio di provider.
+    """
+    authentication_classes = [JWTCustomAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Ottiene informazioni dettagliate sul sistema di embedding attualmente configurato.
+        """
+        try:
+            embedding_manager = get_embedding_manager()
+            info = embedding_manager.get_embedding_info()
+            
+            # Aggiungi statistiche sui documenti
+            total_documents = RAGDocument.objects.filter(
+                user_id=request.user.id,
+                status='processed'
+            ).count()
+            
+            documents_with_embeddings = RAGDocument.objects.filter(
+                user_id=request.user.id,
+                status='processed',
+                embeddings_created=True
+            ).count()
+            
+            info.update({
+                'statistics': {
+                    'total_processed_documents': total_documents,
+                    'documents_with_embeddings': documents_with_embeddings,
+                    'embedding_coverage': round(
+                        (documents_with_embeddings / total_documents * 100) if total_documents > 0 else 0, 2
+                    )
+                },
+                'available_providers': ['openai', 'sentence_transformers'],
+                'available_openai_models': [
+                    {
+                        'name': 'text-embedding-3-small',
+                        'description': 'Nuovo modello compatto e veloce (1536D)',
+                        'dimensions': 1536,
+                        'supports_custom_dimensions': True,
+                        'recommended': True
+                    },
+                    {
+                        'name': 'text-embedding-3-large',
+                        'description': 'Nuovo modello ad alta performance (3072D)',
+                        'dimensions': 3072,
+                        'supports_custom_dimensions': True,
+                        'premium': True
+                    },
+                    {
+                        'name': 'text-embedding-ada-002',
+                        'description': 'Modello legacy (1536D)',
+                        'dimensions': 1536,
+                        'supports_custom_dimensions': False,
+                        'legacy': True
+                    }
+                ]
+            })
+            
+            return Response(info, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Errore nel recupero delle informazioni embedding: {str(e)}")
+            return Response({
+                'error': 'Errore nel recupero delle informazioni sui modelli di embedding'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def post(self, request):
+        """
+        Cambia il provider di embedding a runtime.
+        """
+        try:
+            provider = request.data.get('provider')
+            if not provider:
+                return Response({
+                    'error': 'Provider richiesto'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if provider not in ['openai', 'sentence_transformers']:
+                return Response({
+                    'error': 'Provider non supportato. Utilizza "openai" o "sentence_transformers"'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            embedding_manager = get_embedding_manager()
+            success = embedding_manager.switch_provider(provider)
+            
+            if success:
+                new_info = embedding_manager.get_embedding_info()
+                return Response({
+                    'message': f'Provider cambiato con successo a: {provider}',
+                    'embedding_info': new_info
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': f'Impossibile cambiare provider a: {provider}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        except Exception as e:
+            logger.error(f"Errore nel cambio provider embedding: {str(e)}")
+            return Response({
+                'error': 'Errore nel cambio del provider di embedding'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RAGEmbeddingBenchmarkView(APIView):
+    """
+    View per testare e confrontare le performance dei diversi modelli di embedding.
+    """
+    authentication_classes = [JWTCustomAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        """
+        Esegue un benchmark sui modelli di embedding disponibili.
+        """
+        try:
+            test_text = request.data.get('test_text', 'Questo è un testo di prova per testare le performance dei modelli di embedding.')
+            
+            if len(test_text) > 1000:
+                return Response({
+                    'error': 'Testo di test troppo lungo (max 1000 caratteri)'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            embedding_manager = get_embedding_manager()
+            current_provider = embedding_manager.provider
+            
+            results = {}
+            
+            # Test OpenAI se disponibile
+            try:
+                if embedding_manager.switch_provider('openai'):
+                    start_time = time.time()
+                    openai_embedding = embedding_manager.get_embedding(test_text)
+                    openai_time = time.time() - start_time
+                    
+                    results['openai'] = {
+                        'success': True,
+                        'dimensions': len(openai_embedding),
+                        'processing_time': round(openai_time, 3),
+                        'model_info': embedding_manager.get_embedding_info()
+                    }
+                else:
+                    results['openai'] = {
+                        'success': False,
+                        'error': 'OpenAI non disponibile'
+                    }
+            except Exception as e:
+                results['openai'] = {
+                    'success': False,
+                    'error': str(e)
+                }
+            
+            # Test Sentence Transformers
+            try:
+                if embedding_manager.switch_provider('sentence_transformers'):
+                    start_time = time.time()
+                    st_embedding = embedding_manager.get_embedding(test_text)
+                    st_time = time.time() - start_time
+                    
+                    results['sentence_transformers'] = {
+                        'success': True,
+                        'dimensions': len(st_embedding),
+                        'processing_time': round(st_time, 3),
+                        'model_info': embedding_manager.get_embedding_info()
+                    }
+                else:
+                    results['sentence_transformers'] = {
+                        'success': False,
+                        'error': 'Sentence Transformers non disponibile'
+                    }
+            except Exception as e:
+                results['sentence_transformers'] = {
+                    'success': False,
+                    'error': str(e)
+                }
+            
+            # Ripristina il provider originale
+            embedding_manager.switch_provider(current_provider)
+            
+            return Response({
+                'test_text': test_text,
+                'results': results,
+                'current_provider': current_provider,
+                'recommendation': self._get_provider_recommendation(results)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Errore nel benchmark embedding: {str(e)}")
+            return Response({
+                'error': 'Errore nell\'esecuzione del benchmark'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _get_provider_recommendation(self, results):
+        """
+        Fornisce una raccomandazione basata sui risultati del benchmark.
+        """
+        if results.get('openai', {}).get('success'):
+            return {
+                'provider': 'openai',
+                'reason': 'OpenAI offre embeddings di alta qualità e dimensioni personalizzabili con i nuovi modelli'
+            }
+        elif results.get('sentence_transformers', {}).get('success'):
+            return {
+                'provider': 'sentence_transformers',
+                'reason': 'Sentence Transformers è disponibile e funziona offline senza costi API'
+            }
+        else:
+            return {
+                'provider': None,
+                'reason': 'Nessun provider disponibile'
+            }

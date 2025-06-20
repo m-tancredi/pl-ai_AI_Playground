@@ -10,6 +10,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { ragService } from '../services/ragService';
 import PDFViewerWithHighlight from './PDFViewerWithHighlight';
+import SmartSearchInput from './SmartSearchInput';
+import SmartSearchResults from './SmartSearchResults';
 
 const DocumentPreviewModal = ({ document, isOpen, onClose }) => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -53,48 +55,97 @@ const DocumentPreviewModal = ({ document, isOpen, onClose }) => {
         }
     };
 
-    // Funzione per cercare nel testo usando AI
-    const handleNaturalLanguageSearch = async () => {
-        if (!searchQuery.trim() || !document) return;
+    // 🧠 Funzione di ricerca AI ULTRA-POTENZIATA
+    const handleNaturalLanguageSearch = async (query) => {
+        if (!query?.trim() || !document) return;
 
+        setSearchQuery(query);
         setIsSearching(true);
+        
         try {
-            // Chiamata API per ricerca intelligente nel documento
-            const data = await ragService.searchDocumentContent(document.id, searchQuery);
+            // 🚀 Chiamata API con opzioni di ricerca avanzate
+            const searchOptions = {
+                top_k: 15,  // Più risultati per analisi completa
+                include_context: true,
+                similarity_threshold: 0.3,  // 🔥 Soglia molto bassa per catturare più risultati
+                enable_clustering: true
+            };
+
+            const data = await ragService.searchDocumentContent(document.id, query, searchOptions);
             setSearchResults(data.results || []);
             
-            // Evidenzia il testo se ci sono risultati
+            // 🎯 Log informazioni ricerca per l'utente
+            if (data.provider_info) {
+                console.log('🔥 Ricerca completata con:', data.provider_info);
+            }
+            
+            // 🔍 Log dettagliato dei risultati per debugging
+            console.log('📊 Risultati ricerca:', {
+                total_results: data.results?.length || 0,
+                search_type: data.search_type,
+                results_with_highlights: data.results?.filter(r => r.highlight_spans?.length > 0).length || 0,
+                first_result: data.results?.[0] ? {
+                    text_length: data.results[0].text?.length,
+                    highlight_spans_count: data.results[0].highlight_spans?.length || 0,
+                    confidence: data.results[0].confidence,
+                    highlight_spans: data.results[0].highlight_spans
+                } : null
+            });
+            
+            // 🎯 Evidenzia il testo se ci sono risultati
             if (data.results && data.results.length > 0) {
                 highlightTextInDocument(data.results);
             }
         } catch (error) {
-            console.error('Errore durante la ricerca:', error);
-            // Fallback: ricerca semplice nel testo
-            performSimpleSearch();
+            console.error('Errore durante la ricerca AI:', error);
+            // 🔄 Fallback: ricerca semplice nel testo
+            performSimpleSearch(query);
         } finally {
             setIsSearching(false);
         }
     };
 
-    // Ricerca semplice fallback
-    const performSimpleSearch = () => {
-        if (!searchQuery.trim() || !document?.extracted_text) {
+    // 🎯 Gestione click sui risultati
+    const handleResultClick = (result, index) => {
+        // Scroll al primo highlight o switch alla vista testo
+        if (viewMode === 'pdf') {
+            // Per ora, switch alla vista testo per mostrare il risultato
+            setViewMode('text');
+            setTimeout(() => {
+                scrollToFirstResult();
+            }, 100);
+        } else {
+            scrollToFirstResult();
+        }
+    };
+
+    // 🔄 Ricerca semplice fallback potenziata
+    const performSimpleSearch = (query) => {
+        if (!query?.trim() || !document?.extracted_text) {
             setHighlightedText(document?.extracted_text || '');
             setSearchResults([]);
             return;
         }
 
         const text = document.extracted_text;
-        const query = searchQuery.toLowerCase();
+        const queryLower = query.toLowerCase();
         const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
         
         const results = sentences
-            .map((sentence, index) => ({
-                text: sentence.trim(),
-                relevance: sentence.toLowerCase().includes(query) ? 1 : 0,
-                position: index
-            }))
+            .map((sentence, index) => {
+                const sentenceLower = sentence.toLowerCase();
+                const matchCount = (sentenceLower.match(new RegExp(queryLower, 'g')) || []).length;
+                const relevance = matchCount > 0 ? Math.min(1, matchCount * 0.3 + 0.4) : 0;
+                
+                return {
+                    text: sentence.trim(),
+                    relevance: relevance,
+                    position: index,
+                    chunk_index: index
+                };
+            })
             .filter(result => result.relevance > 0)
+            .sort((a, b) => b.relevance - a.relevance)
             .slice(0, 5);
 
         setSearchResults(results);
@@ -104,29 +155,95 @@ const DocumentPreviewModal = ({ document, isOpen, onClose }) => {
         }
     };
 
-    // Evidenzia il testo nel documento
+    // 🎯 Evidenzia il testo nel documento - VERSIONE ULTRA-POTENZIATA
     const highlightTextInDocument = (results) => {
-        if (!document?.extracted_text || results.length === 0) return;
-
-        let highlightedContent = document.extracted_text;
-        
-        // Ordina i risultati per posizione per evitare sovrapposizioni
-        const sortedResults = [...results].sort((a, b) => {
-            const aPos = document.extracted_text.indexOf(a.text);
-            const bPos = document.extracted_text.indexOf(b.text);
-            return aPos - bPos;
-        });
-
-        // Applica l'evidenziazione dal fondo verso l'inizio per mantenere le posizioni
-        for (let i = sortedResults.length - 1; i >= 0; i--) {
-            const result = sortedResults[i];
-            const regex = new RegExp(`(${escapeRegex(result.text.trim())})`, 'gi');
-            highlightedContent = highlightedContent.replace(
-                regex,
-                '<mark class="bg-yellow-200 px-1 py-0.5 rounded font-medium">$1</mark>'
-            );
+        if (!document?.extracted_text || results.length === 0) {
+            setHighlightedText(document?.extracted_text || '');
+            return;
         }
 
+        console.log('🎯 Evidenziazione risultati:', results.length, 'risultati trovati');
+        let highlightedContent = document.extracted_text;
+        
+        // 🔥 METODO 1: Usa highlight_spans se disponibili (dal backend)
+        const spansToHighlight = [];
+        results.forEach((result, index) => {
+            if (result.highlight_spans && result.highlight_spans.length > 0) {
+                console.log(`📍 Risultato ${index + 1}: ${result.highlight_spans.length} spans da evidenziare`);
+                result.highlight_spans.forEach(span => {
+                    spansToHighlight.push({
+                        start: span.start,
+                        end: span.end,
+                        text: highlightedContent.substring(span.start, span.end)
+                    });
+                });
+            }
+        });
+
+        // Applica gli spans se disponibili
+        if (spansToHighlight.length > 0) {
+            console.log('✨ Applicazione', spansToHighlight.length, 'highlight spans dal backend');
+            // Ordina per posizione decrescente per evitare problemi di offset
+            spansToHighlight.sort((a, b) => b.start - a.start);
+            
+            spansToHighlight.forEach(span => {
+                const before = highlightedContent.substring(0, span.start);
+                const highlighted = highlightedContent.substring(span.start, span.end);
+                const after = highlightedContent.substring(span.end);
+                
+                highlightedContent = before + 
+                    `<mark class="bg-yellow-200 px-1 py-0.5 rounded font-medium animate-pulse">${highlighted}</mark>` + 
+                    after;
+            });
+        } else {
+            // 🔄 METODO 2: Fallback - Cerca il testo dei risultati
+            console.log('🔄 Fallback: ricerca diretta del testo nei risultati');
+            
+            // Raccogli tutte le parole chiave dalla query
+            const queryWords = searchQuery.toLowerCase().split(/\s+/).filter(word => word.length > 2);
+            console.log('🔍 Parole chiave da evidenziare:', queryWords);
+            
+            // Evidenzia le parole chiave
+            queryWords.forEach(word => {
+                const regex = new RegExp(`\\b(${escapeRegex(word)})\\b`, 'gi');
+                const matches = highlightedContent.match(regex);
+                if (matches) {
+                    console.log(`✅ Trovate ${matches.length} occorrenze di "${word}"`);
+                    highlightedContent = highlightedContent.replace(
+                        regex,
+                        '<mark class="bg-yellow-200 px-1 py-0.5 rounded font-medium animate-pulse">$1</mark>'
+                    );
+                }
+            });
+
+            // Prova anche a evidenziare parti del testo dei risultati
+            results.forEach((result, index) => {
+                if (result.text && result.text.length > 10) {
+                    // Prendi le prime e ultime parole del risultato per matching parziale
+                    const words = result.text.trim().split(/\s+/);
+                    if (words.length >= 3) {
+                        const firstWords = words.slice(0, 3).join(' ');
+                        const lastWords = words.slice(-3).join(' ');
+                        
+                        [firstWords, lastWords].forEach(phrase => {
+                            if (phrase.length > 10) {
+                                const regex = new RegExp(`(${escapeRegex(phrase)})`, 'gi');
+                                const matches = highlightedContent.match(regex);
+                                if (matches) {
+                                    console.log(`🎯 Evidenziazione frase "${phrase}" - ${matches.length} match`);
+                                    highlightedContent = highlightedContent.replace(
+                                        regex,
+                                        '<mark class="bg-blue-200 px-1 py-0.5 rounded font-medium">$1</mark>'
+                                    );
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        console.log('🎨 Evidenziazione completata');
         setHighlightedText(highlightedContent);
     };
 
@@ -135,12 +252,7 @@ const DocumentPreviewModal = ({ document, isOpen, onClose }) => {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     };
 
-    // Gestione della pressione dell'Enter
-    const handleKeyPress = (e) => {
-        if (e.key === 'Enter') {
-            handleNaturalLanguageSearch();
-        }
-    };
+
 
     // Scroll verso il primo risultato evidenziato
     const scrollToFirstResult = () => {
@@ -234,53 +346,19 @@ const DocumentPreviewModal = ({ document, isOpen, onClose }) => {
                     </div>
                 )}
 
-                {/* Barra di ricerca intelligente */}
+                {/* 🚀 Barra di ricerca LEGGENDARIA */}
                 <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50">
-                    <div className="flex items-center space-x-3 mb-3">
-                        <SparklesIcon className="w-5 h-5 text-purple-600" />
-                        <h3 className="text-lg font-medium text-gray-900">Ricerca Intelligente</h3>
+                    <div className="flex items-center space-x-3 mb-4">
+                        <SparklesIcon className="w-6 h-6 text-purple-600 animate-pulse" />
+                        <h3 className="text-xl font-semibold text-purple-800">🧠 Ricerca AI Ultra-Intelligente</h3>
                     </div>
-                    <div className="flex space-x-3">
-                        <div className="flex-1 relative">
-                            <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Es: quanto devo pagare? oppure condizioni del contratto..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                onKeyPress={handleKeyPress}
-                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-                        </div>
-                        <button
-                            onClick={handleNaturalLanguageSearch}
-                            disabled={isSearching || !searchQuery.trim()}
-                            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center space-x-2"
-                        >
-                            {isSearching ? (
-                                <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                            ) : (
-                                <SparklesIcon className="w-5 h-5" />
-                            )}
-                            <span>{isSearching ? 'Cerco...' : 'Cerca'}</span>
-                        </button>
-                    </div>
-
-                    {/* Risultati della ricerca */}
-                    {searchResults.length > 0 && (
-                        <div className="mt-4 p-4 bg-white rounded-xl border border-gray-200">
-                            <h4 className="text-sm font-medium text-gray-700 mb-2">
-                                Trovati {searchResults.length} risultati rilevanti:
-                            </h4>
-                            <div className="space-y-2 max-h-32 overflow-y-auto">
-                                {searchResults.map((result, index) => (
-                                    <div key={index} className="text-sm text-gray-600 p-2 bg-yellow-50 rounded border-l-4 border-yellow-400">
-                                        {result.text.substring(0, 150)}...
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                    
+                    <SmartSearchInput
+                        onSearch={handleNaturalLanguageSearch}
+                        documentContext={document?.extracted_text}
+                        placeholder="🧠 Chiedi con linguaggio naturale... OpenAI embeddings capiscono tutto! ✨"
+                        isSearching={isSearching}
+                    />
                 </div>
 
                 {/* Contenuto del documento */}
@@ -307,15 +385,27 @@ const DocumentPreviewModal = ({ document, isOpen, onClose }) => {
                             </div>
                         </div>
                     ) : (
-                        <div className="h-full overflow-y-auto p-6">
-                            {document.extracted_text ? (
-                                <div className="prose max-w-none">
-                                    <div 
-                                        className="text-gray-800 leading-relaxed whitespace-pre-wrap"
-                                        dangerouslySetInnerHTML={{ 
-                                            __html: highlightedText 
-                                        }}
+                        <div className="h-full overflow-y-auto">
+                            {/* 🎯 Risultati di ricerca EPICI */}
+                            {searchResults.length > 0 ? (
+                                <div className="p-6">
+                                    <SmartSearchResults
+                                        results={searchResults}
+                                        searchQuery={searchQuery}
+                                        onResultClick={handleResultClick}
+                                        isLoading={isSearching}
                                     />
+                                </div>
+                            ) : document.extracted_text ? (
+                                <div className="p-6">
+                                    <div className="prose max-w-none">
+                                        <div 
+                                            className="text-gray-800 leading-relaxed whitespace-pre-wrap"
+                                            dangerouslySetInnerHTML={{ 
+                                                __html: highlightedText 
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="flex items-center justify-center h-full">
