@@ -80,6 +80,20 @@ const HomePage = () => {
         'Organizza con tag e cartelle intelligenti',
         'Ricerca rapida tra tutti i tuoi materiali'
       ]
+    },
+    {
+      id: 'learning',
+      name: 'Learning Service',
+      description: 'Genera lezioni personalizzate con quiz interattivi e approfondimenti basati sull\'intelligenza artificiale!',
+      route: '/learning',
+      icon: '🎓',
+      color: 'from-emerald-500 to-teal-500',
+      bgColor: 'from-emerald-50 to-teal-50',
+      tips: [
+        'Crea lezioni su qualsiasi argomento in pochi secondi',
+        'Quiz automatici per testare le tue conoscenze',
+        'Approfondimenti dettagliati generati dall\'AI'
+      ]
     }
   ];
 

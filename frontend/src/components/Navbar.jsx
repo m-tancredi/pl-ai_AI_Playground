@@ -88,6 +88,7 @@ const Navbar = () => {
           <p className="mb-4">Questa è la dashboard principale di PL-AI, la tua piattaforma di intelligenza artificiale educativa.</p>
           <ul className="list-disc list-inside space-y-2 mb-4">
             <li><strong>Chatbot AI:</strong> Conversazioni intelligenti per apprendimento</li>
+            <li><strong>Learning Service:</strong> Genera lezioni, quiz e approfondimenti AI</li>
             <li><strong>Image Generator:</strong> Crea immagini con AI</li>
             <li><strong>Image Classifier:</strong> Classifica e analizza immagini</li>
             <li><strong>Data Analysis:</strong> Analisi dati avanzata</li>
@@ -95,6 +96,30 @@ const Navbar = () => {
             <li><strong>RAG Service:</strong> Chat con i tuoi documenti</li>
           </ul>
           <p>Naviga tra le sezioni usando il menu principale per accedere a tutti gli strumenti AI.</p>
+        </div>
+      )
+    },
+    '/learning': {
+      title: 'Tutorial Learning Service',
+      content: (
+        <div>
+          <h4 className="text-lg font-semibold mb-3">Generazione Contenuti Educativi AI</h4>
+          <p className="mb-4">Il Learning Service ti permette di creare contenuti educativi personalizzati usando l'intelligenza artificiale:</p>
+          <div className="space-y-4">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h5 className="font-semibold text-blue-800">📚 Generazione Lezioni</h5>
+              <p className="text-sm text-blue-700">Crea mini-lezioni su qualsiasi argomento. Specifica il topic e l'AI genererà contenuti educativi strutturati.</p>
+            </div>
+            <div className="bg-green-50 p-4 rounded-lg">
+              <h5 className="font-semibold text-green-800">❓ Quiz Interattivi</h5>
+              <p className="text-sm text-green-700">Genera automaticamente quiz a risposta multipla basati sul contenuto delle lezioni per testare la comprensione.</p>
+            </div>
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <h5 className="font-semibold text-purple-800">🔍 Approfondimenti</h5>
+              <p className="text-sm text-purple-700">Ottieni approfondimenti correlati agli argomenti trattati per espandere la conoscenza.</p>
+            </div>
+          </div>
+          <p className="mt-4">Perfetto per docenti, studenti e chiunque voglia creare materiale didattico di qualità!</p>
         </div>
       )
     },
@@ -419,6 +444,11 @@ const Navbar = () => {
                         <span>Chatbot</span>
                         <TutorialButton path="/chatbot" isActive={location.pathname === '/chatbot'} />
                       </NavLink>
+                      <NavLink to="/learning" className={({isActive}) => getNavLinkClass(isActive)}>
+                        <MenuIcon iconClass="fi fi-rr-graduation-cap" />
+                        <span>Learning</span>
+                        <TutorialButton path="/learning" isActive={location.pathname === '/learning'} />
+                      </NavLink>
                       <NavLink to="/rag" className={({isActive}) => getNavLinkClass(isActive)}>
                         <MenuIcon iconClass="fi fi-rr-database" />
                         <span>RAG & KB</span>
@@ -552,6 +582,11 @@ const Navbar = () => {
                     <MenuIcon iconClass="fi fi-rr-comment-alt" />
                     <span>Chatbot</span>
                     <TutorialButton path="/chatbot" isActive={location.pathname === '/chatbot'} />
+                  </NavLink>
+                  <NavLink to="/learning" className={({isActive}) => getMobileNavLinkClass(isActive)} onClick={closeMobileMenu}>
+                    <MenuIcon iconClass="fi fi-rr-graduation-cap" />
+                    <span>Learning</span>
+                    <TutorialButton path="/learning" isActive={location.pathname === '/learning'} />
                   </NavLink>
                   <NavLink to="/rag" className={({isActive}) => getMobileNavLinkClass(isActive)} onClick={closeMobileMenu}>
                     <MenuIcon iconClass="fi fi-rr-database" />

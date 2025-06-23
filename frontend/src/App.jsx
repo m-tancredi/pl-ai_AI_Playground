@@ -14,6 +14,7 @@ import ImageClassifierPage from './pages/ImageClassifierPage';
 import DataAnalysisPage from './pages/DataAnalysisPage';
 import ChatbotServicePage from './pages/ChatbotServicePage';
 import UnifiedRAGPage from './pages/UnifiedRAGPage';
+import LearningServicePage from './pages/LearningServicePage';
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
                 <Route path="/chatbot" element={<ChatbotServicePage />} />
                 <Route path="/rag" element={<UnifiedRAGPage />} />
                 <Route path="/knowledge-bases" element={<UnifiedRAGPage />} />
+                <Route path="/learning" element={<LearningServicePage />} />
              </Route>
 
           {/* Fallback route */}

@@ -24,6 +24,7 @@ volumes:
   rag_uploads_data:
   rag_embeddings_data:
   user_db_data:
+  learning_db_data:
 
 secrets:
   anthropic_api_key_secret:
@@ -181,6 +182,25 @@ services:
     networks: [pl-ai-network]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-user_user} -d $${POSTGRES_DB:-user_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  learning_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-learning-db
+    volumes:
+      - learning_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${LEARNING_DB_USER:-learning_user}
+      POSTGRES_PASSWORD: ${LEARNING_DB_PASSWORD:-learning_password}
+      POSTGRES_DB: ${LEARNING_DB_NAME:-learning_db}
+    expose: ["5432"]
+    ports: ["5439:5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-learning_user} -d $${POSTGRES_DB:-learning_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -404,6 +424,31 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  learning_service:
+    build:
+      context: ./backend/learning_service
+    container_name: pl-ai-learning-service
+    env_file: [./backend/learning_service/.env]
+    volumes:
+      - ./backend/learning_service:/app
+      - ./backend/learning_service/mediafiles:/mediafiles
+      - ./backend/learning_service/logs:/app/logs
+    secrets:
+      - openai_api_key_secret
+    expose: ["8007"]
+    ports: ["8007:8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      learning_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
   # --- Worker Services ---
   data_analysis_worker:
     build:
@@ -488,5 +533,6 @@ services:
       image_classifier_service: { condition: service_started }
       data_analysis_service: { condition: service_healthy }
       rag_service: { condition: service_healthy }
+      learning_service: { condition: service_healthy }
       frontend: { condition: service_started }
     restart: unless-stopped
