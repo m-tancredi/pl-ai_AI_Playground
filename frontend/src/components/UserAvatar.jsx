@@ -68,7 +68,9 @@ const UserAvatar = ({
   };
 
   // Controlla se l'utente ha un'immagine del profilo
-  const profileImageUrl = getProfileImageUrl(user?.profile_image);
+  // Supporta sia profile_image (vecchio formato) che profile_picture_url (user_service)
+  const profileImagePath = user?.profile_picture_url || user?.profile_image;
+  const profileImageUrl = getProfileImageUrl(profileImagePath);
   const hasProfileImage = profileImageUrl && profileImageUrl !== '';
 
   return (

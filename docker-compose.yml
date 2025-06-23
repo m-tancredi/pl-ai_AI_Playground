@@ -23,6 +23,7 @@ volumes:
   rag_db_data:
   rag_uploads_data:
   rag_embeddings_data:
+  user_db_data:
 
 secrets:
   anthropic_api_key_secret:
@@ -161,6 +162,25 @@ services:
     networks: [pl-ai-network]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-rag_user} -d $${POSTGRES_DB:-rag_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  user_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-user-db
+    volumes:
+      - user_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${USER_DB_USER:-user_user}
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD:-user_password}
+      POSTGRES_DB: ${USER_DB_NAME:-user_db}
+    expose: ["5432"]
+    ports: ["5438:5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-user_user} -d $${POSTGRES_DB:-user_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -361,6 +381,29 @@ services:
       rabbitmq: { condition: service_healthy }
     restart: unless-stopped
 
+  user_service:
+    build:
+      context: ./backend/user_service
+    container_name: pl-ai-user-service
+    env_file: [./backend/user_service/.env]
+    volumes:
+      - ./backend/user_service:/app
+      - ./backend/user_service/mediafiles:/mediafiles
+    secrets:
+      - openai_api_key_secret
+    expose: ["8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      user_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
   # --- Worker Services ---
   data_analysis_worker:
     build:
@@ -435,9 +478,11 @@ services:
       - analysis_results_data:/media_analysis_results:ro
       - image_generator_media:/media_images:ro
       - ./backend/resource_manager_service/mediafiles:/media_resources
+      - ./backend/user_service/mediafiles:/media_users:ro
       - rag_uploads_data:/media_rag_uploads:ro
     depends_on:
       auth_service: { condition: service_healthy }
+      user_service: { condition: service_healthy }
       pl_ai_image_generator_service: { condition: service_healthy }
       resource_manager_service: { condition: service_healthy }
       image_classifier_service: { condition: service_started }

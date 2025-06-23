@@ -7,7 +7,7 @@ import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import ProfilePage from './pages/ProfilePage';
+import UserServicePage from './pages/UserServicePage';
 import ImageGeneratorPage from './pages/ImageGeneratorPage';
 import ResourceManagerPage from './pages/ResourceManagerPage';
 import ImageClassifierPage from './pages/ImageClassifierPage';
@@ -31,7 +31,7 @@ function App() {
           {/* Protected Routes - Tutte le pagine dell'app richiedono autenticazione */}
           <Route element={<ProtectedRoute />}>
                 <Route path="/home" element={<HomePage />} />
-                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/profile" element={<UserServicePage />} />
                 <Route path="/image-generator" element={<ImageGeneratorPage />} />
                 <Route path="/resources" element={<ResourceManagerPage />} />
                 <Route path="/image-classifier" element={<ImageClassifierPage />} />

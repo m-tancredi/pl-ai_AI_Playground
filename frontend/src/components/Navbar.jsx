@@ -1,9 +1,10 @@
 // src/components/Navbar.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { FaTimes, FaQuestionCircle } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import UserAvatar from './UserAvatar';
+import useUserService from '../hooks/useUserService';
 
 // Import icone Flaticon
 import '@flaticon/flaticon-uicons/css/all/all.css';
@@ -46,11 +47,36 @@ const MenuIcon = ({ iconClass, size = "text-lg" }) => (
 
 const Navbar = () => {
   const { isAuthenticated, user, logout } = useAuth();
+  const { getMyProfile } = useUserService();
   const navigate = useNavigate();
   const location = useLocation();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTutorial, setActiveTutorial] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+
+  // Carica il profilo utente quando l'utente è autenticato
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      if (isAuthenticated && user && !userProfile) {
+        try {
+          const profile = await getMyProfile();
+          setUserProfile(profile);
+        } catch (error) {
+          console.error('Errore caricamento profilo navbar:', error);
+        }
+      }
+    };
+
+    loadUserProfile();
+  }, [isAuthenticated, user, getMyProfile, userProfile]);
+
+  // Reset del profilo al logout
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUserProfile(null);
+    }
+  }, [isAuthenticated]);
 
   // Contenuti tutorial per ogni pagina
   const tutorialContent = {
@@ -192,6 +218,50 @@ const Navbar = () => {
             </div>
           </div>
           <p>Accesso rapido a tutti i materiali per progetti AI e attività didattiche.</p>
+        </div>
+      )
+    },
+    '/profile': {
+      title: 'Tutorial Profilo Utente',
+      content: (
+        <div>
+          <h4 className="text-lg font-semibold mb-3">Gestione Profilo Completa</h4>
+          <p className="mb-4">La pagina profilo offre un controllo completo del tuo account e delle tue preferenze:</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <h5 className="font-semibold text-blue-800">👤 Il Mio Profilo</h5>
+              <ul className="text-sm text-blue-700 mt-1">
+                <li>• Informazioni personali</li>
+                <li>• Upload avatar</li>
+                <li>• Gestione preferenze</li>
+              </ul>
+            </div>
+            <div className="bg-green-50 p-3 rounded-lg">
+              <h5 className="font-semibold text-green-800">🌟 Profili Pubblici</h5>
+              <ul className="text-sm text-green-700 mt-1">
+                <li>• Scopri altri utenti</li>
+                <li>• Ricerca e filtri</li>
+                <li>• Community</li>
+              </ul>
+            </div>
+            <div className="bg-purple-50 p-3 rounded-lg">
+              <h5 className="font-semibold text-purple-800">📊 Attività</h5>
+              <ul className="text-sm text-purple-700 mt-1">
+                <li>• Log delle attività</li>
+                <li>• Cronologia azioni</li>
+                <li>• Statistiche uso</li>
+              </ul>
+            </div>
+            <div className="bg-orange-50 p-3 rounded-lg">
+              <h5 className="font-semibold text-orange-800">🔧 Amministrazione</h5>
+              <ul className="text-sm text-orange-700 mt-1">
+                <li>• Gestione utenti (Admin)</li>
+                <li>• Statistiche sistema</li>
+                <li>• Controllo stati</li>
+              </ul>
+            </div>
+          </div>
+          <p>Utilizza le schede per navigare tra le diverse sezioni e personalizzare la tua esperienza su PL-AI!</p>
         </div>
       )
     },
@@ -369,7 +439,7 @@ const Navbar = () => {
                         aria-haspopup="true"
                       > 
                         <UserAvatar 
-                          user={user} 
+                          user={userProfile || user} 
                           size="lg" 
                           className="hover:scale-110 transition-transform duration-300"
                           showBorder={true}
@@ -379,8 +449,15 @@ const Navbar = () => {
                       {isUserMenuOpen && (
                         <div className="origin-top-right absolute right-0 mt-3 w-56 rounded-xl shadow-2xl shadow-pink-500/20 py-3 bg-white/90 backdrop-blur-2xl border border-white/20 z-20" role="menu">
                           <div className="px-5 py-4 border-b border-white/20">
-                            <div className="text-sm font-semibold text-gray-900">{user?.username || 'User'}</div>
-                            {user?.email && <div className="text-xs text-gray-600 mt-1">{user.email}</div>}
+                            <div className="text-sm font-semibold text-gray-900">
+                              {userProfile?.display_name || userProfile?.first_name || user?.username || 'User'}
+                              {userProfile?.last_name && ` ${userProfile.last_name}`}
+                            </div>
+                            {(userProfile?.email || user?.email) && (
+                              <div className="text-xs text-gray-600 mt-1">
+                                {userProfile?.email || user.email}
+                              </div>
+                            )}
                           </div>
                           <Link 
                             to="/profile" 
@@ -500,15 +577,22 @@ const Navbar = () => {
                       <div className="flex items-center px-5 mb-6 p-4 rounded-lg bg-white/10 backdrop-blur-xl border border-white/20">
                            <div className="flex-shrink-0">
                                <UserAvatar 
-                                 user={user} 
+                                 user={userProfile || user} 
                                  size="lg" 
                                  showBorder={true}
                                  borderColor="border-white/20"
                                />
                            </div>
                            <div className="ml-4">
-                               <div className="text-base font-semibold text-gray-900">{user?.username || 'User'}</div>
-                               {user?.email && <div className="text-sm text-gray-600 mt-1">{user.email}</div>}
+                               <div className="text-base font-semibold text-gray-900">
+                                 {userProfile?.display_name || userProfile?.first_name || user?.username || 'User'}
+                                 {userProfile?.last_name && ` ${userProfile.last_name}`}
+                               </div>
+                               {(userProfile?.email || user?.email) && (
+                                 <div className="text-sm text-gray-600 mt-1">
+                                   {userProfile?.email || user.email}
+                                 </div>
+                               )}
                            </div>
                       </div>
                       <div className="space-y-3">

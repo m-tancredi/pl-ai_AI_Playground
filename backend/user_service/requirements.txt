@@ -1,0 +1,30 @@
+# Core Django & DRF
+Django>=4.0,<5.0
+djangorestframework>=3.14,<3.16
+djangorestframework-simplejwt[crypto]>=5.2,<5.4
+django-cors-headers>=3.13,<4.4
+
+# Database & Configuration
+psycopg2-binary>=2.9,<2.10
+dj-database-url>=1.0,<2.2
+python-dotenv>=0.20,<1.1
+
+# HTTP & Networking
+requests>=2.31
+gunicorn>=21.2
+
+# Image Processing
+Pillow>=9.0,<11.0
+
+# Async Tasks
+celery>=5.2,<5.4
+redis>=4.5,<5.1
+
+# File Handling
+python-magic>=0.4.27
+
+# Validation
+phonenumbers>=8.13,<8.14
+
+# Utils
+python-dateutil>=2.8,<2.9 

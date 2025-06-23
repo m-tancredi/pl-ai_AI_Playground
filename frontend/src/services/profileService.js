@@ -61,8 +61,9 @@ export const getProfileImageUrl = (imagePath) => {
     return imagePath;
   }
   
-  // Se è un path relativo, costruisci l'URL completo
-  const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+  // Se è un path relativo dal user_service, costruisci l'URL completo
+  // Il user_service restituisce path come "/media/avatars/filename.jpg"
+  const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080';
   return `${baseUrl}${imagePath}`;
 };
 
