@@ -1,5 +1,13 @@
 from rest_framework import serializers
-from .models import Resource # Importa il modello aggiornato
+from .models import Resource, Tag # Importa i modelli aggiornati
+
+class TagSerializer(serializers.ModelSerializer):
+    """Serializer per il modello Tag."""
+    
+    class Meta:
+        model = Tag
+        fields = ['id', 'name', 'color', 'description', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 class ResourceSerializer(serializers.ModelSerializer):
     """Serializer per il modello Resource."""
@@ -10,6 +18,13 @@ class ResourceSerializer(serializers.ModelSerializer):
     description = serializers.CharField(required=False, allow_blank=True, allow_null=True, style={'base_template': 'textarea.html'})
     # Rendi metadata leggibile
     metadata = serializers.JSONField(read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+    tag_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+        help_text="Lista di ID dei tag da associare alla risorsa"
+    )
 
     class Meta:
         model = Resource
@@ -17,6 +32,7 @@ class ResourceSerializer(serializers.ModelSerializer):
             'id', 'owner_id', 'name', 'description', 'original_filename',
             'status', 'mime_type', 'size', 'metadata', # Aggiunto metadata
             'error_message', 'file_url', 'thumbnail_url',
+            'tags', 'tag_ids',  # Campi per i tag
             'created_at', 'updated_at',
         ]
         read_only_fields = [
@@ -25,6 +41,19 @@ class ResourceSerializer(serializers.ModelSerializer):
             'error_message', 'file_url', 'thumbnail_url',
             'created_at', 'updated_at',
         ]
+
+    def update(self, instance, validated_data):
+        """Override update per gestire i tag."""
+        tag_ids = validated_data.pop('tag_ids', None)
+        
+        # Aggiorna i campi normali
+        instance = super().update(instance, validated_data)
+        
+        # Gestisci i tag se forniti
+        if tag_ids is not None:
+            instance.tags.set(tag_ids)
+        
+        return instance
 
     def get_file_url(self, obj):
         request = self.context.get('request')
@@ -45,14 +74,20 @@ class ResourceSerializer(serializers.ModelSerializer):
 class UploadRequestSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     description = serializers.CharField(required=False, allow_blank=True)
+    tag_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        help_text="Lista di ID dei tag da associare alla risorsa"
+    )
 
 # Serializer per la risposta dopo l'upload iniziale
 class UploadResponseSerializer(serializers.ModelSerializer):
     """Mostra i dati iniziali della risorsa dopo l'upload."""
-    # Non c'è bisogno di campi extra qui, prende quelli dal modello base
+    tags = TagSerializer(many=True, read_only=True)
+    
     class Meta:
         model = Resource
-        fields = ['id', 'owner_id', 'original_filename', 'status', 'created_at', 'name', 'description', 'size'] # Aggiunto size
+        fields = ['id', 'owner_id', 'original_filename', 'status', 'created_at', 'name', 'description', 'size', 'tags'] # Aggiunto size e tags
         read_only_fields = fields
 
 
@@ -63,6 +98,11 @@ class InternalSyntheticContentUploadSerializer(serializers.Serializer):
     description = serializers.CharField(required=False, allow_blank=True, help_text="Descrizione opzionale.")
     owner_id = serializers.IntegerField(required=True, help_text="ID dell'utente proprietario.")
     metadata_json = serializers.CharField(required=False, allow_blank=True, help_text="JSON string of pre-analyzed metadata (headers, potential_uses, etc.)")
+    tag_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        help_text="Lista di ID dei tag da associare alla risorsa"
+    )
     # Potremmo aggiungere altri metadati che il data_analysis_service conosce già
     # come potential_uses, num_rows, num_cols, headers per evitare che
     # il Resource Manager debba ri-processare (ma questo richiederebbe più logica qui)

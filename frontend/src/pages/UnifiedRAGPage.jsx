@@ -82,7 +82,17 @@ const UnifiedRAGPage = () => {
 
         // New chat session
         currentSession,
-        chatHistory
+        chatHistory,
+        
+        // File taggati RAG
+        ragTaggedDocuments,
+        isLoadingRAGTagged,
+        availableTags,
+        showRAGTaggedSection,
+        setShowRAGTaggedSection,
+        loadRAGTaggedDocuments,
+        loadAvailableTags,
+        processResourceFromManager
     } = useUnifiedRAG();
 
     const [sidebarOpen, setSidebarOpen] = React.useState(true);
@@ -90,6 +100,7 @@ const UnifiedRAGPage = () => {
     const [showTypewriterSettings, setShowTypewriterSettings] = React.useState(false);
     const [previewDocument, setPreviewDocument] = useState(null);
     const [showPreviewModal, setShowPreviewModal] = useState(false);
+    const [processingResourceIds, setProcessingResourceIds] = useState(new Set());
 
     // Gestione responsive
     useEffect(() => {
@@ -183,6 +194,23 @@ const UnifiedRAGPage = () => {
     const handleClosePreview = () => {
         setShowPreviewModal(false);
         setPreviewDocument(null);
+    };
+
+    const handleProcessResourceFromManager = async (resourceId) => {
+        setProcessingResourceIds(prev => new Set([...prev, resourceId]));
+        try {
+            await processResourceFromManager(resourceId);
+            // Ricarica i documenti taggati RAG per aggiornare la lista
+            await loadRAGTaggedDocuments();
+        } catch (err) {
+            console.error('Errore nel processamento della risorsa:', err);
+        } finally {
+            setProcessingResourceIds(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(resourceId);
+                return newSet;
+            });
+        }
     };
 
     if (loading) {
@@ -374,25 +402,36 @@ const UnifiedRAGPage = () => {
                         <div className="flex border-b border-gray-200 bg-gray-50">
                             <button
                                 onClick={() => setActiveTab('documents')}
-                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                                className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${
                                     activeTab === 'documents'
                                         ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
                                         : 'text-gray-600 hover:text-gray-900'
                                 }`}
                             >
-                                <DocumentTextIcon className="w-4 h-4 inline mr-2" />
+                                <DocumentTextIcon className="w-4 h-4 inline mr-1" />
                                 Documenti
                             </button>
                             <button
                                 onClick={() => setActiveTab('knowledge-bases')}
-                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                                className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${
                                     activeTab === 'knowledge-bases'
                                         ? 'text-purple-600 border-b-2 border-purple-600 bg-white'
                                         : 'text-gray-600 hover:text-gray-900'
                                 }`}
                             >
-                                <ChatBubbleLeftRightIcon className="w-4 h-4 inline mr-2" />
+                                <ChatBubbleLeftRightIcon className="w-4 h-4 inline mr-1" />
                                 KB
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('rag-tagged')}
+                                className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${
+                                    activeTab === 'rag-tagged'
+                                        ? 'text-green-600 border-b-2 border-green-600 bg-white'
+                                        : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            >
+                                <span className="inline-block w-3 h-3 bg-green-500 rounded-full mr-1"></span>
+                                RAG
                             </button>
                         </div>
 
@@ -419,7 +458,7 @@ const UnifiedRAGPage = () => {
                                     processingDocuments={processingDocuments}
                                     isDocumentProcessing={isDocumentProcessing}
                                 />
-                            ) : (
+                            ) : activeTab === 'knowledge-bases' ? (
                                 <KnowledgeBaseManager
                                     knowledgeBases={knowledgeBases}
                                     activeMode={activeMode}
@@ -430,7 +469,77 @@ const UnifiedRAGPage = () => {
                                     onSwitchMode={switchChatMode}
                                     selectedDocuments={selectedDocuments}
                                 />
-                            )}
+                            ) : activeTab === 'rag-tagged' ? (
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                                                <span className="inline-block w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                                                File Taggati RAG
+                                            </h3>
+                                            <p className="text-sm text-gray-600 mt-1">
+                                                Documenti già selezionati come adatti per RAG
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={loadRAGTaggedDocuments}
+                                            disabled={isLoadingRAGTagged}
+                                            className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
+                                        >
+                                            {isLoadingRAGTagged ? '...' : '🔄'}
+                                        </button>
+                                    </div>
+
+                                    {isLoadingRAGTagged ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+                                            <span className="ml-2 text-gray-600 text-sm">Caricamento...</span>
+                                        </div>
+                                    ) : ragTaggedDocuments.length === 0 ? (
+                                        <div className="text-center py-8">
+                                            <div className="text-gray-400 mb-2">
+                                                <DocumentTextIcon className="w-12 h-12 mx-auto" />
+                                            </div>
+                                            <h4 className="text-sm font-medium text-gray-900 mb-1">Nessun file taggato</h4>
+                                            <p className="text-xs text-gray-500">
+                                                Non ci sono documenti taggati come "RAG" nel Resource Manager
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {ragTaggedDocuments.map((doc) => (
+                                                <div key={doc.id} className="border border-gray-200 rounded-lg p-3 hover:shadow-sm transition-shadow bg-green-50">
+                                                    <div className="flex items-start justify-between mb-2">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h4 className="font-medium text-gray-900 text-sm truncate" title={doc.name || doc.original_filename}>
+                                                                {doc.name || doc.original_filename}
+                                                            </h4>
+                                                            <p className="text-xs text-gray-500 mt-1">
+                                                                {doc.mime_type} • {(doc.size / 1024).toFixed(1)} KB
+                                                            </p>
+                                                        </div>
+                                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 ml-2">
+                                                            RAG
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    <button
+                                                        onClick={() => handleProcessResourceFromManager(doc.id)}
+                                                        disabled={processingResourceIds.has(doc.id)}
+                                                        className="w-full px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
+                                                    >
+                                                        {processingResourceIds.has(doc.id) ? 'Elaborazione...' : 'Processa per RAG'}
+                                                    </button>
+                                                    
+                                                    <div className="mt-2 text-xs text-gray-500">
+                                                        Caricato: {new Date(doc.created_at).toLocaleDateString('it-IT')}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : null}
                         </div>
                     </div>
                 </div>

@@ -452,10 +452,45 @@ export const ragService = {
             const params = new URLSearchParams();
             if (options.limit) params.append('limit', options.limit);
 
-            const response = await apiClient.get(`${API_RAG_URL}/resource-manager/resources/?${params.toString()}`);
+            const response = await apiClient.get(`${API_RAG_URL}/resource-manager/resources/?${params}`);
             return response.data;
         } catch (error) {
-            throw new Error(error.response?.data?.error || error.response?.data?.message || 'Errore durante il recupero delle risorse dal Resource Manager');
+            console.error('Errore nel recupero documenti Resource Manager:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Ottiene i file taggati come "RAG" dal Resource Manager
+     * Questo endpoint mostra solo i file che sono stati esplicitamente taggati come adatti al RAG
+     * @param {Object} options - Opzioni di filtro
+     * @returns {Promise} - Lista delle risorse taggate come RAG
+     */
+    getRAGTaggedDocuments: async (options = {}) => {
+        try {
+            const params = new URLSearchParams();
+            if (options.limit) params.append('limit', options.limit);
+            if (options.user_id) params.append('user_id', options.user_id);
+
+            const response = await apiClient.get(`${API_RAG_URL}/resource-manager/rag-tagged/?${params}`);
+            return response.data;
+        } catch (error) {
+            console.error('Errore nel recupero documenti taggati RAG:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Ottiene tutti i tag disponibili dal Resource Manager
+     * @returns {Promise} - Lista dei tag disponibili
+     */
+    getAvailableTags: async () => {
+        try {
+            const response = await apiClient.get(`${API_RAG_URL}/resource-manager/tags/`);
+            return response.data;
+        } catch (error) {
+            console.error('Errore nel recupero tag:', error);
+            throw error;
         }
     },
 

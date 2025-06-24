@@ -10,15 +10,21 @@ import traceback   # <-- AGGIUNGI QUESTO IMPORT
 from django.db import transaction # <-- AGGIUNGI QUESTO IMPORT
 import magic # <-- AGGIUNGI QUESTO IMPORT
 import json
+import logging
+import pandas as pd
+from io import BytesIO
+
+logger = logging.getLogger(__name__)
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.permissions import IsAuthenticated
 
 from django.http import Http404, HttpResponse # Importa HttpResponse
 
-from .models import Resource
-from .serializers import ResourceSerializer, UploadRequestSerializer, UploadResponseSerializer, InternalSyntheticContentUploadSerializer
+from .models import Resource, Tag
+from .serializers import ResourceSerializer, UploadRequestSerializer, UploadResponseSerializer, InternalSyntheticContentUploadSerializer, TagSerializer
 from .authentication import JWTCustomAuthentication
 from .tasks import process_uploaded_resource # Importa il task Celery
 from .permissions import AllowInternalOnly # <-- Importa il nuovo permesso
@@ -357,6 +363,7 @@ class InternalRagResourcesView(views.APIView):
     """
     Endpoint INTERNO per ottenere l'elenco delle risorse compatibili con RAG.
     Filtra solo documenti adatti al RAG (PDF, TXT, DOCX, MD, RTF, etc. - NO CSV, immagini, video).
+    Ora include anche filtro per tag "RAG".
     """
     permission_classes = [AllowInternalOnlyWithSecret]
     authentication_classes = []  # Nessuna autenticazione utente JWT per chiamate interne
@@ -373,69 +380,112 @@ class InternalRagResourcesView(views.APIView):
         'text/x-markdown',  # MD (alternativo)
     }
     
-    def get(self, request, *args, **kwargs):
+    def get(self, request):
         """
-        Restituisce l'elenco delle risorse compatibili con RAG per un utente.
-        Query params:
-        - user_id: ID dell'utente (obbligatorio)
-        - status: Filtra per stato (default: COMPLETED)
-        - limit: Numero massimo di risultati (default: 100)
+        Ottiene le risorse compatibili con RAG, filtrate per tag "RAG" se esiste.
         """
-        print("--- RM: InternalRagResourcesView Received Request ---")
-        
-        user_id = request.GET.get('user_id')
-        if not user_id:
-            return Response({
-                "error": "Parameter 'user_id' is required"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
         try:
-            user_id = int(user_id)
-        except ValueError:
-            return Response({
-                "error": "Parameter 'user_id' must be a valid integer"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        resource_status = request.GET.get('status', Resource.Status.COMPLETED)
-        limit = int(request.GET.get('limit', 100))
-        
-        print(f"  Filtering RAG resources for user_id: {user_id}, status: {resource_status}")
-        
-        try:
-            # Filtra le risorse compatibili con RAG
-            resources_query = Resource.objects.filter(
-                owner_id=user_id,
-                status=resource_status,
+            # Parametri di query opzionali
+            user_id = request.GET.get('user_id')  # Filtra per utente specifico
+            limit = request.GET.get('limit', 50)
+            
+            # Query base: solo documenti compatibili con RAG
+            queryset = Resource.objects.filter(
+                status='COMPLETED',
                 mime_type__in=self.RAG_COMPATIBLE_MIME_TYPES
-            ).order_by('-created_at')[:limit]
+            ).prefetch_related('tags').select_related().order_by('-created_at')
             
-            resources_data = []
-            for resource in resources_query:
-                resources_data.append({
-                    'id': resource.id,
-                    'name': resource.name,
-                    'original_filename': resource.original_filename,
-                    'description': resource.description,
-                    'mime_type': resource.mime_type,
-                    'size': resource.size,
-                    'created_at': resource.created_at.isoformat(),
-                    'metadata': resource.metadata or {}
-                })
+            # Filtra per tag "RAG" se esiste
+            rag_tag_exists = Tag.objects.filter(name__iexact='RAG').exists()
+            if rag_tag_exists:
+                queryset = queryset.filter(tags__name__iexact='RAG').distinct()
             
-            print(f"  Found {len(resources_data)} RAG-compatible resources")
+            # Filtra per utente se specificato
+            if user_id:
+                queryset = queryset.filter(owner_id=user_id)
+            
+            # Limita i risultati
+            try:
+                limit = min(int(limit), 100)  # Max 100 documenti
+            except (ValueError, TypeError):
+                limit = 50
+            
+            resources = queryset[:limit]
+            
+            # Serializza i dati
+            serializer = ResourceSerializer(resources, many=True, context={'request': request})
             
             return Response({
-                'count': len(resources_data),
-                'resources': resources_data,
-                'compatible_types': list(self.RAG_COMPATIBLE_MIME_TYPES)
+                'status': 'success',
+                'count': len(serializer.data),
+                'has_rag_tag': rag_tag_exists,
+                'filter_applied': 'RAG tag + RAG-compatible MIME types' if rag_tag_exists else 'RAG-compatible MIME types only',
+                'resources': serializer.data
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
-            print(f"  Error fetching RAG resources: {e}")
+            logger.error(f"Errore nel recupero risorse RAG: {str(e)}")
             return Response({
-                "error": f"Failed to fetch RAG resources: {str(e)}"
+                'error': 'Errore interno del server',
+                'details': str(e) if settings.DEBUG else 'Dettagli non disponibili'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class TagViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet per gestire i tag delle risorse.
+    """
+    queryset = Tag.objects.all()
+    serializer_class = TagSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTCustomAuthentication]
+    
+    def get_queryset(self):
+        """
+        Restituisce tutti i tag disponibili.
+        """
+        return Tag.objects.all().order_by('name')
+
+class ResourceTagsUpdateView(views.APIView):
+    """
+    Endpoint per aggiornare i tag di una risorsa specifica.
+    """
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTCustomAuthentication]
+    
+    def patch(self, request, resource_id):
+        """
+        Aggiorna i tag di una risorsa.
+        """
+        try:
+            # Recupera la risorsa
+            resource = get_object_or_404(Resource, id=resource_id, owner_id=request.user.id)
+            
+            # Valida i tag_ids
+            tag_ids = request.data.get('tag_ids', [])
+            if not isinstance(tag_ids, list):
+                return Response({
+                    'error': 'tag_ids deve essere una lista'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Verifica che tutti i tag esistano
+            existing_tags = Tag.objects.filter(id__in=tag_ids)
+            if len(existing_tags) != len(tag_ids):
+                return Response({
+                    'error': 'Alcuni tag specificati non esistono'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Aggiorna i tag
+            resource.tags.set(tag_ids)
+            
+            # Restituisci la risorsa aggiornata
+            serializer = ResourceSerializer(resource, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Errore nell'aggiornamento tag risorsa {resource_id}: {str(e)}")
+            return Response({
+                'error': 'Errore interno del server'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class InternalRagContentView(views.APIView):
     """
@@ -462,7 +512,7 @@ class InternalRagContentView(views.APIView):
         """
         Restituisce il contenuto di una risorsa se è compatibile con RAG.
         """
-        print(f"--- RM: InternalRagContentView for resource_id: {resource_id} ---")
+        logger.info(f"--- RM: InternalRagContentView for resource_id: {resource_id} ---")
         
         resource = get_object_or_404(Resource, pk=resource_id)
         
@@ -475,17 +525,17 @@ class InternalRagContentView(views.APIView):
         # Verifica che sia compatibile con RAG
         if resource.mime_type not in self.RAG_COMPATIBLE_MIME_TYPES:
             return Response({
-                "error": f"Resource type '{resource.mime_type}' is not compatible with RAG. Compatible types: {list(self.RAG_COMPATIBLE_MIME_TYPES)}"
+            "error": f"Resource type '{resource.mime_type}' is not compatible with RAG. Compatible types: {list(self.RAG_COMPATIBLE_MIME_TYPES)}"
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Verifica che il file esista
         if not resource.file or not default_storage.exists(resource.file.name):
             return Response({
-                "error": "Resource file not found."
-            }, status=status.HTTP_404_NOT_FOUND)
+            "error": "Resource file not found."
+        }, status=status.HTTP_404_NOT_FOUND)
         
         try:
-            print(f"  Serving RAG-compatible file: {resource.original_filename} ({resource.mime_type})")
+            logger.info(f"  Serving RAG-compatible file: {resource.original_filename} ({resource.mime_type})")
             
             with default_storage.open(resource.file.name, 'rb') as f:
                 file_content = f.read()
@@ -504,7 +554,7 @@ class InternalRagContentView(views.APIView):
             return response
             
         except Exception as e:
-            print(f"  Error serving RAG content for resource {resource_id}: {e}")
+            logger.error(f"  Error serving RAG content for resource {resource_id}: {e}")
             return Response({
                 "error": "Could not serve file content."
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

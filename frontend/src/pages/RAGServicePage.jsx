@@ -24,6 +24,14 @@ const RAGServicePage = () => {
     const [resourceManagerDocuments, setResourceManagerDocuments] = useState([]);
     const [isLoadingResources, setIsLoadingResources] = useState(false);
     const [processingResourceIds, setProcessingResourceIds] = useState(new Set());
+    
+    // Stati per file taggati RAG
+    const [ragTaggedDocuments, setRAGTaggedDocuments] = useState([]);
+    const [isLoadingRAGTagged, setIsLoadingRAGTagged] = useState(false);
+    const [showRAGTaggedSection, setShowRAGTaggedSection] = useState(true);
+    
+    // Stato per i tag disponibili
+    const [availableTags, setAvailableTags] = useState([]);
 
     // Configurazione Dropzone
     const onDrop = useCallback(async (acceptedFiles) => {
@@ -190,9 +198,67 @@ const RAGServicePage = () => {
         }
     };
 
+    // Funzione per caricare le risorse dal Resource Manager
+    const loadResourceManagerDocuments = async () => {
+        setIsLoadingResources(true);
+        try {
+            const response = await ragService.getResourceManagerDocuments({ limit: 20 });
+            setResourceManagerDocuments(response.resources || []);
+        } catch (err) {
+            setError('Errore nel caricamento delle risorse dal Resource Manager');
+            console.error(err);
+        } finally {
+            setIsLoadingResources(false);
+        }
+    };
+
+    // Funzione per caricare i file taggati come RAG
+    const loadRAGTaggedDocuments = async () => {
+        console.log('🔄 Caricamento file taggati RAG iniziato...');
+        setIsLoadingRAGTagged(true);
+        try {
+            console.log('📡 Chiamata API per file taggati RAG...');
+            const response = await ragService.getRAGTaggedDocuments({ limit: 20 });
+            console.log('✅ Risposta API ricevuta:', response);
+            
+            const documents = response.resources || response.data || [];
+            console.log('📄 Documenti estratti:', documents);
+            setRAGTaggedDocuments(documents);
+            
+            // Se non ci sono file taggati RAG, mostra un messaggio informativo
+            if ((response.count || documents.length) === 0) {
+                console.info('ℹ️ Nessun file taggato come RAG trovato');
+            } else {
+                console.log(`✨ Trovati ${documents.length} file taggati RAG`);
+            }
+        } catch (err) {
+            console.error('❌ Errore nel caricamento dei file taggati RAG:', err);
+            setError('Errore nel caricamento dei file taggati RAG: ' + (err.message || err));
+        } finally {
+            setIsLoadingRAGTagged(false);
+            console.log('🏁 Caricamento file taggati RAG terminato');
+        }
+    };
+
+    // Funzione per caricare i tag disponibili
+    const loadAvailableTags = async () => {
+        try {
+            const response = await ragService.getAvailableTags();
+            setAvailableTags(response.tags || []);
+        } catch (err) {
+            console.error('Errore nel caricamento dei tag:', err);
+        }
+    };
+
     // Effetti
     useEffect(() => {
+        console.log('🚀 useEffect RAG Service iniziato');
         fetchDocuments();
+        console.log('📄 fetchDocuments chiamata');
+        loadRAGTaggedDocuments();
+        console.log('🏷️ loadRAGTaggedDocuments chiamata');
+        loadAvailableTags();
+        console.log('🔖 loadAvailableTags chiamata');
     }, []);
 
     return (
@@ -419,6 +485,80 @@ const RAGServicePage = () => {
                     )}
                 </div>
             </div>
+
+            {/* Sezione File Taggati RAG */}
+            {showRAGTaggedSection && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
+                    <div className="p-6 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                                    <span className="inline-block w-3 h-3 bg-green-500 rounded-full mr-3"></span>
+                                    File Taggati RAG
+                                </h2>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    Documenti già selezionati e taggati come adatti per RAG nel Resource Manager
+                                </p>
+                            </div>
+                            <button
+                                onClick={loadRAGTaggedDocuments}
+                                disabled={isLoadingRAGTagged}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {isLoadingRAGTagged ? 'Caricamento...' : '🔄 Aggiorna'}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="p-6">
+                        {isLoadingRAGTagged ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                <span className="ml-3 text-gray-600">Caricamento file taggati RAG...</span>
+                            </div>
+                        ) : ragTaggedDocuments.length === 0 ? (
+                            <div className="text-center py-8">
+                                <h3 className="text-lg font-medium text-gray-900 mb-2">Nessun file taggato RAG</h3>
+                                <p className="text-gray-500 mb-4">
+                                    Non ci sono ancora documenti taggati come "RAG" nel Resource Manager.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {ragTaggedDocuments.map((doc) => (
+                                    <div key={doc.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-green-50">
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex-1">
+                                                <h4 className="font-medium text-gray-900 truncate" title={doc.name || doc.original_filename}>
+                                                    {doc.name || doc.original_filename}
+                                                </h4>
+                                                <p className="text-sm text-gray-500 mt-1">
+                                                    {doc.mime_type} • {(doc.size / 1024).toFixed(1)} KB
+                                                </p>
+                                            </div>
+                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                RAG
+                                            </span>
+                                        </div>
+                                        
+                                        <button
+                                            onClick={() => handleProcessResourceFromManager(doc.id)}
+                                            disabled={processingResourceIds.has(doc.id)}
+                                            className="w-full px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                        >
+                                            {processingResourceIds.has(doc.id) ? 'Elaborazione...' : 'Processa per RAG'}
+                                        </button>
+                                        
+                                        <div className="mt-2 text-xs text-gray-500">
+                                            Caricato: {new Date(doc.created_at).toLocaleDateString('it-IT')}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Messaggi di errore */}
             {error && (

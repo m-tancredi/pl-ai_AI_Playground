@@ -253,9 +253,15 @@ def process_uploaded_resource(self, resource_id):
             elif resource.mime_type and resource.mime_type.startswith('text/'):
                 print(f"[Task ID: {self.request.id}]   Processing as generic TEXT...")
                 try:
-                     with default_storage.open(resource.file.name, 'rt', encoding='utf-8', errors='ignore') as f:
-                         # Leggi tutto per contare le parole (potrebbe essere inefficiente per file enormi)
-                         text_content = f.read()
+                     with default_storage.open(resource.file.name, 'rb') as f:
+                         # Leggi come bytes e decodifica manualmente
+                         content_bytes = f.read()
+                         try:
+                             text_content = content_bytes.decode('utf-8')
+                         except UnicodeDecodeError:
+                             # Fallback con latin-1 se UTF-8 fallisce
+                             text_content = content_bytes.decode('latin-1', errors='ignore')
+                     
                      word_count = len(text_content.split())
                      metadata_extracted['word_count_approx'] = word_count
                      print(f"[Task ID: {self.request.id}]     TXT Approx words: {word_count}")
@@ -276,6 +282,28 @@ def process_uploaded_resource(self, resource_id):
                  # Decidi se questi errori devono portare a FAILED o COMPLETED con warning
                  # Per ora, consideriamoli non fatali se siamo arrivati qui
                  print(f"[Task ID: {self.request.id}]   Completed with warnings: {processing_errors}")
+
+            # --- Auto-Tagging per RAG ---
+            # Se il file è compatibile con RAG, aggiungi automaticamente il tag "RAG"
+            if "rag" in potential_uses:
+                try:
+                    from .models import Tag
+                    # Ottieni o crea il tag "RAG"
+                    rag_tag, created = Tag.objects.get_or_create(
+                        name='RAG',
+                        defaults={
+                            'color': '#28a745',
+                            'description': 'Documenti adatti per Retrieval Augmented Generation'
+                        }
+                    )
+                    # Aggiungi il tag alla risorsa
+                    resource.tags.add(rag_tag)
+                    if created:
+                        print(f"[Task ID: {self.request.id}]   Created new RAG tag")
+                    print(f"[Task ID: {self.request.id}]   🏷️ Auto-tagged resource as RAG-compatible")
+                except Exception as tag_exc:
+                    print(f"[Task ID: {self.request.id}]   Warning: Auto-tagging failed: {tag_exc}")
+                    processing_errors.append(f"Auto-tagging error: {tag_exc}")
 
             resource.save() # Salva tutte le modifiche
             print(f"[Task ID: {self.request.id}] Successfully processed Resource ID: {resource_id}, Status: {resource.status}")

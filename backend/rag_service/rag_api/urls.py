@@ -6,7 +6,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RAGChatView, RAGDocumentViewSet, RAGStatusView, RAGClearKnowledgeBaseView,
     RAGKnowledgeBaseViewSet, RAGChatSessionViewSet, RAGChatSessionListView,
-    RAGEmbeddingInfoView, RAGEmbeddingBenchmarkView, RAGResourceManagerView
+    RAGEmbeddingInfoView, RAGEmbeddingBenchmarkView, RAGResourceManagerView,
+    RAGTaggedResourcesView, RAGTagsView, RAGResourceTagsUpdateView
 )
 
 # Router per i ViewSet
@@ -34,6 +35,9 @@ urlpatterns = [
     
     # Endpoint per Resource Manager integration
     path('resource-manager/resources/', RAGResourceManagerView.as_view(), name='rag-resource-manager'),
+    path('resource-manager/rag-tagged/', RAGTaggedResourcesView.as_view(), name='rag-tagged-resources'),
+    path('resource-manager/tags/', RAGTagsView.as_view(), name='rag-tags'),
+    path('resource-manager/resources/<int:resource_id>/tags/', RAGResourceTagsUpdateView.as_view(), name='rag-resource-tags-update'),
     
     # Include le route del router (documenti, KB, chat sessions)
     path('', include(router.urls)),

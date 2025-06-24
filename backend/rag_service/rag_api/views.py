@@ -336,9 +336,10 @@ class RAGDocumentViewSet(viewsets.ModelViewSet):
             response = requests.get(resource_url, headers=internal_headers, timeout=30)
             response.raise_for_status()
             
-            # Ottieni informazioni dal Resource Manager sulla risorsa
+            # Ottieni informazioni dal Resource Manager sulla risorsa specifica
+            # Prima prova a ottenere tutte le risorse RAG per trovare quella specifica
             resource_info_url = f"{settings.RESOURCE_MANAGER_INTERNAL_URL}/api/internal/rag/resources/"
-            info_params = {'user_id': user_id, 'limit': 1}
+            info_params = {'user_id': user_id}  # Rimuovi il limit per ottenere tutte le risorse
             
             info_response = requests.get(resource_info_url, headers=internal_headers, params=info_params, timeout=30)
             info_response.raise_for_status()
@@ -353,7 +354,30 @@ class RAGDocumentViewSet(viewsets.ModelViewSet):
                     break
             
             if not resource_info:
-                raise Exception(f"Resource {resource_id} not found or not accessible")
+                # Se non trovata, prova a chiamare l'endpoint generale delle risorse (non solo RAG)
+                general_resource_url = f"{settings.RESOURCE_MANAGER_INTERNAL_URL}/api/resources/{resource_id}/"
+                general_headers = internal_headers.copy()
+                # Per l'endpoint pubblico, usa l'autenticazione JWT invece dell'header interno
+                if hasattr(request, 'user') and request.user.is_authenticated:
+                    # Ottieni il token dalla richiesta corrente
+                    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+                    if auth_header.startswith('Bearer '):
+                        general_headers['Authorization'] = auth_header
+                        # Rimuovi l'header interno per l'endpoint pubblico
+                        if INTERNAL_API_HEADER in general_headers:
+                            del general_headers[INTERNAL_API_HEADER]
+                
+                try:
+                    general_response = requests.get(general_resource_url, headers=general_headers, timeout=30)
+                    general_response.raise_for_status()
+                    resource_info = general_response.json()
+                    
+                    # Verifica che la risorsa appartenga all'utente
+                    if resource_info.get('owner_id') != user_id:
+                        raise Exception(f"Resource {resource_id} not accessible for user {user_id}")
+                        
+                except requests.exceptions.RequestException:
+                    raise Exception(f"Resource {resource_id} not found or not accessible")
             
             # Verifica che sia compatibile con RAG (dovrebbe già essere filtrata, ma double-check)
             rag_compatible_types = {
@@ -1829,4 +1853,182 @@ class RAGResourceManagerView(APIView):
             logger.error(f"Unexpected error fetching RAG resources: {e}")
             return Response({
                 'error': 'Errore interno'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RAGTaggedResourcesView(APIView):
+    """
+    View per ottenere specificamente i file taggati come "RAG" dal Resource Manager.
+    Utilizza la logica di tagging esistente del Resource Manager.
+    """
+    authentication_classes = [JWTCustomAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Ottiene i file taggati come "RAG" dal Resource Manager usando la sua logica nativa.
+        """
+        from django.conf import settings
+        import requests
+        
+        try:
+            user_id = request.user.id if request.user.is_authenticated else None
+            
+            if not user_id:
+                return Response({
+                    'error': 'Utente non autenticato'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Usa direttamente l'endpoint interno del Resource Manager
+            # che ha già la logica di filtro per tag "RAG" + tipi compatibili
+            params = {
+                'user_id': user_id,
+                'limit': request.GET.get('limit', 50)
+            }
+            
+            url = f"{settings.RESOURCE_MANAGER_INTERNAL_URL}/api/internal/rag/resources/"
+            headers = {
+                'X-Internal-Secret': settings.INTERNAL_API_SECRET_VALUE,
+                'Content-Type': 'application/json'
+            }
+            
+            logger.info(f"🏷️ Richiesta file taggati RAG per utente {user_id}")
+            
+            response = requests.get(url, params=params, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Il Resource Manager restituisce già la struttura corretta
+                # con filtro per tag "RAG" + tipi MIME compatibili
+                logger.info(f"✅ Recuperati {data.get('count', 0)} file taggati RAG")
+                return Response(data, status=status.HTTP_200_OK)
+            else:
+                logger.error(f"❌ Errore Resource Manager: {response.status_code} - {response.text}")
+                return Response({
+                    'error': 'Errore nel recupero dei file dal Resource Manager',
+                    'details': response.text if settings.DEBUG else 'Errore interno'
+                }, status=response.status_code)
+                
+        except requests.RequestException as e:
+            logger.error(f"🔌 Errore connessione Resource Manager: {str(e)}")
+            return Response({
+                'error': 'Errore di connessione al Resource Manager',
+                'details': str(e) if settings.DEBUG else 'Servizio temporaneamente non disponibile'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception as e:
+            logger.error(f"💥 Errore inaspettato: {str(e)}")
+            return Response({
+                'error': 'Errore interno del server',
+                'details': str(e) if settings.DEBUG else 'Errore interno'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RAGTagsView(APIView):
+    """
+    View per ottenere i tag disponibili dal Resource Manager.
+    Proxy diretto verso il sistema di tagging del Resource Manager.
+    """
+    authentication_classes = [JWTCustomAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Ottiene tutti i tag disponibili dal Resource Manager usando la sua logica nativa.
+        """
+        from django.conf import settings
+        import requests
+        
+        try:
+            # Usa direttamente l'endpoint pubblico del Resource Manager
+            url = f"{settings.RESOURCE_MANAGER_INTERNAL_URL}/api/tags/"
+            
+            # Inoltra l'autenticazione JWT dell'utente
+            headers = {
+                'Authorization': request.headers.get('Authorization'),
+                'Content-Type': 'application/json'
+            }
+            
+            logger.info("🏷️ Richiesta tag disponibili al Resource Manager")
+            
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Il Resource Manager restituisce già la struttura corretta
+                # con paginazione e tutti i tag disponibili
+                logger.info(f"✅ Recuperati {len(data.get('results', data))} tag")
+                return Response({
+                    'status': 'success',
+                    'tags': data.get('results', data) if isinstance(data, dict) and 'results' in data else data
+                }, status=status.HTTP_200_OK)
+            else:
+                logger.error(f"❌ Errore Resource Manager tag: {response.status_code} - {response.text}")
+                return Response({
+                    'error': 'Errore nel recupero dei tag dal Resource Manager',
+                    'details': response.text if settings.DEBUG else 'Errore interno'
+                }, status=response.status_code)
+                
+        except requests.RequestException as e:
+            logger.error(f"🔌 Errore connessione Resource Manager tag: {str(e)}")
+            return Response({
+                'error': 'Errore di connessione al Resource Manager',
+                'details': str(e) if settings.DEBUG else 'Servizio temporaneamente non disponibile'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception as e:
+            logger.error(f"💥 Errore inaspettato recupero tag: {str(e)}")
+            return Response({
+                'error': 'Errore interno del server',
+                'details': str(e) if settings.DEBUG else 'Errore interno'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RAGResourceTagsUpdateView(APIView):
+    """
+    View per aggiornare i tag di una risorsa dal RAG service.
+    Utilizza direttamente l'endpoint del Resource Manager per mantenere coerenza.
+    """
+    authentication_classes = [JWTCustomAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def patch(self, request, resource_id):
+        """
+        Aggiorna i tag di una risorsa usando la logica del Resource Manager.
+        """
+        from django.conf import settings
+        import requests
+        
+        try:
+            # Usa direttamente l'endpoint del Resource Manager per aggiornare i tag
+            url = f"{settings.RESOURCE_MANAGER_INTERNAL_URL}/api/{resource_id}/tags/"
+            
+            # Inoltra l'autenticazione JWT e i dati
+            headers = {
+                'Authorization': request.headers.get('Authorization'),
+                'Content-Type': 'application/json'
+            }
+            
+            logger.info(f"🏷️ Aggiornamento tag risorsa {resource_id}")
+            
+            response = requests.patch(url, json=request.data, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                logger.info(f"✅ Tag aggiornati per risorsa {resource_id}")
+                return Response(data, status=status.HTTP_200_OK)
+            else:
+                logger.error(f"❌ Errore aggiornamento tag: {response.status_code} - {response.text}")
+                return Response({
+                    'error': 'Errore nell\'aggiornamento dei tag',
+                    'details': response.text if settings.DEBUG else 'Errore interno'
+                }, status=response.status_code)
+                
+        except requests.RequestException as e:
+            logger.error(f"🔌 Errore connessione per aggiornamento tag: {str(e)}")
+            return Response({
+                'error': 'Errore di connessione al Resource Manager',
+                'details': str(e) if settings.DEBUG else 'Servizio temporaneamente non disponibile'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception as e:
+            logger.error(f"💥 Errore inaspettato aggiornamento tag: {str(e)}")
+            return Response({
+                'error': 'Errore interno del server',
+                'details': str(e) if settings.DEBUG else 'Errore interno'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

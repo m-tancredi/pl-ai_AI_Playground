@@ -10,6 +10,12 @@ export const useUnifiedRAG = () => {
     const [error, setError] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(0);
 
+    // ========== STATI FILE TAGGATI RAG ==========
+    const [ragTaggedDocuments, setRAGTaggedDocuments] = useState([]);
+    const [isLoadingRAGTagged, setIsLoadingRAGTagged] = useState(false);
+    const [availableTags, setAvailableTags] = useState([]);
+    const [showRAGTaggedSection, setShowRAGTaggedSection] = useState(true);
+
     // ========== STATI CHAT UNIFICATA ==========
     // 🎯 SOLO CHAT PER KB - NO CHAT GLOBALE
     const [activeMode, setActiveMode] = useState(''); // Solo 'kb-{id}'
@@ -594,10 +600,65 @@ export const useUnifiedRAG = () => {
         selectedCount: selectedDocuments.length
     };
 
+    // ========== FUNZIONI FILE TAGGATI RAG ==========
+    const loadRAGTaggedDocuments = useCallback(async () => {
+        console.log('🔄 Caricamento file taggati RAG iniziato...');
+        setIsLoadingRAGTagged(true);
+        try {
+            console.log('📡 Chiamata API per file taggati RAG...');
+            const response = await ragService.getRAGTaggedDocuments({ limit: 20 });
+            console.log('✅ Risposta API ricevuta:', response);
+            
+            const documents = response.resources || response.data || [];
+            console.log('📄 Documenti estratti:', documents);
+            setRAGTaggedDocuments(documents);
+            
+            if ((response.count || documents.length) === 0) {
+                console.info('ℹ️ Nessun file taggato come RAG trovato');
+            } else {
+                console.log(`✨ Trovati ${documents.length} file taggati RAG`);
+            }
+        } catch (err) {
+            console.error('❌ Errore nel caricamento dei file taggati RAG:', err);
+            setError('Errore nel caricamento dei file taggati RAG: ' + (err.message || err));
+        } finally {
+            setIsLoadingRAGTagged(false);
+            console.log('🏁 Caricamento file taggati RAG terminato');
+        }
+    }, []);
+
+    const loadAvailableTags = useCallback(async () => {
+        try {
+            const response = await ragService.getAvailableTags();
+            setAvailableTags(response.tags || []);
+        } catch (err) {
+            console.error('Errore nel caricamento dei tag:', err);
+        }
+    }, []);
+
+    const processResourceFromManager = useCallback(async (resourceId) => {
+        try {
+            console.log(`🔄 Processamento risorsa ${resourceId} per RAG...`);
+            const response = await ragService.processResourceFromManager(resourceId);
+            console.log('✅ Risorsa processata:', response);
+            
+            // Ricarica i documenti per mostrare il nuovo documento processato
+            await loadInitialData();
+            
+            return response;
+        } catch (err) {
+            console.error(`❌ Errore nel processamento della risorsa ${resourceId}:`, err);
+            setError('Errore nel processamento della risorsa: ' + (err.message || err));
+            throw err;
+        }
+    }, [loadInitialData]);
+
     // ========== EFFETTI ==========
     useEffect(() => {
         loadInitialData();
-    }, [loadInitialData]);
+        loadRAGTaggedDocuments();
+        loadAvailableTags();
+    }, [loadInitialData, loadRAGTaggedDocuments, loadAvailableTags]);
 
     // Carica le sessioni solo dopo aver caricato i dati iniziali
     useEffect(() => {
@@ -684,6 +745,16 @@ export const useUnifiedRAG = () => {
         stopAllPolling,
         
         // Utility
-        loadInitialData
+        loadInitialData,
+        
+        // ========== FILE TAGGATI RAG ==========
+        ragTaggedDocuments,
+        isLoadingRAGTagged,
+        availableTags,
+        showRAGTaggedSection,
+        setShowRAGTaggedSection,
+        loadRAGTaggedDocuments,
+        loadAvailableTags,
+        processResourceFromManager
     };
 }; 

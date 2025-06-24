@@ -22,6 +22,33 @@ def user_thumbnail_path(instance, filename):
     new_filename = f"{base_uuid}_thumb{ext}"
     return os.path.join(user_dir, new_filename)
 
+class Tag(models.Model):
+    """Modello per rappresentare i tag delle risorse."""
+    
+    name = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Nome del tag (es. 'RAG', 'Dataset', 'Image')"
+    )
+    color = models.CharField(
+        max_length=7,
+        default='#007bff',
+        help_text="Colore esadecimale per la visualizzazione del tag"
+    )
+    description = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Descrizione del tag"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        ordering = ['name']
+
 class Resource(models.Model):
     """Modello per rappresentare una risorsa utente (file)."""
 
@@ -65,6 +92,14 @@ class Resource(models.Model):
         help_text="Path to the generated thumbnail (if applicable)"
     )
     error_message = models.TextField(blank=True, null=True, help_text="Details if processing failed")
+    
+    # Sistema di tagging
+    tags = models.ManyToManyField(
+        Tag,
+        blank=True,
+        related_name='resources',
+        help_text="Tag associati a questa risorsa"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
