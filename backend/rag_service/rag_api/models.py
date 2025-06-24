@@ -24,6 +24,9 @@ class RAGDocument(models.Model):
     # Utente proprietario (opzionale per autenticazione) - usa IntegerField per compatibilità con auth service
     user_id = models.IntegerField(null=True, blank=True)
     
+    # Riferimento alla risorsa nel Resource Manager (se caricata da lì)
+    resource_id = models.PositiveBigIntegerField(null=True, blank=True, help_text="ID of the resource in ResourceManager")
+    
     # Informazioni del file
     filename = models.CharField(max_length=255)
     original_filename = models.CharField(max_length=255)

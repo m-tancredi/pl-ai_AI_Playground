@@ -1,6 +1,4 @@
-# Rimuovi 'version: '3.8'' se usi docker compose V2+
-
-version: '3.9'
+# Docker Compose V2+ - no version required
 
 networks:
   ai_platform_network:

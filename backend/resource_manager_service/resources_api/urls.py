@@ -19,6 +19,10 @@ urlpatterns = [
     path('storage-info/', views.UserStorageInfoView.as_view(), name='storage-info'),
     path('internal/resources/upload-synthetic-content/', views.InternalSyntheticContentUploadView.as_view(), name='internal-synthetic-upload'),
     path('internal/resources/<int:resource_id>/content/', views.InternalContentView.as_view(), name='internal-resource-content'),
+    
+    # Nuovi endpoint interni per RAG
+    path('internal/rag/resources/', views.InternalRagResourcesView.as_view(), name='internal-rag-resources'),
+    path('internal/rag/resources/<int:resource_id>/content/', views.InternalRagContentView.as_view(), name='internal-rag-content'),
 
     # Include le URL del router (relative a '')
     path('', include(router.urls)),

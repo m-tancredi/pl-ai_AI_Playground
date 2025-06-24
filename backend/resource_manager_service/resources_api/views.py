@@ -352,3 +352,159 @@ class InternalSyntheticContentUploadView(views.APIView):
             print(f"  Error in InternalSyntheticContentUploadView during resource creation or saving: {e}")
             traceback.print_exc()
             return Response({"error": f"Failed to create synthetic resource: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class InternalRagResourcesView(views.APIView):
+    """
+    Endpoint INTERNO per ottenere l'elenco delle risorse compatibili con RAG.
+    Filtra solo documenti adatti al RAG (PDF, TXT, DOCX, MD, RTF, etc. - NO CSV, immagini, video).
+    """
+    permission_classes = [AllowInternalOnlyWithSecret]
+    authentication_classes = []  # Nessuna autenticazione utente JWT per chiamate interne
+    
+    # Tipi MIME compatibili con RAG
+    RAG_COMPATIBLE_MIME_TYPES = {
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # DOCX
+        'application/msword',  # DOC
+        'text/plain',  # TXT
+        'text/markdown',  # MD
+        'text/rtf',  # RTF
+        'application/rtf',  # RTF (alternativo)
+        'text/x-markdown',  # MD (alternativo)
+    }
+    
+    def get(self, request, *args, **kwargs):
+        """
+        Restituisce l'elenco delle risorse compatibili con RAG per un utente.
+        Query params:
+        - user_id: ID dell'utente (obbligatorio)
+        - status: Filtra per stato (default: COMPLETED)
+        - limit: Numero massimo di risultati (default: 100)
+        """
+        print("--- RM: InternalRagResourcesView Received Request ---")
+        
+        user_id = request.GET.get('user_id')
+        if not user_id:
+            return Response({
+                "error": "Parameter 'user_id' is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            return Response({
+                "error": "Parameter 'user_id' must be a valid integer"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        resource_status = request.GET.get('status', Resource.Status.COMPLETED)
+        limit = int(request.GET.get('limit', 100))
+        
+        print(f"  Filtering RAG resources for user_id: {user_id}, status: {resource_status}")
+        
+        try:
+            # Filtra le risorse compatibili con RAG
+            resources_query = Resource.objects.filter(
+                owner_id=user_id,
+                status=resource_status,
+                mime_type__in=self.RAG_COMPATIBLE_MIME_TYPES
+            ).order_by('-created_at')[:limit]
+            
+            resources_data = []
+            for resource in resources_query:
+                resources_data.append({
+                    'id': resource.id,
+                    'name': resource.name,
+                    'original_filename': resource.original_filename,
+                    'description': resource.description,
+                    'mime_type': resource.mime_type,
+                    'size': resource.size,
+                    'created_at': resource.created_at.isoformat(),
+                    'metadata': resource.metadata or {}
+                })
+            
+            print(f"  Found {len(resources_data)} RAG-compatible resources")
+            
+            return Response({
+                'count': len(resources_data),
+                'resources': resources_data,
+                'compatible_types': list(self.RAG_COMPATIBLE_MIME_TYPES)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"  Error fetching RAG resources: {e}")
+            return Response({
+                "error": f"Failed to fetch RAG resources: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class InternalRagContentView(views.APIView):
+    """
+    Endpoint INTERNO per ottenere il contenuto di una risorsa compatibile con RAG.
+    Verifica che la risorsa sia adatta al RAG prima di servirla.
+    """
+    permission_classes = [AllowInternalOnlyWithSecret]
+    authentication_classes = []
+    renderer_classes = [PassthroughRenderer]
+    
+    # Stessi tipi MIME della vista precedente
+    RAG_COMPATIBLE_MIME_TYPES = {
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword',
+        'text/plain',
+        'text/markdown',
+        'text/rtf',
+        'application/rtf',
+        'text/x-markdown',
+    }
+    
+    def get(self, request, resource_id, *args, **kwargs):
+        """
+        Restituisce il contenuto di una risorsa se è compatibile con RAG.
+        """
+        print(f"--- RM: InternalRagContentView for resource_id: {resource_id} ---")
+        
+        resource = get_object_or_404(Resource, pk=resource_id)
+        
+        # Verifica che la risorsa sia completata
+        if resource.status != Resource.Status.COMPLETED:
+            return Response({
+                "error": f"Resource not processed (status: {resource.status})."
+            }, status=status.HTTP_409_CONFLICT)
+        
+        # Verifica che sia compatibile con RAG
+        if resource.mime_type not in self.RAG_COMPATIBLE_MIME_TYPES:
+            return Response({
+                "error": f"Resource type '{resource.mime_type}' is not compatible with RAG. Compatible types: {list(self.RAG_COMPATIBLE_MIME_TYPES)}"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verifica che il file esista
+        if not resource.file or not default_storage.exists(resource.file.name):
+            return Response({
+                "error": "Resource file not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            print(f"  Serving RAG-compatible file: {resource.original_filename} ({resource.mime_type})")
+            
+            with default_storage.open(resource.file.name, 'rb') as f:
+                file_content = f.read()
+            
+            content_type = resource.mime_type or 'application/octet-stream'
+            
+            # Usa HttpResponse per impostare Content-Type e Disposition
+            response = HttpResponse(file_content, content_type=content_type)
+            response['Content-Disposition'] = f'inline; filename="{resource.original_filename}"'
+            
+            try:
+                response['Content-Length'] = default_storage.size(resource.file.name)
+            except NotImplementedError:
+                pass
+            
+            return response
+            
+        except Exception as e:
+            print(f"  Error serving RAG content for resource {resource_id}: {e}")
+            return Response({
+                "error": "Could not serve file content."
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

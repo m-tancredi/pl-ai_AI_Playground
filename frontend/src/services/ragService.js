@@ -441,4 +441,47 @@ export const ragService = {
             throw error;
         }
     },
+
+    /**
+     * Ottiene l'elenco delle risorse compatibili con RAG dal Resource Manager
+     * @param {Object} options - Opzioni di filtro
+     * @returns {Promise} - Lista delle risorse compatibili
+     */
+    getResourceManagerDocuments: async (options = {}) => {
+        try {
+            const params = new URLSearchParams();
+            if (options.limit) params.append('limit', options.limit);
+
+            const response = await apiClient.get(`${API_RAG_URL}/resource-manager/resources/?${params.toString()}`);
+            return response.data;
+        } catch (error) {
+            throw new Error(error.response?.data?.error || error.response?.data?.message || 'Errore durante il recupero delle risorse dal Resource Manager');
+        }
+    },
+
+    /**
+     * Processa una risorsa esistente dal Resource Manager per il RAG
+     * @param {number} resourceId - ID della risorsa nel Resource Manager
+     * @param {Object} options - Opzioni aggiuntive (es. knowledge_base)
+     * @returns {Promise} - Documento RAG creato
+     */
+    processResourceFromManager: async (resourceId, options = {}) => {
+        try {
+            const formData = new FormData();
+            formData.append('resource_id', resourceId.toString());
+            
+            if (options.knowledge_base) {
+                formData.append('knowledge_base', options.knowledge_base.toString());
+            }
+
+            const response = await apiClient.post(`${API_RAG_URL}/documents/upload/`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                }
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(error.response?.data?.error || error.response?.data?.message || 'Errore durante il processamento della risorsa');
+        }
+    }
 }; 

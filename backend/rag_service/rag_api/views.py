@@ -19,6 +19,8 @@ from rest_framework.exceptions import ValidationError
 from django.core.files.storage import default_storage
 import uuid
 import mimetypes
+import requests
+import tempfile
 
 from .models import RAGDocument, RAGChunk, RAGProcessingLog, RAGKnowledgeBase, RAGChatSession, RAGChatMessage
 from .serializers import (
@@ -245,7 +247,7 @@ class RAGDocumentViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def upload(self, request):
         """
-        Endpoint per l'upload di documenti.
+        Endpoint per l'upload di documenti o per processare risorse dal Resource Manager.
         """
         try:
             serializer = RAGDocumentUploadSerializer(data=request.data, context={'request': request})
@@ -253,21 +255,23 @@ class RAGDocumentViewSet(viewsets.ModelViewSet):
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             
-            uploaded_file = serializer.validated_data['file']
+            uploaded_file = serializer.validated_data.get('file')
+            resource_id = serializer.validated_data.get('resource_id')
             
-            # Salva il file
-            file_path = self._save_uploaded_file(uploaded_file)
+            document = None
             
-            # Crea il documento nel database
-            document = RAGDocument.objects.create(
-                user_id=request.user.id if request.user.is_authenticated else None,
-                filename=os.path.basename(file_path),
-                original_filename=uploaded_file.name,
-                file_path=file_path,
-                file_size=uploaded_file.size,
-                file_type=uploaded_file.content_type or 'application/octet-stream',
-                status='uploaded'
-            )
+            if uploaded_file:
+                # Flusso tradizionale: upload diretto del file
+                document = self._process_uploaded_file(request, uploaded_file)
+                
+            elif resource_id:
+                # Flusso nuovo: processo risorsa dal Resource Manager
+                document = self._process_resource_from_manager(request, resource_id)
+            
+            if not document:
+                return Response({
+                    'error': 'Errore durante la creazione del documento'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
             # Avvia il processamento asincrono
             process_rag_document_task.delay(document.id)
@@ -275,15 +279,170 @@ class RAGDocumentViewSet(viewsets.ModelViewSet):
             # Restituisci la risposta
             response_serializer = RAGDocumentSerializer(document)
             return Response({
-                'message': 'File caricato con successo. Processamento avviato.',
+                'message': 'Documento creato con successo. Processamento avviato.',
                 'document': response_serializer.data
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
             logger.error(f"Errore nell'upload del documento: {str(e)}")
             return Response({
-                'error': 'Errore interno durante l\'upload del file'
+                'error': 'Errore interno durante l\'elaborazione'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _process_uploaded_file(self, request, uploaded_file):
+        """
+        Processa un file caricato direttamente.
+        """
+        # Salva il file
+        file_path = self._save_uploaded_file(uploaded_file)
+        
+        # Crea il documento nel database
+        document = RAGDocument.objects.create(
+            user_id=request.user.id if request.user.is_authenticated else None,
+            resource_id=None,  # Nessuna risorsa del Resource Manager
+            filename=os.path.basename(file_path),
+            original_filename=uploaded_file.name,
+            file_path=file_path,
+            file_size=uploaded_file.size,
+            file_type=uploaded_file.content_type or 'application/octet-stream',
+            status='uploaded'
+        )
+        
+        return document
+    
+    def _process_resource_from_manager(self, request, resource_id):
+        """
+        Processa una risorsa esistente dal Resource Manager.
+        """
+        from django.conf import settings
+        import requests
+        import tempfile
+        
+        # Costanti per header interno
+        INTERNAL_API_HEADER = settings.INTERNAL_API_SECRET_HEADER_NAME
+        INTERNAL_API_SECRET = settings.INTERNAL_API_SECRET_VALUE
+        
+        try:
+            user_id = request.user.id if request.user.is_authenticated else None
+            
+            logger.info(f"Recupero risorsa {resource_id} dal Resource Manager per utente {user_id}")
+            
+            # Chiama l'endpoint interno del Resource Manager per ottenere il contenuto
+            resource_url = f"{settings.RESOURCE_MANAGER_INTERNAL_URL}/api/internal/rag/resources/{resource_id}/content/"
+            internal_headers = {}
+            if INTERNAL_API_SECRET:
+                internal_headers[INTERNAL_API_HEADER] = INTERNAL_API_SECRET
+            
+            response = requests.get(resource_url, headers=internal_headers, timeout=30)
+            response.raise_for_status()
+            
+            # Ottieni informazioni dal Resource Manager sulla risorsa
+            resource_info_url = f"{settings.RESOURCE_MANAGER_INTERNAL_URL}/api/internal/rag/resources/"
+            info_params = {'user_id': user_id, 'limit': 1}
+            
+            info_response = requests.get(resource_info_url, headers=internal_headers, params=info_params, timeout=30)
+            info_response.raise_for_status()
+            
+            resource_info_data = info_response.json()
+            resource_info = None
+            
+            # Trova la risorsa specifica
+            for res in resource_info_data.get('resources', []):
+                if res['id'] == resource_id:
+                    resource_info = res
+                    break
+            
+            if not resource_info:
+                raise Exception(f"Resource {resource_id} not found or not accessible")
+            
+            # Verifica che sia compatibile con RAG (dovrebbe già essere filtrata, ma double-check)
+            rag_compatible_types = {
+                'application/pdf',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/msword',
+                'text/plain',
+                'text/markdown',
+                'text/rtf',
+                'application/rtf',
+                'text/x-markdown',
+            }
+            
+            if resource_info['mime_type'] not in rag_compatible_types:
+                raise Exception(f"Resource type '{resource_info['mime_type']}' is not compatible with RAG")
+            
+            # Salva temporaneamente il file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{resource_info['original_filename']}") as temp_file:
+                temp_file.write(response.content)
+                temp_file_path = temp_file.name
+            
+            # Sposta il file nella directory di upload del RAG
+            final_file_path = self._save_file_content(
+                response.content, 
+                resource_info['original_filename'],
+                resource_info['mime_type']
+            )
+            
+            # Pulisci il file temporaneo
+            os.unlink(temp_file_path)
+            
+            # Crea il documento nel database
+            document = RAGDocument.objects.create(
+                user_id=user_id,
+                resource_id=resource_id,  # Referenzia la risorsa del Resource Manager
+                filename=os.path.basename(final_file_path),
+                original_filename=resource_info['original_filename'],
+                file_path=final_file_path,
+                file_size=resource_info['size'],
+                file_type=resource_info['mime_type'],
+                status='uploaded'
+            )
+            
+            logger.info(f"Documento RAG creato dal Resource Manager: {document.id} (risorsa {resource_id})")
+            
+            return document
+            
+        except requests.exceptions.HTTPError as http_err:
+            error_msg = f"HTTP error accessing Resource Manager: {http_err.response.status_code if http_err.response else 'N/A'}"
+            if http_err.response:
+                try:
+                    error_data = http_err.response.json()
+                    error_msg += f" - {error_data.get('error', 'Unknown error')}"
+                except:
+                    error_msg += f" - {http_err.response.text[:200]}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+            
+        except requests.exceptions.RequestException as req_exc:
+            error_msg = f"Request error accessing Resource Manager: {req_exc}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+            
+        except Exception as e:
+            error_msg = f"Unexpected error processing resource from Resource Manager: {e}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+    
+    def _save_file_content(self, content, filename, content_type):
+        """
+        Salva il contenuto del file nella directory di upload del RAG.
+        """
+        import uuid
+        from pathlib import Path
+        
+        # Crea directory se non esiste
+        upload_dir = Path(settings.RAG_UPLOADS_ROOT)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Genera nome file unico
+        file_extension = Path(filename).suffix
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = upload_dir / unique_filename
+        
+        # Salva il contenuto
+        with open(file_path, 'wb') as f:
+            f.write(content)
+        
+        return str(file_path)
     
     def _save_uploaded_file(self, uploaded_file):
         """
@@ -1572,3 +1731,102 @@ class RAGEmbeddingBenchmarkView(APIView):
                 'provider': None,
                 'reason': 'Nessun provider disponibile'
             }
+
+class RAGResourceManagerView(APIView):
+    """
+    View per interagire con il Resource Manager e ottenere risorse compatibili con RAG.
+    """
+    authentication_classes = [JWTCustomAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Ottiene l'elenco delle risorse compatibili con RAG dal Resource Manager.
+        """
+        from django.conf import settings
+        import requests
+        
+        try:
+            user_id = request.user.id if request.user.is_authenticated else None
+            
+            if not user_id:
+                return Response({
+                    'error': 'Utente non autenticato'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Costanti per header interno
+            INTERNAL_API_HEADER = settings.INTERNAL_API_SECRET_HEADER_NAME
+            INTERNAL_API_SECRET = settings.INTERNAL_API_SECRET_VALUE
+            
+            if not settings.RESOURCE_MANAGER_INTERNAL_URL or not INTERNAL_API_SECRET:
+                return Response({
+                    'error': 'Resource Manager non configurato'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
+            logger.info(f"Recupero risorse RAG-compatibili per utente {user_id}")
+            
+            # Chiama l'endpoint interno del Resource Manager
+            resource_url = f"{settings.RESOURCE_MANAGER_INTERNAL_URL}/api/internal/rag/resources/"
+            internal_headers = {INTERNAL_API_HEADER: INTERNAL_API_SECRET}
+            params = {
+                'user_id': user_id,
+                'status': 'COMPLETED',
+                'limit': int(request.GET.get('limit', 50))
+            }
+            
+            response = requests.get(resource_url, headers=internal_headers, params=params, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Aggiungi informazioni sui documenti già processati nel RAG
+            resources = data.get('resources', [])
+            for resource in resources:
+                # Controlla se esiste già un documento RAG per questa risorsa
+                existing_rag_doc = RAGDocument.objects.filter(
+                    resource_id=resource['id'],
+                    user_id=user_id
+                ).first()
+                
+                if existing_rag_doc:
+                    resource['rag_status'] = existing_rag_doc.status
+                    resource['rag_document_id'] = existing_rag_doc.id
+                    resource['rag_processed'] = existing_rag_doc.status == 'processed'
+                else:
+                    resource['rag_status'] = None
+                    resource['rag_document_id'] = None
+                    resource['rag_processed'] = False
+            
+            logger.info(f"Trovate {len(resources)} risorse RAG-compatibili per utente {user_id}")
+            
+            return Response({
+                'count': data.get('count', len(resources)),
+                'resources': resources,
+                'compatible_types': data.get('compatible_types', [])
+            }, status=status.HTTP_200_OK)
+            
+        except requests.exceptions.HTTPError as http_err:
+            error_msg = f"HTTP error accessing Resource Manager: {http_err.response.status_code if http_err.response else 'N/A'}"
+            if http_err.response:
+                try:
+                    error_data = http_err.response.json()
+                    error_msg += f" - {error_data.get('error', 'Unknown error')}"
+                except:
+                    error_msg += f" - {http_err.response.text[:200]}"
+            logger.error(error_msg)
+            return Response({
+                'error': 'Errore nella comunicazione con Resource Manager'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
+        except requests.exceptions.RequestException as req_exc:
+            error_msg = f"Request error accessing Resource Manager: {req_exc}"
+            logger.error(error_msg)
+            return Response({
+                'error': 'Errore nella comunicazione con Resource Manager'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
+        except Exception as e:
+            logger.error(f"Unexpected error fetching RAG resources: {e}")
+            return Response({
+                'error': 'Errore interno'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

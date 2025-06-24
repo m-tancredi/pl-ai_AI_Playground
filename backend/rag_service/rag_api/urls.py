@@ -6,7 +6,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RAGChatView, RAGDocumentViewSet, RAGStatusView, RAGClearKnowledgeBaseView,
     RAGKnowledgeBaseViewSet, RAGChatSessionViewSet, RAGChatSessionListView,
-    RAGEmbeddingInfoView, RAGEmbeddingBenchmarkView
+    RAGEmbeddingInfoView, RAGEmbeddingBenchmarkView, RAGResourceManagerView
 )
 
 # Router per i ViewSet
@@ -31,6 +31,9 @@ urlpatterns = [
     # Endpoint per la gestione degli embeddings
     path('embeddings/info/', RAGEmbeddingInfoView.as_view(), name='embeddings-info'),
     path('embeddings/benchmark/', RAGEmbeddingBenchmarkView.as_view(), name='embeddings-benchmark'),
+    
+    # Endpoint per Resource Manager integration
+    path('resource-manager/resources/', RAGResourceManagerView.as_view(), name='rag-resource-manager'),
     
     # Include le route del router (documenti, KB, chat sessions)
     path('', include(router.urls)),

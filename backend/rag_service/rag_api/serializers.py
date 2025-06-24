@@ -19,6 +19,7 @@ class RAGDocumentSerializer(serializers.ModelSerializer):
         model = RAGDocument
         fields = [
             'id',
+            'resource_id',
             'filename',
             'original_filename',
             'file_size',
@@ -39,6 +40,7 @@ class RAGDocumentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id',
+            'resource_id',
             'filename',
             'file_size',
             'file_type',
@@ -182,16 +184,39 @@ class RAGKnowledgeBaseDetailSerializer(RAGKnowledgeBaseSerializer):
 
 class RAGDocumentUploadSerializer(serializers.Serializer):
     """
-    Serializer per l'upload di documenti.
+    Serializer per l'upload di documenti o per il processing da Resource Manager.
     """
     
-    file = serializers.FileField()
+    file = serializers.FileField(required=False)
+    resource_id = serializers.IntegerField(required=False, help_text="ID of an existing resource in Resource Manager")
     knowledge_base = serializers.IntegerField(required=False)
+    
+    def validate(self, data):
+        """
+        Valida che sia fornito file O resource_id, ma non entrambi.
+        """
+        file_provided = data.get('file') is not None
+        resource_id_provided = data.get('resource_id') is not None
+        
+        if not file_provided and not resource_id_provided:
+            raise serializers.ValidationError(
+                "Either 'file' or 'resource_id' must be provided."
+            )
+        
+        if file_provided and resource_id_provided:
+            raise serializers.ValidationError(
+                "Provide either 'file' or 'resource_id', not both."
+            )
+        
+        return data
     
     def validate_file(self, value):
         """
         Valida il file caricato.
         """
+        if value is None:
+            return value
+            
         # Controlla la dimensione del file (massimo 10MB per default)
         max_size = 10 * 1024 * 1024  # 10MB
         if value.size > max_size:
@@ -200,13 +225,25 @@ class RAGDocumentUploadSerializer(serializers.Serializer):
             )
         
         # Controlla l'estensione del file
-        allowed_extensions = ['.pdf', '.docx', '.doc', '.txt', '.jpg', '.jpeg', '.png', '.xlsx', '.xls']
+        allowed_extensions = ['.pdf', '.docx', '.doc', '.txt', '.md', '.rtf']
         file_extension = value.name.lower()
         
         if not any(file_extension.endswith(ext) for ext in allowed_extensions):
             raise serializers.ValidationError(
-                f"Formato file non supportato. Formati consentiti: {', '.join(allowed_extensions)}"
+                f"Formato file non supportato per RAG. Formati consentiti: {', '.join(allowed_extensions)}"
             )
+        
+        return value
+    
+    def validate_resource_id(self, value):
+        """
+        Valida l'ID della risorsa dal Resource Manager.
+        """
+        if value is not None:
+            # La validazione dettagliata verrà fatta nella vista
+            # quando chiamiamo il Resource Manager
+            if value <= 0:
+                raise serializers.ValidationError("resource_id must be a positive integer")
         
         return value
     
