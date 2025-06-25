@@ -35,25 +35,10 @@ secrets:
     file: ./.secrets/stability_api_key.txt
 
 services:
-  # --- Databases ---
-  analysis_db:
-    image: postgres:15-alpine
-    container_name: pl-ai-analysis-db
-    volumes:
-      - analysis_db_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: ${ANALYSIS_DB_USER:-analysis_user}
-      POSTGRES_PASSWORD: ${ANALYSIS_DB_PASSWORD:-analysis_password}
-      POSTGRES_DB: ${ANALYSIS_DB_NAME:-analysis_db}
-    expose: ["5432"]
-    networks: [pl-ai-network]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-analysis_user} -d $${POSTGRES_DB:-analysis_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
+  # =============================================================================
+  # DATABASE SERVICES
+  # =============================================================================
+  
   auth_db:
     image: postgres:15-alpine
     container_name: pl-ai-auth-db
@@ -73,6 +58,25 @@ services:
       retries: 5
     restart: unless-stopped
 
+  user_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-user-db
+    volumes:
+      - user_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${USER_DB_USER:-user_user}
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD:-user_password}
+      POSTGRES_DB: ${USER_DB_NAME:-user_db}
+    expose: ["5432"]
+    ports: ["5434:5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-user_user} -d $${POSTGRES_DB:-user_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   chatbot_db:
     image: postgres:15-alpine
     container_name: pl-ai-chatbot-db
@@ -83,28 +87,10 @@ services:
       POSTGRES_PASSWORD: ${CHATBOT_DB_PASSWORD:-chatbot_pass}
       POSTGRES_DB: ${CHATBOT_DB_NAME:-chatbot_db}
     expose: ["5432"]
-    ports: ["5436:5432"]
+    ports: ["5435:5432"]
     networks: [pl-ai-network]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-chatbot_user} -d $${POSTGRES_DB:-chatbot_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  classifier_db:
-    image: postgres:15-alpine
-    container_name: pl-ai-classifier-db
-    volumes:
-      - classifier_db_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: ${CLASSIFIER_DB_USER:-classifier_user}
-      POSTGRES_PASSWORD: ${CLASSIFIER_DB_PASSWORD:-classifier_password}
-      POSTGRES_DB: ${CLASSIFIER_DB_NAME:-classifier_db}
-    expose: ["5432"]
-    networks: [pl-ai-network]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-classifier_user} -d $${POSTGRES_DB:-classifier_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -120,6 +106,7 @@ services:
       POSTGRES_PASSWORD: ${IMAGE_GEN_DB_PASSWORD:-imagegen_password}
       POSTGRES_DB: ${IMAGE_GEN_DB_NAME:-imagegen_db}
     expose: ["5432"]
+    ports: ["5436:5432"]
     networks: [pl-ai-network]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-imagegen_user} -d $${POSTGRES_DB:-imagegen_db}"]
@@ -138,10 +125,48 @@ services:
       POSTGRES_PASSWORD: ${RESOURCE_DB_PASSWORD:-resource_password}
       POSTGRES_DB: ${RESOURCE_DB_NAME:-resource_db}
     expose: ["5432"]
-    ports: ["5435:5432"]
+    ports: ["5437:5432"]
     networks: [pl-ai-network]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-resource_user} -d $${POSTGRES_DB:-resource_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  classifier_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-classifier-db
+    volumes:
+      - classifier_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${CLASSIFIER_DB_USER:-classifier_user}
+      POSTGRES_PASSWORD: ${CLASSIFIER_DB_PASSWORD:-classifier_password}
+      POSTGRES_DB: ${CLASSIFIER_DB_NAME:-classifier_db}
+    expose: ["5432"]
+    ports: ["5438:5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-classifier_user} -d $${POSTGRES_DB:-classifier_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  analysis_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-analysis-db
+    volumes:
+      - analysis_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${ANALYSIS_DB_USER:-analysis_user}
+      POSTGRES_PASSWORD: ${ANALYSIS_DB_PASSWORD:-analysis_password}
+      POSTGRES_DB: ${ANALYSIS_DB_NAME:-analysis_db}
+    expose: ["5432"]
+    ports: ["5439:5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-analysis_user} -d $${POSTGRES_DB:-analysis_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -157,29 +182,10 @@ services:
       POSTGRES_PASSWORD: ${RAG_DB_PASSWORD:-rag_password}
       POSTGRES_DB: ${RAG_DB_NAME:-rag_db}
     expose: ["5432"]
-    ports: ["5437:5432"]
+    ports: ["5440:5432"]
     networks: [pl-ai-network]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-rag_user} -d $${POSTGRES_DB:-rag_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  user_db:
-    image: postgres:15-alpine
-    container_name: pl-ai-user-db
-    volumes:
-      - user_db_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: ${USER_DB_USER:-user_user}
-      POSTGRES_PASSWORD: ${USER_DB_PASSWORD:-user_password}
-      POSTGRES_DB: ${USER_DB_NAME:-user_db}
-    expose: ["5432"]
-    ports: ["5438:5432"]
-    networks: [pl-ai-network]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-user_user} -d $${POSTGRES_DB:-user_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -195,7 +201,7 @@ services:
       POSTGRES_PASSWORD: ${LEARNING_DB_PASSWORD:-learning_password}
       POSTGRES_DB: ${LEARNING_DB_NAME:-learning_db}
     expose: ["5432"]
-    ports: ["5439:5432"]
+    ports: ["5441:5432"]
     networks: [pl-ai-network]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-learning_user} -d $${POSTGRES_DB:-learning_db}"]
@@ -204,7 +210,10 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # --- Message Broker ---
+  # =============================================================================
+  # MESSAGE BROKER
+  # =============================================================================
+  
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
     container_name: pl-ai-rabbitmq
@@ -220,7 +229,10 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # --- Backend Services ---
+  # =============================================================================
+  # BACKEND SERVICES (API)
+  # =============================================================================
+  
   auth_service:
     build:
       context: ./backend/auth_service
@@ -229,9 +241,34 @@ services:
     volumes:
       - ./backend/auth_service:/app
     expose: ["8000"]
+    ports: ["8000:8000"]
     networks: [pl-ai-network]
     depends_on:
       auth_db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  user_service:
+    build:
+      context: ./backend/user_service
+    container_name: pl-ai-user-service
+    env_file: [./backend/user_service/.env]
+    volumes:
+      - ./backend/user_service:/app
+      - ./backend/user_service/mediafiles:/mediafiles
+    secrets:
+      - openai_api_key_secret
+    expose: ["8000"]
+    ports: ["8001:8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      user_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
       interval: 30s
@@ -259,56 +296,20 @@ services:
       - openai_api_key_secret
       - gemini_api_key_secret
       - anthropic_api_key_secret
-    expose: ["8001"]
-    ports: ["8001:8001"]
+    expose: ["8000"]
+    ports: ["8002:8000"]
     networks: [pl-ai-network]
     depends_on:
       chatbot_db: { condition: service_healthy }
-    restart: unless-stopped
-
-  data_analysis_service:
-    build:
-      context: ./backend/data_analysis_service
-      dockerfile: Dockerfile
-    container_name: pl-ai-data-analysis-web
-    env_file: [./backend/data_analysis_service/.env]
-    environment: [SERVICE_PROCESS_TYPE=web]
-    volumes:
-      - ./backend/data_analysis_service:/app
-      - analysis_results_data:/app/analysis_results_storage
-    secrets:
-      - openai_api_key_secret
-    expose: ["8005"]
-    networks: [pl-ai-network]
-    depends_on:
-      analysis_db: { condition: service_healthy }
-      rabbitmq: { condition: service_healthy }
-      resource_manager_service: { condition: service_started }
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:8005/admin/login/ || exit 1"]
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 60s
     restart: unless-stopped
 
-  image_classifier_service:
-    build:
-      context: ./backend/image_classifier_service
-    container_name: pl-ai-classifier-web
-    env_file: [./backend/image_classifier_service/.env]
-    environment: [SERVICE_PROCESS_TYPE=web]
-    volumes:
-      - ./backend/image_classifier_service:/app
-      - models_storage_data:/app/models_storage
-    expose: ["8004"]
-    networks: [pl-ai-network]
-    depends_on:
-      classifier_db: { condition: service_healthy }
-      rabbitmq: { condition: service_healthy }
-    restart: unless-stopped
-
-  pl_ai_image_generator_service:
+  image_generator_service:
     build:
       context: ./backend/image_generator_service
     container_name: pl-ai-image-generator-service
@@ -319,12 +320,13 @@ services:
     secrets:
       - openai_api_key_secret
       - stability_api_key_secret
-    expose: ["8002"]
+    expose: ["8000"]
+    ports: ["8003:8000"]
     networks: [pl-ai-network]
     depends_on:
       image_generator_db: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:8002/admin/login/ || exit 1"]
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -334,23 +336,74 @@ services:
   resource_manager_service:
     build:
       context: ./backend/resource_manager_service
-    container_name: pl-ai-resource-manager-web
+    container_name: pl-ai-resource-manager-service
     env_file: [./backend/resource_manager_service/.env]
     environment: [SERVICE_PROCESS_TYPE=web]
     volumes:
       - ./backend/resource_manager_service:/app
       - ./backend/resource_manager_service/mediafiles:/mediafiles
-    expose: ["8003"]
+    expose: ["8000"]
+    ports: ["8004:8000"]
     networks: [pl-ai-network]
     depends_on:
       resource_db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:8003/admin/login/ || exit 1"]
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 45s
+    restart: unless-stopped
+
+  image_classifier_service:
+    build:
+      context: ./backend/image_classifier_service
+    container_name: pl-ai-classifier-service
+    env_file: [./backend/image_classifier_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=web]
+    volumes:
+      - ./backend/image_classifier_service:/app
+      - models_storage_data:/app/models_storage
+    expose: ["8000"]
+    ports: ["8005:8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      classifier_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  data_analysis_service:
+    build:
+      context: ./backend/data_analysis_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-data-analysis-service
+    env_file: [./backend/data_analysis_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=web]
+    volumes:
+      - ./backend/data_analysis_service:/app
+      - analysis_results_data:/app/analysis_results_storage
+    secrets:
+      - openai_api_key_secret
+    expose: ["8000"]
+    ports: ["8006:8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      analysis_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      resource_manager_service: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     restart: unless-stopped
 
   rag_service:
@@ -366,53 +419,11 @@ services:
       - rag_embeddings_data:/app/rag_embeddings
     secrets:
       - openai_api_key_secret
-    expose: ["8006"]
-    ports: ["8006:8006"]
-    networks: [pl-ai-network]
-    depends_on:
-      rag_db: { condition: service_healthy }
-      rabbitmq: { condition: service_healthy }
-    healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:8006/admin/login/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    restart: unless-stopped
-
-  rag_worker:
-    build:
-      context: ./backend/rag_service
-      dockerfile: Dockerfile
-    container_name: pl-ai-rag-worker
-    env_file: [./backend/rag_service/.env]
-    environment: [SERVICE_PROCESS_TYPE=worker]
-    volumes:
-      - ./backend/rag_service:/app
-      - rag_uploads_data:/app/rag_uploads
-      - rag_embeddings_data:/app/rag_embeddings
-    secrets:
-      - openai_api_key_secret
-    networks: [pl-ai-network]
-    depends_on:
-      rag_db: { condition: service_healthy }
-      rabbitmq: { condition: service_healthy }
-    restart: unless-stopped
-
-  user_service:
-    build:
-      context: ./backend/user_service
-    container_name: pl-ai-user-service
-    env_file: [./backend/user_service/.env]
-    volumes:
-      - ./backend/user_service:/app
-      - ./backend/user_service/mediafiles:/mediafiles
-    secrets:
-      - openai_api_key_secret
     expose: ["8000"]
+    ports: ["8007:8000"]
     networks: [pl-ai-network]
     depends_on:
-      user_db: { condition: service_healthy }
+      rag_db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "curl --fail http://localhost:8000/admin/login/ || exit 1"]
@@ -433,8 +444,8 @@ services:
       - ./backend/learning_service/logs:/app/logs
     secrets:
       - openai_api_key_secret
-    expose: ["8007"]
-    ports: ["8007:8000"]
+    expose: ["8000"]
+    ports: ["8008:8000"]
     networks: [pl-ai-network]
     depends_on:
       learning_db: { condition: service_healthy }
@@ -447,7 +458,29 @@ services:
       start_period: 60s
     restart: unless-stopped
 
-  # --- Worker Services ---
+  # =============================================================================
+  # WORKER SERVICES (Background Tasks)  
+  # =============================================================================
+  
+  rag_worker:
+    build:
+      context: ./backend/rag_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-rag-worker
+    env_file: [./backend/rag_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=worker]
+    volumes:
+      - ./backend/rag_service:/app
+      - rag_uploads_data:/app/rag_uploads
+      - rag_embeddings_data:/app/rag_embeddings
+    secrets:
+      - openai_api_key_secret
+    networks: [pl-ai-network]
+    depends_on:
+      rag_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+
   data_analysis_worker:
     build:
       context: ./backend/data_analysis_service
@@ -499,7 +532,10 @@ services:
       rabbitmq: { condition: service_healthy }
     restart: unless-stopped
 
-  # --- Frontend Service ---
+  # =============================================================================
+  # FRONTEND SERVICE
+  # =============================================================================
+  
   frontend:
     build:
       context: ./frontend
@@ -508,7 +544,10 @@ services:
     networks: [pl-ai-network]
     restart: unless-stopped
 
-  # --- API Gateway / Reverse Proxy ---
+  # =============================================================================
+  # API GATEWAY / REVERSE PROXY
+  # =============================================================================
+  
   nginx:
     build:
       context: ./nginx
@@ -526,7 +565,7 @@ services:
     depends_on:
       auth_service: { condition: service_healthy }
       user_service: { condition: service_healthy }
-      pl_ai_image_generator_service: { condition: service_healthy }
+      image_generator_service: { condition: service_healthy }
       resource_manager_service: { condition: service_healthy }
       image_classifier_service: { condition: service_started }
       data_analysis_service: { condition: service_healthy }
