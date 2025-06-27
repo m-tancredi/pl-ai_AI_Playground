@@ -40,7 +40,7 @@ RUN chmod +x /app/entrypoint.sh
 RUN mkdir -p /app/mediafiles
 
 # Porta per Gunicorn/Django (non per Celery worker)
-EXPOSE 8003
+EXPOSE 8000
 
 # L'entrypoint gestirà l'avvio dei processi
 ENTRYPOINT ["/app/entrypoint.sh"]

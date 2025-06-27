@@ -5,6 +5,6 @@ python manage.py migrate --noinput
 
 # Avvia Gunicorn
 exec gunicorn service_config.wsgi:application \
-    --bind 0.0.0.0:8003 \
+    --bind 0.0.0.0:8000 \
     --workers 2 \
     --timeout 120 

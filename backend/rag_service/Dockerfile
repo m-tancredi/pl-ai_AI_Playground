@@ -27,7 +27,7 @@ COPY . /app/
 RUN mkdir -p /app/rag_uploads /app/rag_embeddings
 
 # Espone la porta
-EXPOSE 8006
+EXPOSE 8000
 
 # Script di entrypoint
 COPY entrypoint.sh /app/entrypoint.sh

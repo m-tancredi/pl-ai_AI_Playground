@@ -27,7 +27,7 @@ COPY ./entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Espone la porta 8001 (puoi cambiarla se preferisci)
-EXPOSE 8001
+EXPOSE 8000
 
 # Esegui entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"] 

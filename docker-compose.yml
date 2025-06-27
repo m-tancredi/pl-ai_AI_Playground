@@ -241,7 +241,6 @@ services:
     volumes:
       - ./backend/auth_service:/app
     expose: ["8000"]
-    ports: ["8000:8000"]
     networks: [pl-ai-network]
     depends_on:
       auth_db: { condition: service_healthy }
@@ -264,7 +263,6 @@ services:
     secrets:
       - openai_api_key_secret
     expose: ["8000"]
-    ports: ["8001:8000"]
     networks: [pl-ai-network]
     depends_on:
       user_db: { condition: service_healthy }
@@ -297,7 +295,6 @@ services:
       - gemini_api_key_secret
       - anthropic_api_key_secret
     expose: ["8000"]
-    ports: ["8002:8000"]
     networks: [pl-ai-network]
     depends_on:
       chatbot_db: { condition: service_healthy }
@@ -321,7 +318,6 @@ services:
       - openai_api_key_secret
       - stability_api_key_secret
     expose: ["8000"]
-    ports: ["8003:8000"]
     networks: [pl-ai-network]
     depends_on:
       image_generator_db: { condition: service_healthy }
@@ -343,7 +339,6 @@ services:
       - ./backend/resource_manager_service:/app
       - ./backend/resource_manager_service/mediafiles:/mediafiles
     expose: ["8000"]
-    ports: ["8004:8000"]
     networks: [pl-ai-network]
     depends_on:
       resource_db: { condition: service_healthy }
@@ -366,7 +361,6 @@ services:
       - ./backend/image_classifier_service:/app
       - models_storage_data:/app/models_storage
     expose: ["8000"]
-    ports: ["8005:8000"]
     networks: [pl-ai-network]
     depends_on:
       classifier_db: { condition: service_healthy }
@@ -392,7 +386,6 @@ services:
     secrets:
       - openai_api_key_secret
     expose: ["8000"]
-    ports: ["8006:8000"]
     networks: [pl-ai-network]
     depends_on:
       analysis_db: { condition: service_healthy }
@@ -420,7 +413,6 @@ services:
     secrets:
       - openai_api_key_secret
     expose: ["8000"]
-    ports: ["8007:8000"]
     networks: [pl-ai-network]
     depends_on:
       rag_db: { condition: service_healthy }
@@ -445,7 +437,6 @@ services:
     secrets:
       - openai_api_key_secret
     expose: ["8000"]
-    ports: ["8008:8000"]
     networks: [pl-ai-network]
     depends_on:
       learning_db: { condition: service_healthy }

@@ -13,4 +13,4 @@ fi
 python manage.py migrate --noinput
 
 # Avvia il server Django
-exec python manage.py runserver 0.0.0.0:8001 
+exec python manage.py runserver 0.0.0.0:8000 

@@ -264,4 +264,4 @@ THUMBNAIL_SIZE = (256, 256) # Dimensione thumbnail (larghezza, altezza)
 
 INTERNAL_API_SECRET_HEADER_NAME = 'X-Internal-Secret' # Puoi cambiare il nome se preferisci
 INTERNAL_API_SECRET_VALUE = os.getenv('INTERNAL_API_SECRET', None)
-RESOURCE_MANAGER_INTERNAL_URL = os.getenv('RESOURCE_MANAGER_INTERNAL_URL', 'http://pl-ai-resource-manager-web:8003')
+RESOURCE_MANAGER_INTERNAL_URL = os.getenv('RESOURCE_MANAGER_INTERNAL_URL', 'http://pl-ai-resource-manager-service:8000')

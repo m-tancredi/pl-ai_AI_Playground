@@ -75,7 +75,7 @@ print('Modello caricato con successo!')
     
     # Se non ci sono argomenti, usa il comando di default per il web server
     if [ $# -eq 0 ]; then
-        exec gunicorn --bind 0.0.0.0:8006 service_config.wsgi:application
+        exec gunicorn --bind 0.0.0.0:8000 service_config.wsgi:application
     else
         exec "$@"
     fi

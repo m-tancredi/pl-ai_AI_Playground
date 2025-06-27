@@ -19,9 +19,9 @@ echo "Checking for secrets..."
 
 # Avvia server (invariato)
 if [ "$DJANGO_DEBUG" = "True" ]; then
-    echo "Starting Django development server on port 8002..."
-    python manage.py runserver 0.0.0.0:8002
+    echo "Starting Django development server on port 8000..."
+    python manage.py runserver 0.0.0.0:8000
 else
-    echo "Starting Gunicorn production server on port 8002..."
-    gunicorn service_config.wsgi:application --bind 0.0.0.0:8002 --workers 4
+    echo "Starting Gunicorn production server on port 8000..."
+    gunicorn service_config.wsgi:application --bind 0.0.0.0:8000 --workers 4
 fi

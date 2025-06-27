@@ -29,5 +29,5 @@ RUN chmod +x /app/entrypoint.sh
 # Directory media
 RUN mkdir -p /app/mediafiles/temp_generated # Dir temporanea (quella saved verrà creata dinamicamente)
 
-EXPOSE 8002
+EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

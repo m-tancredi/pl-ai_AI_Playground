@@ -34,11 +34,11 @@ WORKERPID=""
 
 if [ "$PROCESS_TYPE" = "web" ] || [ "$PROCESS_TYPE" = "all" ]; then
   if [ "$DJANGO_DEBUG" = "True" ]; then
-      echo "Starting Django development server on port 8005..."
-      python manage.py runserver 0.0.0.0:8005 & WEBPID=$!
+              echo "Starting Django development server on port 8000..."
+              python manage.py runserver 0.0.0.0:8000 & WEBPID=$!
   else
-      echo "Starting Gunicorn production server on port 8005..."
-      gunicorn service_config.wsgi:application --bind 0.0.0.0:8005 --workers ${GUNICORN_WORKERS:-2} & WEBPID=$!
+              echo "Starting Gunicorn production server on port 8000..."
+              gunicorn service_config.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-2} & WEBPID=$!
   fi
 fi
 

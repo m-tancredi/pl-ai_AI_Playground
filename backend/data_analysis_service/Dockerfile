@@ -28,5 +28,5 @@ RUN chmod +x /app/entrypoint.sh
 
 RUN mkdir -p /app/analysis_results_storage
 
-EXPOSE 8005 
+EXPOSE 8000 
 ENTRYPOINT ["/app/entrypoint.sh"]

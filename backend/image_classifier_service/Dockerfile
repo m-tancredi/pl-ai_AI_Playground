@@ -46,6 +46,6 @@ RUN chmod +x /app/entrypoint.sh
 RUN mkdir -p /app/models_storage
 
 # Expose port for Gunicorn/Django web server
-EXPOSE 8004
+EXPOSE 8000
 # Entrypoint will handle starting processes
 ENTRYPOINT ["/app/entrypoint.sh"]
