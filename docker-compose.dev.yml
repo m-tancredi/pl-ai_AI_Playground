@@ -1,0 +1,109 @@
+# Docker Compose Override per Ambiente Development
+# Uso: docker-compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev up
+
+version: '3.8'
+
+services:
+  # --- Frontend con Hot Reload ---
+  frontend:
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - REACT_APP_API_URL=http://localhost:8080
+    volumes:
+      - ./frontend/src:/app/src:cached
+      - ./frontend/public:/app/public:cached
+    ports:
+      - "3000:3000"  # Espongo porta per accesso diretto
+
+  # --- Auth Service con Debug ---
+  auth_service:
+    environment:
+      - DEBUG=True
+      - LOG_LEVEL=DEBUG
+      - DJANGO_SETTINGS_MODULE=service_auth.settings
+    volumes:
+      - ./backend/auth_service:/app:cached
+    ports:
+      - "8000:8000"  # Espongo per debugging diretto
+    
+  # --- Chatbot Service con Debug ---
+  chatbot_service:
+    environment:
+      - DEBUG=True
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./backend/chatbot_service:/app:cached
+    # Porta già esposta nel compose base
+
+  # --- User Service con Debug ---
+  user_service:
+    environment:
+      - DEBUG=True
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./backend/user_service:/app:cached
+    ports:
+      - "8008:8000"  # Porta alternativa per evitare conflitti
+
+  # --- Database con configurazioni development ---
+  auth_db:
+    environment:
+      - POSTGRES_DB=plai_db_dev
+      - POSTGRES_USER=plai_user_dev
+      - POSTGRES_PASSWORD=dev_password_123
+    volumes:
+      - ./dev-data/auth_db:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # Espongo per accesso diretto con client DB
+
+  chatbot_db:
+    environment:
+      - POSTGRES_DB=chatbot_db_dev
+      - POSTGRES_USER=chatbot_user_dev
+      - POSTGRES_PASSWORD=dev_password_123
+    volumes:
+      - ./dev-data/chatbot_db:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+
+  user_db:
+    environment:
+      - POSTGRES_DB=user_db_dev
+      - POSTGRES_USER=user_user_dev
+      - POSTGRES_PASSWORD=dev_password_123
+    volumes:
+      - ./dev-data/user_db:/var/lib/postgresql/data
+    ports:
+      - "5438:5432"
+
+  # --- RabbitMQ con Management UI ---
+  rabbitmq:
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=dev_password_123
+    ports:
+      - "15672:15672"  # Management UI
+      - "5672:5672"    # AMQP
+
+  # --- NGINX con configurazione development ---
+  nginx:
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=dev.pl-ai.it
+
+# --- Volumes per development (dati locali) ---
+volumes:
+  dev_auth_data:
+  dev_user_data:
+  dev_chatbot_data:
+
+# --- Network configuration ---
+networks:
+  pl-ai-network:
+    driver: bridge 
