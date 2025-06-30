@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FaUser, FaLock, FaEye, FaEyeSlash, FaRocket, FaArrowRight } from 'react-icons/fa';
+import SocialAuthButtons from '../components/SocialAuthButtons';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
@@ -64,6 +65,9 @@ const LoginPage = () => {
                 <p className="text-sm font-medium">{error}</p>
               </div>
             )}
+
+            {/* Social Authentication Buttons */}
+            <SocialAuthButtons className="mb-6" />
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Username Field */}
@@ -130,7 +134,7 @@ const LoginPage = () => {
                   </div>
                 ) : (
                   <div className="flex items-center justify-center gap-3">
-                    <span>Accedi</span>
+                    <span>Accedi con Email</span>
                     <FaArrowRight className="group-hover:translate-x-1 transition-transform duration-300" />
                   </div>
                 )}
@@ -141,7 +145,7 @@ const LoginPage = () => {
             {/* Divider */}
             <div className="my-8 flex items-center">
               <div className="flex-1 border-t border-gray-200"></div>
-              <span className="px-4 text-sm text-gray-500 bg-white">oppure</span>
+              <span className="px-4 text-sm text-gray-500 bg-white">o</span>
               <div className="flex-1 border-t border-gray-200"></div>
             </div>
 

@@ -7,6 +7,7 @@ import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import AuthCallbackPage from './pages/AuthCallbackPage';
 import UserServicePage from './pages/UserServicePage';
 import ImageGeneratorPage from './pages/ImageGeneratorPage';
 import ResourceManagerPage from './pages/ResourceManagerPage';
@@ -28,6 +29,7 @@ function App() {
           {/* Public Auth Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
           {/* Protected Routes - Tutte le pagine dell'app richiedono autenticazione */}
           <Route element={<ProtectedRoute />}>

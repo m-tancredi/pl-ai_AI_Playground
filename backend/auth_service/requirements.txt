@@ -8,3 +8,10 @@ python-dotenv>=0.20,<1.1
 psycopg2-binary>=2.9,<2.10 # Even if starting with SQLite, include for easy switch
 dj-database-url>=1.0,<2.2 # For parsing DATABASE_URL easily
 Pillow>=9.0,<11.0 # For ImageField support and image processing
+
+# Supabase and Social Authentication dependencies
+supabase>=1.0,<2.0
+python-jose[cryptography]>=3.3,<4.0 # For JWT handling with Supabase
+pyjwt[crypto]>=2.8,<3.0 # Additional JWT support
+authlib>=1.2,<2.0 # OAuth and OpenID Connect support
+httpx>=0.24,<1.0 # HTTP client for async operations

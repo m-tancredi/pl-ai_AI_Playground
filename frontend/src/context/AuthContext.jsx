@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect, useCallback } fr
 import { jwtDecode } from 'jwt-decode'; // Correct named import
 import apiClient from '../services/apiClient'; // Import the configured Axios instance
 import { login as apiLogin, logout as apiLogout, refreshToken as apiRefreshToken } from '../services/authService'; // Import API functions
+import supabaseService from '../services/supabaseService';
 
 const AuthContext = createContext(null);
 
@@ -11,6 +12,23 @@ export const AuthProvider = ({ children }) => {
     const [refreshToken, setRefreshToken] = useState(localStorage.getItem('refreshToken') || null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true); // Start as loading
+    const [socialAuthProviders, setSocialAuthProviders] = useState([]);
+
+    // Inizializza Supabase quando il context viene caricato
+    useEffect(() => {
+        const initializeSupabase = async () => {
+            try {
+                await supabaseService.initialize();
+                const providers = await supabaseService.getAuthProviders();
+                setSocialAuthProviders(providers);
+            } catch (error) {
+                console.error('Failed to initialize social auth:', error);
+                // Non bloccare l'app se l'inizializzazione sociale fallisce
+            }
+        };
+
+        initializeSupabase();
+    }, []);
 
     const decodeToken = (token) => {
         if (!token) return null;
@@ -47,7 +65,20 @@ export const AuthProvider = ({ children }) => {
         setIsLoading(false);
     }, []);
 
-    const clearAuthData = useCallback(() => {
+    // Nuovo metodo per impostare i dati di autenticazione dall'autenticazione sociale
+    const setAuthDataFromSocial = useCallback((access, refresh, userData) => {
+        localStorage.setItem('accessToken', access);
+        localStorage.setItem('refreshToken', refresh);
+        setAccessToken(access);
+        setRefreshToken(refresh);
+        setUser(userData);
+        setIsAuthenticated(true);
+        // Set the Authorization header for future requests
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+        setIsLoading(false);
+    }, []);
+
+    const clearAuthData = useCallback(async () => {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         setAccessToken(null);
@@ -56,6 +87,16 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(false);
         // Remove the Authorization header
         delete apiClient.defaults.headers.common['Authorization'];
+        
+        // Effettua anche il logout da Supabase se possibile
+        try {
+            if (supabaseService.initialized) {
+                await supabaseService.signOut();
+            }
+        } catch (error) {
+            console.error('Failed to sign out from Supabase:', error);
+        }
+        
         setIsLoading(false); // Ensure loading stops after clearing
     }, []);
 
@@ -109,6 +150,51 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    // Nuovi metodi per l'autenticazione sociale
+    const signInWithGoogle = async () => {
+        try {
+            setIsLoading(true);
+            await supabaseService.signInWithGoogle();
+            // Il redirect avviene automaticamente, non serve fare altro qui
+        } catch (error) {
+            setIsLoading(false);
+            throw error;
+        }
+    };
+
+    const signInWithApple = async () => {
+        try {
+            setIsLoading(true);
+            await supabaseService.signInWithApple();
+            // Il redirect avviene automaticamente, non serve fare altro qui
+        } catch (error) {
+            setIsLoading(false);
+            throw error;
+        }
+    };
+
+    const signInWithGitHub = async () => {
+        try {
+            setIsLoading(true);
+            await supabaseService.signInWithGitHub();
+            // Il redirect avviene automaticamente, non serve fare altro qui
+        } catch (error) {
+            setIsLoading(false);
+            throw error;
+        }
+    };
+
+    const signInWithProvider = async (provider) => {
+        try {
+            setIsLoading(true);
+            await supabaseService.signInWithProvider(provider);
+            // Il redirect avviene automaticamente, non serve fare altro qui
+        } catch (error) {
+            setIsLoading(false);
+            throw error;
+        }
+    };
+
     const logout = async () => {
         setIsLoading(true);
         const currentRefreshToken = refreshToken; // Use state's refresh token
@@ -132,8 +218,14 @@ export const AuthProvider = ({ children }) => {
         refreshToken,
         isAuthenticated,
         isLoading,
+        socialAuthProviders,
         login,
         logout,
+        signInWithGoogle,
+        signInWithApple,
+        signInWithGitHub,
+        signInWithProvider,
+        setAuthDataFromSocial,
         // Expose setAuthData and clearAuthData if needed by interceptors directly
         // (though interceptors should ideally get tokens from state or storage)
     };

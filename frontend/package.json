@@ -35,7 +35,8 @@
         "react-syntax-highlighter": "^15.6.1",
         "react-toastify": "^11.0.5",
         "serve": "^14.2.1",
-        "uuid": "^11.1.0"
+        "uuid": "^11.1.0",
+        "@supabase/supabase-js": "^2.39.0"
     },
     "devDependencies": {
         "@types/react": "^18.2.37",

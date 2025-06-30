@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { register as apiRegister } from '../services/authService';
 import { FaUser, FaEnvelope, FaLock, FaEye, FaEyeSlash, FaUserPlus, FaArrowRight, FaCheck } from 'react-icons/fa';
+import SocialAuthButtons from '../components/SocialAuthButtons';
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -276,6 +277,14 @@ const RegisterPage = () => {
               <div className="flex-1 border-t border-gray-200"></div>
               <span className="px-4 text-sm text-gray-500 bg-white">oppure</span>
               <div className="flex-1 border-t border-gray-200"></div>
+            </div>
+
+            {/* Social Auth Buttons */}
+            <div className="mb-8">
+              <SocialAuthButtons 
+                buttonText="Registrati con"
+                loadingText="Reindirizzamento a"
+              />
             </div>
 
             {/* Login Link */}

@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import social_auth_views
 from rest_framework_simplejwt.views import (
     TokenObtainPairView, # Login view
     TokenRefreshView,
@@ -29,4 +30,11 @@ urlpatterns = [
     path('profile/upload-image/', views.ProfileImageUploadView.as_view(), name='profile_image_upload'),
     path('profile/remove-image/', views.ProfileImageRemoveView.as_view(), name='profile_image_remove'),
     path('profile/update/', views.ProfileUpdateView.as_view(), name='profile_update'),
+    
+    # Social Authentication Endpoints
+    path('social-auth/config/', social_auth_views.SocialAuthConfigView.as_view(), name='social_auth_config'),
+    path('social-auth/init/', social_auth_views.SocialAuthInitView.as_view(), name='social_auth_init'),
+    path('social-auth/callback/', social_auth_views.SocialAuthCallbackView.as_view(), name='social_auth_callback'),
+    path('social-auth/status/', social_auth_views.SocialAuthStatusView.as_view(), name='social_auth_status'),
+    path('social-auth/providers/', social_auth_views.social_auth_providers, name='social_auth_providers'),
 ]

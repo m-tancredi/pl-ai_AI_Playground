@@ -229,3 +229,46 @@ CORS_ALLOW_CREDENTIALS = True # Allow cookies (needed for potential future sessi
 # CORS_ALLOW_METHODS = list(default_methods) + [
 #     "OPTIONS",
 # ]
+
+# =============================================================================
+# SUPABASE CONFIGURATION
+# =============================================================================
+
+# Supabase settings for social authentication
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_ANON_KEY')  # Anon/public key
+SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')  # Service role key (server-side only)
+
+# Social authentication providers configuration
+SOCIAL_AUTH_PROVIDERS = {
+    'google': {
+        'enabled': os.getenv('SOCIAL_AUTH_GOOGLE_ENABLED', 'True').lower() == 'true',
+        'client_id': os.getenv('SOCIAL_AUTH_GOOGLE_CLIENT_ID'),
+        'client_secret': os.getenv('SOCIAL_AUTH_GOOGLE_CLIENT_SECRET'),
+    },
+    'apple': {
+        'enabled': os.getenv('SOCIAL_AUTH_APPLE_ENABLED', 'False').lower() == 'true',
+        'client_id': os.getenv('SOCIAL_AUTH_APPLE_CLIENT_ID'),
+        'team_id': os.getenv('SOCIAL_AUTH_APPLE_TEAM_ID'),
+        'key_id': os.getenv('SOCIAL_AUTH_APPLE_KEY_ID'),
+        'private_key': os.getenv('SOCIAL_AUTH_APPLE_PRIVATE_KEY'),
+    },
+    'github': {
+        'enabled': os.getenv('SOCIAL_AUTH_GITHUB_ENABLED', 'False').lower() == 'true',
+        'client_id': os.getenv('SOCIAL_AUTH_GITHUB_CLIENT_ID'),
+        'client_secret': os.getenv('SOCIAL_AUTH_GITHUB_CLIENT_SECRET'),
+    }
+}
+
+# Supabase JWT settings
+SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')  # JWT secret from Supabase
+SUPABASE_JWT_ALGORITHM = 'HS256'
+
+# Social authentication settings
+SOCIAL_AUTH_CREATE_USER_IF_NOT_EXISTS = True
+SOCIAL_AUTH_UPDATE_USER_DATA = True
+
+# Frontend URLs for redirects after social auth
+FRONTEND_BASE_URL = os.getenv('FRONTEND_BASE_URL', 'http://localhost:8080')
+SOCIAL_AUTH_SUCCESS_URL = f"{FRONTEND_BASE_URL}/auth/callback"
+SOCIAL_AUTH_ERROR_URL = f"{FRONTEND_BASE_URL}/auth/error"
