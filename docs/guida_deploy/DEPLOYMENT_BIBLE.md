@@ -71,7 +71,14 @@ A    www    [IP_SERVER]    3600
 A    dev    [IP_SERVER]    3600
 ```
 
-### 4️⃣ Setup SSL
+### 4️⃣ Test Configurazioni
+```bash
+# Test validazione NGINX (30 sec)
+./test-nginx-simple.sh
+# Deve passare ✅ prima di procedere!
+```
+
+### 5️⃣ Setup SSL
 ```bash
 # Test sviluppo con staging (2 min)
 ./ssl-setup.sh dev --staging
@@ -80,7 +87,7 @@ A    dev    [IP_SERVER]    3600
 ./ssl-setup.sh prod
 ```
 
-### 5️⃣ Deploy
+### 6️⃣ Deploy
 ```bash
 # Deploy sviluppo (5 min)
 ./deploy.sh dev up --build
@@ -89,7 +96,7 @@ A    dev    [IP_SERVER]    3600
 ./deploy.sh prod up --build
 ```
 
-### 6️⃣ Verifica
+### 7️⃣ Verifica
 ```bash
 # Test connessioni
 curl -k https://dev.pl-ai.it/health
@@ -512,6 +519,67 @@ USER_DB_NAME=prod_user_db
 # ... altri DB
 ```
 
+### 🧪 Test di Validazione
+
+#### Test Configurazioni NGINX
+
+Prima del deployment, è fondamentale validare le configurazioni NGINX:
+
+**Script di Test Automatico:**
+```bash
+# Esegui test completo configurazioni NGINX
+./test-nginx-simple.sh
+```
+
+**Output atteso:**
+```
+🧪 Test Semplificato NGINX - Solo Sintassi
+==========================================
+🔍 Test sintassi DEVELOPMENT...
+✅ DEVELOPMENT: Sintassi base VALIDA
+
+🔍 Test sintassi PRODUCTION...
+✅ PRODUCTION: Sintassi base VALIDA
+
+📋 Riepilogo Finale
+==================
+✅ nginx.dev.conf: Configurazione completa per sviluppo
+✅ nginx.prod.conf: Configurazione avanzata per produzione
+
+🔧 Funzionalità Verificate:
+   • SSL/TLS configurato correttamente
+   • HTTP2 configurato (senza warning)
+   • Rate limiting (solo prod)
+   • Security headers
+   • Media file serving
+   • API routing completo
+   • Frontend SPA support
+
+⚠️  Note per il deployment:
+   • I certificati SSL verranno generati da Let's Encrypt
+   • Gli upstream Docker funzioneranno nel compose
+   • Configurazioni testate e pronte per la produzione
+```
+
+**Test Manuali Aggiuntivi:**
+```bash
+# Test sintassi diretta NGINX (in caso di problemi)
+docker run --rm -v $(pwd)/nginx/nginx.dev.conf:/tmp/nginx.conf nginx:alpine nginx -t -c /tmp/nginx.conf
+
+# Verifica configurazioni specifiche
+grep -n "server_name" nginx/nginx.*.conf
+grep -n "ssl_certificate" nginx/nginx.*.conf
+grep -n "limit_req" nginx/nginx.prod.conf
+```
+
+**Checklist Pre-Deployment:**
+- [ ] Test script NGINX passa ✅
+- [ ] Configurazioni SSL verificate
+- [ ] Rate limiting configurato (prod)
+- [ ] Security headers presenti
+- [ ] Routing API completo
+- [ ] Upstream services mappati
+
 ### 🔍 Monitoraggio e Logging
 
 #### Health Checks Automatici
@@ -734,6 +802,9 @@ docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 # Cleanup Docker
 docker system prune -f
 
+# Test configurazioni NGINX
+./test-nginx-simple.sh
+
 # Cleanup logs vecchi
 ./deploy.sh dev logs --tail=0
 
@@ -835,6 +906,9 @@ openssl s_client -connect pl-ai.it:443 -servername pl-ai.it
 
 **Soluzioni:**
 ```bash
+# Test configurazioni NGINX
+./test-nginx-simple.sh
+
 # Rinnova certificati
 sudo certbot renew --force-renewal
 
@@ -1117,6 +1191,7 @@ Tutti i file sono disponibili nella repository:
 - `deploy.sh` - Deployment multi-ambiente
 - `ssl-setup.sh` - Configurazione SSL automatica
 - `manage.sh` - Interfaccia gestione interattiva
+- `test-nginx-simple.sh` - Test validazione configurazioni NGINX
 
 ### 🌐 URLs e Endpoint
 
