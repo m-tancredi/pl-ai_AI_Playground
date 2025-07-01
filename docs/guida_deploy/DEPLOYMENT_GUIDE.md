@@ -4,14 +4,15 @@
 
 1. [Panoramica](#panoramica)
 2. [Prerequisiti](#prerequisiti)
-3. [Configurazione Domini](#configurazione-domini)
-4. [Setup SSL/TLS](#setup-ssltls)
-5. [Configurazione Ambienti](#configurazione-ambienti)
-6. [Gestione Secrets](#gestione-secrets)
+3. [Setup Automatico Ambiente](#setup-automatico-ambiente)
+4. [Configurazione Domini](#configurazione-domini)
+5. [Setup SSL/TLS](#setup-ssltls)
+6. [Configurazione API Keys](#configurazione-api-keys)
 7. [Deployment Automatizzato](#deployment-automatizzato)
 8. [Monitoraggio e Logging](#monitoraggio-e-logging)
 9. [Backup e Recovery](#backup-e-recovery)
-10. [Troubleshooting](#troubleshooting)
+10. [Gestione Avanzata](#gestione-avanzata)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -22,7 +23,7 @@ Questa guida ti aiuterà a implementare un sistema di deployment completo per la
 - **Produzione**: `pl-ai.it`
 - **Sviluppo**: `dev.pl-ai.it`
 
-### Architettura del Sistema
+### Architettura del Sistema (25 Servizi)
 
 ```
 ┌─────────────────┐    ┌─────────────────┐
@@ -35,11 +36,21 @@ Questa guida ti aiuterà a implementare un sistema di deployment completo per la
 │            IONOS SERVER                 │
 │  ┌─────────────┐  ┌─────────────────┐   │
 │  │    NGINX    │  │    DOCKER       │   │
-│  │ (Reverse    │  │   CONTAINERS    │   │
-│  │  Proxy)     │  │                 │   │
+│  │ (Reverse    │  │  25 CONTAINERS  │   │
+│  │  Proxy)     │  │   - 9 Database  │   │
+│  │             │  │   - 9 Backend   │   │
+│  │             │  │   - 4 Workers   │   │
+│  │             │  │   - 3 Infra     │   │
 │  └─────────────┘  └─────────────────┘   │
 └─────────────────────────────────────────┘
 ```
+
+### 🆕 Nuovi Script di Automazione
+
+- 🛠️ **setup-env.sh** - Setup automatico completo dell'ambiente
+- 🚀 **deploy.sh** - Deployment automatizzato multi-ambiente
+- 🔐 **ssl-setup.sh** - Configurazione automatica SSL/TLS
+- 🎛️ **manage.sh** - Interfaccia di gestione interattiva
 
 ---
 
@@ -47,15 +58,14 @@ Questa guida ti aiuterà a implementare un sistema di deployment completo per la
 
 ### Software Richiesto
 
-1. **Docker & Docker Compose**
+1. **Docker & Docker Compose V2**
    ```bash
    # Installa Docker
    curl -fsSL https://get.docker.com | sh
    sudo usermod -aG docker $USER
    
-   # Installa Docker Compose
-   sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-   sudo chmod +x /usr/local/bin/docker-compose
+   # Verifica installazione Docker Compose V2
+   docker compose version
    ```
 
 2. **Git**
@@ -69,13 +79,56 @@ Questa guida ti aiuterà a implementare un sistema di deployment completo per la
    sudo apt-get install -y certbot python3-certbot-nginx
    ```
 
+4. **OpenSSL (per generazione password)**
+   ```bash
+   sudo apt-get install -y openssl
+   ```
+
 ### Risorse Server IONOS
 
-- **CPU**: Minimo 4 core (8 core consigliati)
-- **RAM**: Minimo 8GB (16GB consigliati)
+- **CPU**: Minimo 4 core (8 core consigliati per produzione)
+- **RAM**: Minimo 8GB (16GB consigliati per produzione)
 - **Storage**: Minimo 100GB SSD
 - **Banda**: Illimitata
 - **OS**: Ubuntu 22.04 LTS
+
+---
+
+## 🛠️ Setup Automatico Ambiente
+
+### 1. Configurazione Automatica Completa
+
+Il nuovo script `setup-env.sh` automatizza completamente la configurazione:
+
+```bash
+# Rendi eseguibile lo script
+chmod +x setup-env.sh
+
+# Avvia setup automatico
+./setup-env.sh
+```
+
+### 2. Cosa fa lo Script Automaticamente
+
+✅ **Verifica File Environment**: Controlla che `.env.dev` e `.env.prod` esistano
+✅ **Genera Password Sicure**: Crea password uniche per tutti i 9 database
+✅ **Crea Directory Secrets**: Setup automatico `.secrets/dev/` e `.secrets/prod/`
+✅ **Template API Keys**: Genera file template per tutte le API keys
+✅ **Permessi Sicuri**: Imposta permessi 700 per directory, 600 per file
+✅ **Configurazione Domini**: Personalizzazione interattiva domini
+
+### 3. Setup Personalizzato (Opzionale)
+
+Se vuoi personalizzare domini durante il setup:
+
+```bash
+# Durante l'esecuzione di setup-env.sh
+# Scegli opzione "2" per configurazione personalizzata
+# Inserisci i tuoi domini:
+# - Dominio principale: tuodominio.it
+# - Dominio sviluppo: dev.tuodominio.it
+# - Email SSL: tua-email@tuodominio.it
+```
 
 ---
 
@@ -124,28 +177,18 @@ chmod +x ssl-setup.sh
 ./ssl-setup.sh prod
 ```
 
-### 2. Configurazione Manuale (Alternativa)
+### 2. Funzionalità dello Script SSL
 
-```bash
-# Per l'ambiente di sviluppo
-sudo certbot certonly --standalone \
-  --email admin@pl-ai.it \
-  --agree-tos \
-  --no-eff-email \
-  -d dev.pl-ai.it
-
-# Per l'ambiente di produzione
-sudo certbot certonly --standalone \
-  --email admin@pl-ai.it \
-  --agree-tos \
-  --no-eff-email \
-  -d pl-ai.it \
-  -d www.pl-ai.it
-```
+✅ **Installazione Automatica Certbot**: Se non presente
+✅ **Backup Certificati**: Backup automatico certificati esistenti
+✅ **Generazione Certificati**: Let's Encrypt automatico
+✅ **Rinnovo Automatico**: Cron job per auto-rinnovo
+✅ **Verifica SSL**: Test automatico configurazione
+✅ **Restart Services**: Riavvio automatico servizi
 
 ### 3. Rinnovo Automatico
 
-Il rinnovo automatico è configurato via cron:
+Il rinnovo automatico è configurato automaticamente:
 
 ```bash
 # Verifica il cron job
@@ -157,101 +200,48 @@ sudo certbot renew --dry-run
 
 ---
 
-## ⚙️ Configurazione Ambienti
+## 🔑 Configurazione API Keys
 
-### 1. File di Configurazione
+### 1. File Template Auto-Generati
 
-Crea i file di environment dalle template:
-
-```bash
-# Copia i template
-cp env.dev.template .env.dev
-cp env.prod.template .env.prod
-
-# Modifica le configurazioni
-nano .env.dev
-nano .env.prod
-```
-
-### 2. Configurazione Sviluppo (.env.dev)
-
-Personalizza le seguenti variabili:
+Dopo aver eseguito `setup-env.sh`, troverai i template in:
 
 ```bash
-# Domini
-DOMAIN=dev.pl-ai.it
-FRONTEND_API_URL=https://dev.pl-ai.it
-
-# Database (usa password sicure)
-AUTH_DB_PASSWORD=tua_password_sicura_auth_dev
-USER_DB_PASSWORD=tua_password_sicura_user_dev
-# ... altre password
-
-# RabbitMQ
-RABBITMQ_PASSWORD=tua_password_sicura_rabbitmq_dev
-```
-
-### 3. Configurazione Produzione (.env.prod)
-
-```bash
-# Domini
-DOMAIN=pl-ai.it
-FRONTEND_API_URL=https://pl-ai.it
-
-# Database (usa password MOLTO sicure)
-AUTH_DB_PASSWORD=password_produzione_molto_sicura_auth
-USER_DB_PASSWORD=password_produzione_molto_sicura_user
-# ... altre password
-
-# Django Secret Key (genera una nuova)
-DJANGO_SECRET_KEY=$(python3 -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())')
-```
-
----
-
-## 🔑 Gestione Secrets
-
-### 1. Creazione Directory Secrets
-
-```bash
-# Crea le directory per i secrets
-mkdir -p .secrets/dev
-mkdir -p .secrets/prod
-
-# Imposta permessi sicuri
-chmod 700 .secrets
+.secrets/
+├── dev/
+│   ├── openai_api_key.txt
+│   ├── anthropic_api_key.txt
+│   ├── gemini_api_key.txt
+│   └── stability_api_key.txt
+└── prod/
+    ├── openai_api_key.txt
+    ├── anthropic_api_key.txt
+    ├── gemini_api_key.txt
+    └── stability_api_key.txt
 ```
 
 ### 2. Configurazione API Keys
 
 ```bash
 # Sviluppo
-echo "sk-tua-openai-key-dev" > .secrets/dev/openai_api_key.txt
-echo "tua-anthropic-key-dev" > .secrets/dev/anthropic_api_key.txt
-echo "tua-gemini-key-dev" > .secrets/dev/gemini_api_key.txt
-echo "tua-stability-key-dev" > .secrets/dev/stability_api_key.txt
+echo "sk-proj-YOUR_DEV_OPENAI_KEY" > .secrets/dev/openai_api_key.txt
+echo "sk-ant-api03-YOUR_DEV_ANTHROPIC_KEY" > .secrets/dev/anthropic_api_key.txt
+echo "AIzaSy_YOUR_DEV_GEMINI_KEY" > .secrets/dev/gemini_api_key.txt
+echo "sk-YOUR_DEV_STABILITY_KEY" > .secrets/dev/stability_api_key.txt
 
 # Produzione (usa chiavi separate!)
-echo "sk-tua-openai-key-prod" > .secrets/prod/openai_api_key.txt
-echo "tua-anthropic-key-prod" > .secrets/prod/anthropic_api_key.txt
-echo "tua-gemini-key-prod" > .secrets/prod/gemini_api_key.txt
-echo "tua-stability-key-prod" > .secrets/prod/stability_api_key.txt
-
-# Imposta permessi
-chmod 600 .secrets/*/*.txt
+echo "sk-proj-YOUR_PROD_OPENAI_KEY" > .secrets/prod/openai_api_key.txt
+echo "sk-ant-api03-YOUR_PROD_ANTHROPIC_KEY" > .secrets/prod/anthropic_api_key.txt
+echo "AIzaSy_YOUR_PROD_GEMINI_KEY" > .secrets/prod/gemini_api_key.txt
+echo "sk-YOUR_PROD_STABILITY_KEY" > .secrets/prod/stability_api_key.txt
 ```
 
-### 3. Aggiorna Docker Compose per Secrets
+### 3. Verifica Permessi
 
-Aggiungi al docker-compose.yml:
-
-```yaml
-secrets:
-  openai_api_key_secret:
-    file: ./.secrets/${ENVIRONMENT:-dev}/openai_api_key.txt
-  anthropic_api_key_secret:
-    file: ./.secrets/${ENVIRONMENT:-dev}/anthropic_api_key.txt
-  # ... altri secrets
+```bash
+# I permessi sono già configurati da setup-env.sh
+ls -la .secrets/dev/
+# -rw------- 1 user user  52 date openai_api_key.txt
 ```
 
 ---
@@ -260,10 +250,14 @@ secrets:
 
 ### 1. Script di Deploy
 
-Rendi eseguibile lo script di deployment:
+Il nuovo `deploy.sh` gestisce completamente il deployment:
 
 ```bash
+# Rendi eseguibile lo script
 chmod +x deploy.sh
+
+# Visualizza help
+./deploy.sh --help
 ```
 
 ### 2. Primo Deploy Sviluppo
@@ -272,7 +266,7 @@ chmod +x deploy.sh
 # Build e avvio ambiente di sviluppo
 ./deploy.sh dev up --build
 
-# Verifica stato servizi
+# Verifica stato servizi (25 servizi totali)
 ./deploy.sh dev status
 
 # Visualizza logs
@@ -287,59 +281,90 @@ chmod +x deploy.sh
 
 # Verifica stato servizi
 ./deploy.sh prod status
+
+# Migrazioni database
+./deploy.sh prod migrate
 ```
 
-### 4. Script di Deployment CI/CD
+### 4. Architettura Servizi Deployati
 
-Crea un workflow per deployment automatico:
+#### 🗄️ Database Layer (9 PostgreSQL):
+- `auth_db` - Autenticazione utenti
+- `user_db` - Gestione profili utente
+- `chatbot_db` - Chat e conversazioni
+- `image_generator_db` - Generazione immagini
+- `resource_db` - Gestione risorse
+- `classifier_db` - Classificazione immagini
+- `analysis_db` - Analisi dati
+- `rag_db` - RAG e documenti
+- `learning_db` - Sistema learning
 
-```bash
-#!/bin/bash
-# deploy-pipeline.sh
+#### 🔧 Backend Services (9 Django/FastAPI):
+- `auth_service` - API autenticazione
+- `user_service` - API gestione utenti
+- `chatbot_service` - API chatbot
+- `image_generator_service` - API generazione immagini
+- `resource_manager_service` - API gestione risorse
+- `image_classifier_service` - API classificazione
+- `data_analysis_service` - API analisi dati
+- `rag_service` - API RAG e documenti
+- `learning_service` - API learning
 
-set -e
+#### ⚙️ Worker Services (4 Celery):
+- `rag_worker` - Processing documenti
+- `data_analysis_worker` - Processing analisi
+- `image_classifier_worker` - Processing classificazione
+- `resource_manager_worker` - Processing risorse
 
-ENVIRONMENT=$1
-BRANCH=$2
-
-echo "🚀 Starting deployment pipeline for $ENVIRONMENT..."
-
-# 1. Backup database
-./deploy.sh $ENVIRONMENT backup
-
-# 2. Pull latest code
-git pull origin $BRANCH
-
-# 3. Build new images
-./deploy.sh $ENVIRONMENT down
-./deploy.sh $ENVIRONMENT up --build
-
-# 4. Run migrations
-docker-compose -f docker-compose.yml -f docker-compose.$ENVIRONMENT.yml exec auth_service python manage.py migrate
-
-# 5. Collect static files (se necessario)
-docker-compose -f docker-compose.yml -f docker-compose.$ENVIRONMENT.yml exec frontend npm run build
-
-# 6. Health check
-sleep 30
-./deploy.sh $ENVIRONMENT status
-
-# 7. Warm up application
-curl -I https://$(echo $ENVIRONMENT | grep -q "prod" && echo "pl-ai.it" || echo "dev.pl-ai.it")
-
-echo "✅ Deployment completed successfully!"
-```
+#### 🌐 Infrastructure (3):
+- `rabbitmq` - Message broker
+- `frontend` - React application
+- `nginx` - Reverse proxy e SSL
 
 ---
 
 ## 📊 Monitoraggio e Logging
 
-### 1. Setup Logging
-
-Configura la rotazione dei log:
+### 1. Interfaccia di Gestione Completa
 
 ```bash
-# Crea configurazione logrotate
+# Avvia interfaccia interattiva
+./manage.sh
+
+# Menu disponibili:
+# 1. 🚀 Deploy & Management
+# 2. 🔐 SSL Management  
+# 3. 📊 Monitoring & Logs
+# 4. 💾 Backup & Recovery
+# 5. ⚙️ System Maintenance
+# 6. 🔧 Troubleshooting
+# 7. 📖 Info & Status
+```
+
+### 2. Comandi di Monitoraggio
+
+```bash
+# Status completo servizi
+./deploy.sh [env] status
+
+# Logs in tempo reale
+./deploy.sh [env] logs -f
+
+# Logs servizio specifico
+./deploy.sh [env] logs nginx
+./deploy.sh [env] logs auth_service
+
+# Health check Docker Compose V2
+docker compose ps
+
+# Risorse sistema
+docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+```
+
+### 3. Configurazione Logging Avanzata
+
+```bash
+# Setup rotazione log automatica
 sudo tee /etc/logrotate.d/ai-playground << EOF
 /var/log/ai-playground/*.log {
     daily
@@ -350,285 +375,219 @@ sudo tee /etc/logrotate.d/ai-playground << EOF
     notifempty
     create 644 root root
     postrotate
-        docker kill --signal="USR1" \$(docker ps -q --filter name=pl-ai)
+        docker compose restart nginx
     endscript
 }
 EOF
-```
-
-### 2. Monitoring Stack (Opzionale)
-
-Aggiungi servizi di monitoraggio:
-
-```yaml
-# docker-compose.monitoring.yml
-version: '3.8'
-
-services:
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-    networks:
-      - pl-ai-network
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-    networks:
-      - pl-ai-network
-
-volumes:
-  grafana_data:
-```
-
-### 3. Health Checks
-
-Configura health checks per tutti i servizi:
-
-```bash
-# Crea script di health check
-#!/bin/bash
-# health-check.sh
-
-ENVIRONMENT=$1
-SERVICES=("auth_service" "user_service" "chatbot_service" "frontend" "nginx")
-
-echo "🔍 Checking health for $ENVIRONMENT environment..."
-
-for service in "${SERVICES[@]}"; do
-    echo -n "Checking $service... "
-    if docker-compose -f docker-compose.yml -f docker-compose.$ENVIRONMENT.yml ps $service | grep -q "Up"; then
-        echo "✅ OK"
-    else
-        echo "❌ FAILED"
-        exit 1
-    fi
-done
-
-echo "✅ All services are healthy!"
 ```
 
 ---
 
 ## 💾 Backup e Recovery
 
-### 1. Script di Backup Automatico
+### 1. Backup Automatico (Tutti i 9 Database)
 
 ```bash
-#!/bin/bash
-# backup.sh
+# Backup ambiente specifico
+./deploy.sh dev backup
+./deploy.sh prod backup
 
-ENVIRONMENT=$1
-BACKUP_DIR="/backups/ai-playground"
-DATE=$(date +%Y%m%d_%H%M%S)
-
-mkdir -p $BACKUP_DIR/$ENVIRONMENT
-
-# Backup databases
-DATABASES=("auth_db" "user_db" "chatbot_db" "analysis_db" "rag_db" "learning_db")
-
-for db in "${DATABASES[@]}"; do
-    echo "Backing up $db..."
-    docker-compose -f docker-compose.yml -f docker-compose.$ENVIRONMENT.yml exec -T $db pg_dump -U postgres > $BACKUP_DIR/$ENVIRONMENT/${db}_${DATE}.sql
-done
-
-# Backup volumes
-echo "Backing up volumes..."
-tar -czf $BACKUP_DIR/$ENVIRONMENT/volumes_${DATE}.tar.gz -C /var/lib/docker/volumes .
-
-# Backup secrets
-echo "Backing up secrets..."
-tar -czf $BACKUP_DIR/$ENVIRONMENT/secrets_${DATE}.tar.gz .secrets/$ENVIRONMENT/
-
-# Cleanup old backups (keep last 7 days)
-find $BACKUP_DIR/$ENVIRONMENT -name "*.sql" -mtime +7 -delete
-find $BACKUP_DIR/$ENVIRONMENT -name "*.tar.gz" -mtime +7 -delete
-
-echo "✅ Backup completed for $ENVIRONMENT!"
+# Il sistema farà backup di:
+# ✅ auth_db, user_db, chatbot_db
+# ✅ image_generator_db, resource_db, classifier_db  
+# ✅ analysis_db, rag_db, learning_db
+# ✅ Compressione automatica in .tar.gz
 ```
 
-### 2. Cron Job per Backup Automatico
+### 2. Backup Programmato
 
 ```bash
-# Aggiungi al crontab
+# Setup backup automatico via cron
 crontab -e
 
-# Backup giornaliero alle 2:00 AM
-0 2 * * * /path/to/your/backup.sh prod
-0 3 * * * /path/to/your/backup.sh dev
+# Aggiungi per backup giornaliero alle 2:00
+0 2 * * * cd /path/to/ai-playground && ./deploy.sh prod backup
 ```
 
-### 3. Recovery Procedure
+### 3. Recovery
 
 ```bash
-#!/bin/bash
-# restore.sh
+# Lista backup disponibili
+ls -la ./backups/prod/
 
-ENVIRONMENT=$1
-BACKUP_DATE=$2
-BACKUP_DIR="/backups/ai-playground"
+# Per restore manuale (esempio)
+docker compose exec auth_db psql -U postgres -d postgres < backup_file.sql
+```
 
-echo "🔄 Starting recovery for $ENVIRONMENT environment..."
+---
 
-# Stop services
-./deploy.sh $ENVIRONMENT down
+## 🎛️ Gestione Avanzata
 
-# Restore databases
-DATABASES=("auth_db" "user_db" "chatbot_db" "analysis_db" "rag_db" "learning_db")
+### 1. Scaling Worker Services
 
-for db in "${DATABASES[@]}"; do
-    echo "Restoring $db..."
-    docker-compose -f docker-compose.yml -f docker-compose.$ENVIRONMENT.yml up -d $db
-    sleep 10
-    docker-compose -f docker-compose.yml -f docker-compose.$ENVIRONMENT.yml exec -T $db psql -U postgres -c "DROP DATABASE IF EXISTS $(echo $db | sed 's/_db//');"
-    docker-compose -f docker-compose.yml -f docker-compose.$ENVIRONMENT.yml exec -T $db psql -U postgres -c "CREATE DATABASE $(echo $db | sed 's/_db//');"
-    cat $BACKUP_DIR/$ENVIRONMENT/${db}_${BACKUP_DATE}.sql | docker-compose -f docker-compose.yml -f docker-compose.$ENVIRONMENT.yml exec -T $db psql -U postgres
-done
+```bash
+# Scala worker services per maggior throughput
+docker compose up -d --scale data_analysis_worker=3
+docker compose up -d --scale rag_worker=2
+docker compose up -d --scale image_classifier_worker=2
+```
 
-# Restore volumes
-echo "Restoring volumes..."
-tar -xzf $BACKUP_DIR/$ENVIRONMENT/volumes_${BACKUP_DATE}.tar.gz -C /var/lib/docker/volumes
+### 2. Configurazioni Ambiente
 
-# Restore secrets
-echo "Restoring secrets..."
-tar -xzf $BACKUP_DIR/$ENVIRONMENT/secrets_${BACKUP_DATE}.tar.gz
+#### Development (.env.dev):
+- ✅ Debug abilitato
+- ✅ Porte esposte per debugging (8001-8009)
+- ✅ Hot reload abilitato
+- ✅ Logging verboso
+- ✅ Rate limiting permissivo (100/1000)
 
-# Start services
-./deploy.sh $ENVIRONMENT up
+#### Production (.env.prod):
+- ✅ Debug disabilitato
+- ✅ SSL forzato
+- ✅ Security headers
+- ✅ Resource limits
+- ✅ Worker replicas (2x)
+- ✅ Rate limiting restrittivo (50/500)
 
-echo "✅ Recovery completed for $ENVIRONMENT!"
+### 3. Resource Management
+
+```bash
+# Monitoraggio risorse in tempo reale
+docker stats
+
+# Pulizia sistema
+./manage.sh
+# Scegli: 5. ⚙️ System Maintenance > 1. 🧹 Clean Docker System
 ```
 
 ---
 
 ## 🔧 Troubleshooting
 
-### Problemi Comuni
-
-#### 1. Certificati SSL non funzionano
+### 1. Diagnostica Automatica
 
 ```bash
-# Verifica configurazione
+# Avvia interfaccia troubleshooting
+./manage.sh
+# Scegli: 6. 🔧 Troubleshooting > 1. 🔍 Diagnose Issues
+```
+
+### 2. Problemi Comuni
+
+#### SSL non funziona
+
+```bash
+# Verifica certificati
 sudo certbot certificates
 
-# Test rinnovo
-sudo certbot renew --dry-run
+# Rinnova forzato
+./ssl-setup.sh [env] --force
 
 # Riavvia nginx
-docker-compose restart nginx
+docker compose restart nginx
 ```
 
-#### 2. Servizi non si connettono
+#### Servizi non si avviano
 
 ```bash
-# Verifica network
+# Controlla logs dettagliati
+./deploy.sh [env] logs [service]
+
+# Verifica configurazione Docker Compose V2
+docker compose -f docker-compose.yml -f docker-compose.[env].yml --env-file .env.[env] config --quiet
+
+# Ricostruisci con cleanup
+./deploy.sh [env] down --clean
+./deploy.sh [env] up --build
+```
+
+#### Database connection issues
+
+```bash
+# Test connettività database
+./manage.sh
+# Scegli: 6. 🔧 Troubleshooting > 4. 💾 Database Connection Test
+
+# Verifica credenziali in .env.[env]
+grep DB_PASSWORD .env.dev
+```
+
+#### Network issues
+
+```bash
+# Verifica network Docker
 docker network ls
-docker network inspect pl-ai_pl-ai-network
 
-# Verifica DNS container
-docker-compose exec frontend nslookup auth_service
+# Test connettività interna
+docker compose exec frontend ping auth_service
+docker compose exec auth_service ping auth_db
 ```
 
-#### 3. Database connection errors
+### 3. Debug Export
 
 ```bash
-# Verifica status database
-docker-compose ps | grep db
+# Export completo informazioni debug
+./manage.sh
+# Scegli: 6. 🔧 Troubleshooting > 7. 📁 Export Debug Info
 
-# Verifica logs
-docker-compose logs auth_db
-
-# Test connessione
-docker-compose exec auth_db psql -U postgres -c "SELECT 1;"
-```
-
-#### 4. Out of Memory
-
-```bash
-# Verifica uso memoria
-docker stats
-
-# Cleanup immagini inutilizzate
-docker system prune -a
-
-# Aggiorna resource limits
-nano docker-compose.prod.yml
-```
-
-### Log Analysis
-
-```bash
-# Visualizza logs in tempo reale
-docker-compose logs -f
-
-# Cerca errori specifici
-docker-compose logs | grep -i error
-
-# Esporta logs per analisi
-docker-compose logs > debug_$(date +%Y%m%d).log
-```
-
-### Performance Tuning
-
-```bash
-# Ottimizza database
-docker-compose exec auth_db psql -U postgres -c "VACUUM ANALYZE;"
-
-# Monitora performance
-docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
-
-# Scala servizi worker
-docker-compose up -d --scale data_analysis_worker=3
+# Export manuale
+docker compose logs > debug_$(date +%Y%m%d_%H%M%S).log
 ```
 
 ---
 
-## 🎯 Checklist Deploy
+## 🛡️ Sicurezza e Performance
 
-### Pre-Deploy
-- [ ] DNS configurato correttamente
-- [ ] SSL certificati installati
-- [ ] File .env configurati
-- [ ] Secrets creati
-- [ ] Backup effettuato
+### Sicurezza Implementata
 
-### Deploy
-- [ ] ./deploy.sh [env] up --build
-- [ ] Verifica status servizi
-- [ ] Test endpoints API
-- [ ] Test frontend
-- [ ] Verifica SSL
+- 🔒 **SSL/TLS forzato** con certificati Let's Encrypt
+- 🛡️ **Security headers** (HSTS, CSP, X-Frame-Options)
+- 🔐 **Secrets management** automatico con permessi sicuri
+- 🚫 **Rate limiting** differenziato per ambiente
+- 🔍 **Container security** con user non-root
+- 📊 **Audit logging** completo
+- 🔑 **Password generation** sicuro con OpenSSL
 
-### Post-Deploy
-- [ ] Monitoring attivo
-- [ ] Logs configurati
-- [ ] Backup schedulato
-- [ ] Health checks OK
-- [ ] Performance test
+### Performance Ottimizzata
+
+- **NGINX**: Compressione gzip, caching, HTTP/2
+- **Database**: Connection pooling, query optimization
+- **Docker**: Resource limits e health checks
+- **Workers**: Auto-scaling in produzione
+- **SSL**: Session caching e OCSP stapling
 
 ---
 
-## 📞 Supporto
+## 🎉 Conclusioni
 
-Per supporto aggiuntivo:
+Il sistema di deployment AI-PlayGround è ora completamente automatizzato con:
 
-1. Controlla i logs: `./deploy.sh [env] logs`
-2. Verifica status: `./deploy.sh [env] status`
-3. Esegui health check: `./health-check.sh [env]`
-4. Consulta questa guida per soluzioni comuni
+✅ **Setup automatico** completo tramite `setup-env.sh`
+✅ **25 servizi orchestrati** con configurazioni ottimizzate
+✅ **SSL automatico** con rinnovo programmato
+✅ **Backup automatizzato** di tutti i database
+✅ **Monitoraggio completo** tramite interfaccia interattiva
+✅ **Scaling automatico** per produzione
+✅ **Troubleshooting integrato** per risoluzione rapida problemi
+
+### Comandi Essenziali
+
+```bash
+# Setup iniziale completo
+./setup-env.sh
+
+# Configurazione SSL
+./ssl-setup.sh dev --staging && ./ssl-setup.sh prod
+
+# Deploy
+./deploy.sh dev up --build && ./deploy.sh prod up --build
+
+# Gestione quotidiana
+./manage.sh
+```
+
+Il tuo ambiente AI-PlayGround è pronto per la produzione! 🚀
 
 ---
 
-**🎉 Congratulazioni! Il tuo sistema di deployment multi-ambiente è ora configurato e funzionante!**
-
-Per domande specifiche o problemi non coperti in questa guida, puoi creare un issue nel repository del progetto. 
+**Made with ❤️ for AI-PlayGround** 

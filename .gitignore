@@ -1,6 +1,7 @@
 # --- Secrets ---
 # Ignora i file .env specifici dell'ambiente (mantieni .env.example!)
 **/.env
+.env.*
 # Ignora completamente la directory dei segreti
 .secrets/
 
@@ -86,3 +87,21 @@ htmlcov/
 # Non ignorare Dockerfile, .dockerignore, docker-compose.yml
 # Ma potresti voler ignorare context/tarballs specifici se li generi
 # *.tar.gz
+
+# IGNORARE TUTTI I FILE CON CHIAVI API REALI
+# Solo i file template con commenti sono nel repository
+
+# Ignora tutti i file che contengono chiavi API reali
+*.key
+*.secret
+*_key
+*_secret
+
+# Ignora file con estensioni comuni per secrets
+*.pem
+*.p12
+*.pfx
+*.crt
+
+# Permetti solo file che iniziano con commento (template)
+!*.txt 

@@ -1,92 +1,385 @@
 # Docker Compose Override per Ambiente Development
 # Uso: docker-compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev up
 
-version: '3.8'
-
 services:
-  # --- Frontend con Hot Reload ---
+  # =============================================================================
+  # DATABASE SERVICES - DEVELOPMENT CONFIG
+  # =============================================================================
+  
+  auth_db:
+    environment:
+      - POSTGRES_DB=${AUTH_DB_NAME}
+      - POSTGRES_USER=${AUTH_DB_USER}
+      - POSTGRES_PASSWORD=${AUTH_DB_PASSWORD}
+    volumes:
+      - ./dev-data/auth_db:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # Espongo per accesso diretto con client DB
+
+  user_db:
+    environment:
+      - POSTGRES_DB=${USER_DB_NAME}
+      - POSTGRES_USER=${USER_DB_USER}
+      - POSTGRES_PASSWORD=${USER_DB_PASSWORD}
+    volumes:
+      - ./dev-data/user_db:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+
+  chatbot_db:
+    environment:
+      - POSTGRES_DB=${CHATBOT_DB_NAME}
+      - POSTGRES_USER=${CHATBOT_DB_USER}
+      - POSTGRES_PASSWORD=${CHATBOT_DB_PASSWORD}
+    volumes:
+      - ./dev-data/chatbot_db:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+
+  image_generator_db:
+    environment:
+      - POSTGRES_DB=${IMAGE_GEN_DB_NAME}
+      - POSTGRES_USER=${IMAGE_GEN_DB_USER}
+      - POSTGRES_PASSWORD=${IMAGE_GEN_DB_PASSWORD}
+    volumes:
+      - ./dev-data/image_generator_db:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+
+  resource_db:
+    environment:
+      - POSTGRES_DB=${RESOURCE_DB_NAME}
+      - POSTGRES_USER=${RESOURCE_DB_USER}
+      - POSTGRES_PASSWORD=${RESOURCE_DB_PASSWORD}
+    volumes:
+      - ./dev-data/resource_db:/var/lib/postgresql/data
+    ports:
+      - "5437:5432"
+
+  classifier_db:
+    environment:
+      - POSTGRES_DB=${CLASSIFIER_DB_NAME}
+      - POSTGRES_USER=${CLASSIFIER_DB_USER}
+      - POSTGRES_PASSWORD=${CLASSIFIER_DB_PASSWORD}
+    volumes:
+      - ./dev-data/classifier_db:/var/lib/postgresql/data
+    ports:
+      - "5438:5432"
+
+  analysis_db:
+    environment:
+      - POSTGRES_DB=${ANALYSIS_DB_NAME}
+      - POSTGRES_USER=${ANALYSIS_DB_USER}
+      - POSTGRES_PASSWORD=${ANALYSIS_DB_PASSWORD}
+    volumes:
+      - ./dev-data/analysis_db:/var/lib/postgresql/data
+    ports:
+      - "5439:5432"
+
+  rag_db:
+    environment:
+      - POSTGRES_DB=${RAG_DB_NAME}
+      - POSTGRES_USER=${RAG_DB_USER}
+      - POSTGRES_PASSWORD=${RAG_DB_PASSWORD}
+    volumes:
+      - ./dev-data/rag_db:/var/lib/postgresql/data
+    ports:
+      - "5440:5432"
+
+  learning_db:
+    environment:
+      - POSTGRES_DB=${LEARNING_DB_NAME}
+      - POSTGRES_USER=${LEARNING_DB_USER}
+      - POSTGRES_PASSWORD=${LEARNING_DB_PASSWORD}
+    volumes:
+      - ./dev-data/learning_db:/var/lib/postgresql/data
+    ports:
+      - "5441:5432"
+
+  # =============================================================================
+  # MESSAGE BROKER - DEVELOPMENT CONFIG
+  # =============================================================================
+  
+  rabbitmq:
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+    ports:
+      - "15672:15672"  # Management UI
+      - "5672:5672"    # AMQP
+
+  # =============================================================================
+  # BACKEND SERVICES - DEVELOPMENT CONFIG
+  # =============================================================================
+  
+  auth_service:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - DATABASE_URL=postgres://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@auth_db:5432/${AUTH_DB_NAME}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - SOCIAL_AUTH_GOOGLE_CLIENT_ID=${SOCIAL_AUTH_GOOGLE_CLIENT_ID}
+      - SOCIAL_AUTH_GOOGLE_CLIENT_SECRET=${SOCIAL_AUTH_GOOGLE_CLIENT_SECRET}
+    volumes:
+      - ./backend/auth_service:/app:cached
+    ports:
+      - "8001:8000"  # Espongo per debugging diretto
+    env_file: []  # Rimuovo env_file del servizio specifico
+
+  user_service:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - DATABASE_URL=postgres://${USER_DB_USER}:${USER_DB_PASSWORD}@user_db:5432/${USER_DB_NAME}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - FILE_UPLOAD_MAX_MEMORY_SIZE=${FILE_UPLOAD_MAX_MEMORY_SIZE}
+      - MAX_PROFILE_PICTURE_SIZE=${MAX_PROFILE_PICTURE_SIZE}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+    volumes:
+      - ./backend/user_service:/app:cached
+    ports:
+      - "8002:8000"
+    env_file: []
+
+  chatbot_service:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - DB_NAME=${CHATBOT_DB_NAME}
+      - DB_USER=${CHATBOT_DB_USER}
+      - DB_PASSWORD=${CHATBOT_DB_PASSWORD}
+      - DB_HOST=chatbot_db
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - COST_MONITORING_SERVICE_URL=${COST_MONITORING_SERVICE_URL}
+    volumes:
+      - ./backend/chatbot_service:/app:cached
+    ports:
+      - "8003:8000"
+    env_file: []
+
+  image_generator_service:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - IMAGE_GEN_DB_NAME=${IMAGE_GEN_DB_NAME}
+      - IMAGE_GEN_DB_USER=${IMAGE_GEN_DB_USER}
+      - IMAGE_GEN_DB_PASSWORD=${IMAGE_GEN_DB_PASSWORD}
+      - IMAGE_GEN_DB_HOST=image_generator_db
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - MAX_CONCURRENT_GENERATIONS=${MAX_CONCURRENT_GENERATIONS}
+    volumes:
+      - ./backend/image_generator_service:/app:cached
+    ports:
+      - "8004:8000"
+    env_file: []
+
+  resource_manager_service:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - RESOURCE_DB_NAME=${RESOURCE_DB_NAME}
+      - RESOURCE_DB_USER=${RESOURCE_DB_USER}
+      - RESOURCE_DB_PASSWORD=${RESOURCE_DB_PASSWORD}
+      - RESOURCE_DB_HOST=resource_db
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - RAG_SERVICE_URL=${RAG_SERVICE_URL}
+    volumes:
+      - ./backend/resource_manager_service:/app:cached
+    ports:
+      - "8005:8000"
+    env_file: []
+
+  image_classifier_service:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - CLASSIFIER_DB_NAME=${CLASSIFIER_DB_NAME}
+      - CLASSIFIER_DB_USER=${CLASSIFIER_DB_USER}
+      - CLASSIFIER_DB_PASSWORD=${CLASSIFIER_DB_PASSWORD}
+      - CLASSIFIER_DB_HOST=classifier_db
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - TF_CPP_MIN_LOG_LEVEL=${TF_CPP_MIN_LOG_LEVEL}
+    volumes:
+      - ./backend/image_classifier_service:/app:cached
+    ports:
+      - "8006:8000"
+    env_file: []
+
+  data_analysis_service:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - ANALYSIS_DB_NAME=${ANALYSIS_DB_NAME}
+      - ANALYSIS_DB_USER=${ANALYSIS_DB_USER}
+      - ANALYSIS_DB_PASSWORD=${ANALYSIS_DB_PASSWORD}
+      - ANALYSIS_DB_HOST=analysis_db
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - RESOURCE_MANAGER_INTERNAL_URL=${RESOURCE_MANAGER_INTERNAL_URL}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - TF_CPP_MIN_LOG_LEVEL=${TF_CPP_MIN_LOG_LEVEL}
+    volumes:
+      - ./backend/data_analysis_service:/app:cached
+    ports:
+      - "8007:8000"
+    env_file: []
+
+  rag_service:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - RAG_DB_NAME=${RAG_DB_NAME}
+      - RAG_DB_USER=${RAG_DB_USER}
+      - RAG_DB_PASSWORD=${RAG_DB_PASSWORD}
+      - RAG_DB_HOST=rag_db
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - RAG_UPLOADS_ROOT=${RAG_UPLOADS_ROOT}
+      - RAG_EMBEDDINGS_ROOT=${RAG_EMBEDDINGS_ROOT}
+      - RAG_MAX_CHUNK_SIZE=${RAG_MAX_CHUNK_SIZE}
+      - RAG_CHUNK_OVERLAP=${RAG_CHUNK_OVERLAP}
+      - RAG_TOP_K_RESULTS=${RAG_TOP_K_RESULTS}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+      - EMBEDDING_DIMENSION=${EMBEDDING_DIMENSION}
+      - RESOURCE_MANAGER_INTERNAL_URL=${RESOURCE_MANAGER_INTERNAL_URL}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - FILE_UPLOAD_MAX_MEMORY_SIZE=${FILE_UPLOAD_MAX_MEMORY_SIZE}
+    volumes:
+      - ./backend/rag_service:/app:cached
+    ports:
+      - "8008:8000"
+    env_file: []
+
+  learning_service:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - SERVICE_DB_NAME=${LEARNING_DB_NAME}
+      - SERVICE_DB_USER=${LEARNING_DB_USER}
+      - SERVICE_DB_PASSWORD=${LEARNING_DB_PASSWORD}
+      - SERVICE_DB_HOST=learning_db
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - DEFAULT_LESSON_LENGTH=${DEFAULT_LESSON_LENGTH}
+      - DEFAULT_QUIZ_QUESTIONS=${DEFAULT_QUIZ_QUESTIONS}
+      - MAX_LESSON_APPROFONDIMENTI=${MAX_LESSON_APPROFONDIMENTI}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+    volumes:
+      - ./backend/learning_service:/app:cached
+    ports:
+      - "8009:8000"
+    env_file: []
+
+  # =============================================================================
+  # WORKER SERVICES - DEVELOPMENT CONFIG
+  # =============================================================================
+  
+  rag_worker:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - RAG_DB_NAME=${RAG_DB_NAME}
+      - RAG_DB_USER=${RAG_DB_USER}
+      - RAG_DB_PASSWORD=${RAG_DB_PASSWORD}
+      - RAG_DB_HOST=rag_db
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - RAG_UPLOADS_ROOT=${RAG_UPLOADS_ROOT}
+      - RAG_EMBEDDINGS_ROOT=${RAG_EMBEDDINGS_ROOT}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+    volumes:
+      - ./backend/rag_service:/app:cached
+    env_file: []
+
+  data_analysis_worker:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - ANALYSIS_DB_NAME=${ANALYSIS_DB_NAME}
+      - ANALYSIS_DB_USER=${ANALYSIS_DB_USER}
+      - ANALYSIS_DB_PASSWORD=${ANALYSIS_DB_PASSWORD}
+      - ANALYSIS_DB_HOST=analysis_db
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - RESOURCE_MANAGER_INTERNAL_URL=${RESOURCE_MANAGER_INTERNAL_URL}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - TF_CPP_MIN_LOG_LEVEL=${TF_CPP_MIN_LOG_LEVEL}
+    volumes:
+      - ./backend/data_analysis_service:/app:cached
+    env_file: []
+
+  image_classifier_worker:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - CLASSIFIER_DB_NAME=${CLASSIFIER_DB_NAME}
+      - CLASSIFIER_DB_USER=${CLASSIFIER_DB_USER}
+      - CLASSIFIER_DB_PASSWORD=${CLASSIFIER_DB_PASSWORD}
+      - CLASSIFIER_DB_HOST=classifier_db
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - TF_CPP_MIN_LOG_LEVEL=${TF_CPP_MIN_LOG_LEVEL}
+    volumes:
+      - ./backend/image_classifier_service:/app:cached
+    env_file: []
+
+  resource_manager_worker:
+    environment:
+      - DEBUG=${DJANGO_DEBUG}
+      - LOG_LEVEL=DEBUG
+      - RESOURCE_DB_NAME=${RESOURCE_DB_NAME}
+      - RESOURCE_DB_USER=${RESOURCE_DB_USER}
+      - RESOURCE_DB_PASSWORD=${RESOURCE_DB_PASSWORD}
+      - RESOURCE_DB_HOST=resource_db
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+    volumes:
+      - ./backend/resource_manager_service:/app:cached
+    env_file: []
+
+  # =============================================================================
+  # FRONTEND - DEVELOPMENT CONFIG
+  # =============================================================================
+  
   frontend:
     environment:
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
-      - REACT_APP_API_URL=http://localhost:8080
+      - REACT_APP_API_URL=${REACT_APP_API_URL}
+      - REACT_APP_ENVIRONMENT=${REACT_APP_ENVIRONMENT}
+      - REACT_APP_ENABLE_REDUX_DEVTOOLS=${REACT_APP_ENABLE_REDUX_DEVTOOLS}
     volumes:
       - ./frontend/src:/app/src:cached
       - ./frontend/public:/app/public:cached
     ports:
       - "3000:3000"  # Espongo porta per accesso diretto
 
-  # --- Auth Service con Debug ---
-  auth_service:
-    environment:
-      - DEBUG=True
-      - LOG_LEVEL=DEBUG
-      - DJANGO_SETTINGS_MODULE=service_auth.settings
-    volumes:
-      - ./backend/auth_service:/app:cached
-    ports:
-      - "8000:8000"  # Espongo per debugging diretto
-    
-  # --- Chatbot Service con Debug ---
-  chatbot_service:
-    environment:
-      - DEBUG=True
-      - LOG_LEVEL=DEBUG
-    volumes:
-      - ./backend/chatbot_service:/app:cached
-    # Porta già esposta nel compose base
-
-  # --- User Service con Debug ---
-  user_service:
-    environment:
-      - DEBUG=True
-      - LOG_LEVEL=DEBUG
-    volumes:
-      - ./backend/user_service:/app:cached
-    ports:
-      - "8008:8000"  # Porta alternativa per evitare conflitti
-
-  # --- Database con configurazioni development ---
-  auth_db:
-    environment:
-      - POSTGRES_DB=plai_db_dev
-      - POSTGRES_USER=plai_user_dev
-      - POSTGRES_PASSWORD=dev_password_123
-    volumes:
-      - ./dev-data/auth_db:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"  # Espongo per accesso diretto con client DB
-
-  chatbot_db:
-    environment:
-      - POSTGRES_DB=chatbot_db_dev
-      - POSTGRES_USER=chatbot_user_dev
-      - POSTGRES_PASSWORD=dev_password_123
-    volumes:
-      - ./dev-data/chatbot_db:/var/lib/postgresql/data
-    ports:
-      - "5436:5432"
-
-  user_db:
-    environment:
-      - POSTGRES_DB=user_db_dev
-      - POSTGRES_USER=user_user_dev
-      - POSTGRES_PASSWORD=dev_password_123
-    volumes:
-      - ./dev-data/user_db:/var/lib/postgresql/data
-    ports:
-      - "5438:5432"
-
-  # --- RabbitMQ con Management UI ---
-  rabbitmq:
-    environment:
-      - RABBITMQ_DEFAULT_USER=admin
-      - RABBITMQ_DEFAULT_PASS=dev_password_123
-    ports:
-      - "15672:15672"  # Management UI
-      - "5672:5672"    # AMQP
-
-  # --- NGINX con configurazione development ---
+  # =============================================================================
+  # NGINX - DEVELOPMENT CONFIG
+  # =============================================================================
+  
   nginx:
     volumes:
       - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
@@ -95,15 +388,25 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      - DOMAIN=dev.pl-ai.it
+      - DOMAIN=${DOMAIN}
 
-# --- Volumes per development (dati locali) ---
+# =============================================================================
+# VOLUMES PER DEVELOPMENT (dati locali)
+# =============================================================================
 volumes:
   dev_auth_data:
   dev_user_data:
   dev_chatbot_data:
+  dev_image_generator_data:
+  dev_resource_data:
+  dev_classifier_data:
+  dev_analysis_data:
+  dev_rag_data:
+  dev_learning_data:
 
-# --- Network configuration ---
+# =============================================================================
+# NETWORK CONFIGURATION
+# =============================================================================
 networks:
   pl-ai-network:
     driver: bridge 
