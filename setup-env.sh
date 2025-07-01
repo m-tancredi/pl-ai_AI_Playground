@@ -46,10 +46,10 @@ generate_password() {
     openssl rand -base64 $length | tr -d "=+/" | cut -c1-$length
 }
 
-# Funzione per generare Django secret key
+# Funzione per generare Django secret key (solo caratteri sicuri per sed)
 generate_django_secret() {
-    python3 -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())" 2>/dev/null || \
-    openssl rand -base64 50 | tr -d "=+/" | cut -c1-50
+    # Genera 50 caratteri alfanumerici sicuri (no caratteri speciali per sed)
+    openssl rand -hex 25 | head -c 50
 }
 
 # Verifica prerequisiti
@@ -114,37 +114,44 @@ customize_passwords() {
     local prod_rabbitmq_pass=$(generate_password 32)
     local prod_django_secret=$(generate_django_secret)
     
+    # Compatibilità macOS/Linux per sed
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        SED_INPLACE="sed -i ''"
+    else
+        SED_INPLACE="sed -i"
+    fi
+    
     # Aggiorna file development
-    sed -i "s/DevAuth2024!K7mN9pQ3xR8vW2sE/DevAuth2024!$dev_auth_pass/g" .env.dev
-    sed -i "s/DevUser2024!A4hT6uY9oP1zM5kL/DevUser2024!$dev_user_pass/g" .env.dev
-    sed -i "s/DevChatbot2024!D3fG7jH2nB9vC6xZ/DevChatbot2024!$dev_chatbot_pass/g" .env.dev
-    sed -i "s/DevImageGen2024!X8kM4pW7qR3tY5uI/DevImageGen2024!$dev_imagegen_pass/g" .env.dev
-    sed -i "s/DevResource2024!V2sF9hJ6mK1nL8pQ/DevResource2024!$dev_resource_pass/g" .env.dev
-    sed -i "s/DevClassifier2024!Z5xC8vB3nM6kH9jG/DevClassifier2024!$dev_classifier_pass/g" .env.dev
-    sed -i "s/DevAnalysis2024!T4yU7iO0pA3sD6fG/DevAnalysis2024!$dev_analysis_pass/g" .env.dev
-    sed -i "s/DevRag2024!H9jK2lZ5xC8vB1nM/DevRag2024!$dev_rag_pass/g" .env.dev
-    sed -i "s/DevLearning2024!Q6wE9rT2yU5iO8pA/DevLearning2024!$dev_learning_pass/g" .env.dev
-    sed -i "s/DevRabbitMQ2024!S3dF6gH9jK2lZ5xC/DevRabbitMQ2024!$dev_rabbitmq_pass/g" .env.dev
-    sed -i "s/dev-secret-key-x8k3m7p2q5w9r6t4y7u0i3o6p9a2s5d8f1g4h7j0k3l6z9x2c5v8b/$dev_django_secret/g" .env.dev
+    $SED_INPLACE "s/DevAuth2024!K7mN9pQ3xR8vW2sE/DevAuth2024!$dev_auth_pass/g" .env.dev
+    $SED_INPLACE "s/DevUser2024!A4hT6uY9oP1zM5kL/DevUser2024!$dev_user_pass/g" .env.dev
+    $SED_INPLACE "s/DevChatbot2024!D3fG7jH2nB9vC6xZ/DevChatbot2024!$dev_chatbot_pass/g" .env.dev
+    $SED_INPLACE "s/DevImageGen2024!X8kM4pW7qR3tY5uI/DevImageGen2024!$dev_imagegen_pass/g" .env.dev
+    $SED_INPLACE "s/DevResource2024!V2sF9hJ6mK1nL8pQ/DevResource2024!$dev_resource_pass/g" .env.dev
+    $SED_INPLACE "s/DevClassifier2024!Z5xC8vB3nM6kH9jG/DevClassifier2024!$dev_classifier_pass/g" .env.dev
+    $SED_INPLACE "s/DevAnalysis2024!T4yU7iO0pA3sD6fG/DevAnalysis2024!$dev_analysis_pass/g" .env.dev
+    $SED_INPLACE "s/DevRag2024!H9jK2lZ5xC8vB1nM/DevRag2024!$dev_rag_pass/g" .env.dev
+    $SED_INPLACE "s/DevLearning2024!Q6wE9rT2yU5iO8pA/DevLearning2024!$dev_learning_pass/g" .env.dev
+    $SED_INPLACE "s/DevRabbitMQ2024!S3dF6gH9jK2lZ5xC/DevRabbitMQ2024!$dev_rabbitmq_pass/g" .env.dev
+    $SED_INPLACE "s/dev-secret-key-x8k3m7p2q5w9r6t4y7u0i3o6p9a2s5d8f1g4h7j0k3l6z9x2c5v8b/$dev_django_secret/g" .env.dev
     
     # Aggiorna anche Celery URL in development
-    sed -i "s/DevRabbitMQ2024!S3dF6gH9jK2lZ5xC/DevRabbitMQ2024!$dev_rabbitmq_pass/g" .env.dev
+    $SED_INPLACE "s/DevRabbitMQ2024!S3dF6gH9jK2lZ5xC/DevRabbitMQ2024!$dev_rabbitmq_pass/g" .env.dev
     
     # Aggiorna file production
-    sed -i "s/ProdAuth2024#Kx9Mn7Pq5Xr2Wv8Sg4Tl6Yh1Uj3Zn/ProdAuth2024#$prod_auth_pass/g" .env.prod
-    sed -i "s/ProdUser2024#Az8Ht4Uy7Op9Zm1Lk5Pg3Qw6Vb2Nx/ProdUser2024#$prod_user_pass/g" .env.prod
-    sed -i "s/ProdChatbot2024#Df1Gj5Hm8Nb7Vx3Zc9Kw2Qt6Yr4Eu/ProdChatbot2024#$prod_chatbot_pass/g" .env.prod
-    sed -i "s/ProdImageGen2024#Xk3Mp8Wq5Rt7Yu2Io9Ap6Sd1Fg4Hj/ProdImageGen2024#$prod_imagegen_pass/g" .env.prod
-    sed -i "s/ProdResource2024#Vs7Fh4Jm9Kn1Lp8Qz3Xc6Vb2Nt5Gr/ProdResource2024#$prod_resource_pass/g" .env.prod
-    sed -i "s/ProdClassifier2024#Z2Xc5Vb8Nm6Kh9Jg1Tp4Yr7Ew3Qu/ProdClassifier2024#$prod_classifier_pass/g" .env.prod
-    sed -i "s/ProdAnalysis2024#Tl9Yu4Io8Pa3Sd6Fg1Hj5Km2Zx7Cv/ProdAnalysis2024#$prod_analysis_pass/g" .env.prod
-    sed -i "s/ProdRag2024#Hj6Km2Lz1Xc8Vb3Nm9Qw5Er7Ty4Ui/ProdRag2024#$prod_rag_pass/g" .env.prod
-    sed -i "s/ProdLearning2024#Qw8Er5Ty2Ui9Op3As6Df1Gh4Jk7Zx/ProdLearning2024#$prod_learning_pass/g" .env.prod
-    sed -i "s/ProdRabbitMQ2024#Sd9Fg2Hj5Kl8Zx1Cv4Vb7Nm0Qt3Wr/ProdRabbitMQ2024#$prod_rabbitmq_pass/g" .env.prod
-    sed -i "s/prod-ultra-secure-key-n8m2k5j9h6g3f0d1s4a7p0q9w8e5r2t7y4u1i6o3p9a8s5d2f7g0h3j6k9l2z5x8c1v4b/$prod_django_secret/g" .env.prod
+    $SED_INPLACE "s/ProdAuth2024#Kx9Mn7Pq5Xr2Wv8Sg4Tl6Yh1Uj3Zn/ProdAuth2024#$prod_auth_pass/g" .env.prod
+    $SED_INPLACE "s/ProdUser2024#Az8Ht4Uy7Op9Zm1Lk5Pg3Qw6Vb2Nx/ProdUser2024#$prod_user_pass/g" .env.prod
+    $SED_INPLACE "s/ProdChatbot2024#Df1Gj5Hm8Nb7Vx3Zc9Kw2Qt6Yr4Eu/ProdChatbot2024#$prod_chatbot_pass/g" .env.prod
+    $SED_INPLACE "s/ProdImageGen2024#Xk3Mp8Wq5Rt7Yu2Io9Ap6Sd1Fg4Hj/ProdImageGen2024#$prod_imagegen_pass/g" .env.prod
+    $SED_INPLACE "s/ProdResource2024#Vs7Fh4Jm9Kn1Lp8Qz3Xc6Vb2Nt5Gr/ProdResource2024#$prod_resource_pass/g" .env.prod
+    $SED_INPLACE "s/ProdClassifier2024#Z2Xc5Vb8Nm6Kh9Jg1Tp4Yr7Ew3Qu/ProdClassifier2024#$prod_classifier_pass/g" .env.prod
+    $SED_INPLACE "s/ProdAnalysis2024#Tl9Yu4Io8Pa3Sd6Fg1Hj5Km2Zx7Cv/ProdAnalysis2024#$prod_analysis_pass/g" .env.prod
+    $SED_INPLACE "s/ProdRag2024#Hj6Km2Lz1Xc8Vb3Nm9Qw5Er7Ty4Ui/ProdRag2024#$prod_rag_pass/g" .env.prod
+    $SED_INPLACE "s/ProdLearning2024#Qw8Er5Ty2Ui9Op3As6Df1Gh4Jk7Zx/ProdLearning2024#$prod_learning_pass/g" .env.prod
+    $SED_INPLACE "s/ProdRabbitMQ2024#Sd9Fg2Hj5Kl8Zx1Cv4Vb7Nm0Qt3Wr/ProdRabbitMQ2024#$prod_rabbitmq_pass/g" .env.prod
+    $SED_INPLACE "s/prod-ultra-secure-key-n8m2k5j9h6g3f0d1s4a7p0q9w8e5r2t7y4u1i6o3p9a8s5d2f7g0h3j6k9l2z5x8c1v4b/$prod_django_secret/g" .env.prod
     
     # Aggiorna anche Celery URL in production
-    sed -i "s/ProdRabbitMQ2024#Sd9Fg2Hj5Kl8Zx1Cv4Vb7Nm0Qt3Wr/ProdRabbitMQ2024#$prod_rabbitmq_pass/g" .env.prod
+    $SED_INPLACE "s/ProdRabbitMQ2024#Sd9Fg2Hj5Kl8Zx1Cv4Vb7Nm0Qt3Wr/ProdRabbitMQ2024#$prod_rabbitmq_pass/g" .env.prod
     
     log_success "Generated unique secure passwords for both environments"
 }
@@ -274,17 +281,24 @@ interactive_setup() {
             read -p "Inserisci il tuo dominio di sviluppo (default: dev.pl-ai.it): " dev_domain
             read -p "Inserisci la tua email per SSL (default: admin@pl-ai.it): " ssl_email
             
+            # Compatibilità macOS/Linux per sed
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                SED_INPLACE="sed -i ''"
+            else
+                SED_INPLACE="sed -i"
+            fi
+            
             # Aggiorna domini se specificati
             if [[ -n "$main_domain" && "$main_domain" != "pl-ai.it" ]]; then
-                sed -i "s/pl-ai.it/$main_domain/g" .env.prod
+                $SED_INPLACE "s/pl-ai.it/$main_domain/g" .env.prod
             fi
             
             if [[ -n "$dev_domain" && "$dev_domain" != "dev.pl-ai.it" ]]; then
-                sed -i "s/dev.pl-ai.it/$dev_domain/g" .env.dev
+                $SED_INPLACE "s/dev.pl-ai.it/$dev_domain/g" .env.dev
             fi
             
             if [[ -n "$ssl_email" && "$ssl_email" != "admin@pl-ai.it" ]]; then
-                sed -i "s/admin@pl-ai.it/$ssl_email/g" .env.dev .env.prod
+                eval "$SED_INPLACE \"s/admin@pl-ai.it/$ssl_email/g\" .env.dev .env.prod"
             fi
             
             return 0
