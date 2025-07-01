@@ -53,13 +53,16 @@ chmod +x setup-env.sh ssl-setup.sh deploy.sh manage.sh
 ### 2️⃣ Configurazione API Keys
 ```bash
 # Inserisci le tue API keys (1 min)
-echo "sk-proj-YOUR_DEV_KEY" > .secrets/dev/openai_api_key.txt
-echo "sk-ant-api03-YOUR_DEV_KEY" > .secrets/dev/anthropic_api_key.txt
-echo "AIzaSy_YOUR_DEV_KEY" > .secrets/dev/gemini_api_key.txt
-echo "sk-YOUR_DEV_KEY" > .secrets/dev/stability_api_key.txt
+echo "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" > .secrets/dev/openai_api_key.txt
+echo "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" > .secrets/dev/anthropic_api_key.txt
+echo "AIzaSyDtoR6fNWH29y8AQ50hmHfkg6e_iV5dq30" > .secrets/dev/gemini_api_key.txt
+echo "sk-ldUaHff4pjVxRDI8WWcRvRKmJVM7RsyVF0GxEMkPShWPaZa3" > .secrets/dev/stability_api_key.txt
 
 # Ripeti per produzione con chiavi diverse
-echo "sk-proj-YOUR_PROD_KEY" > .secrets/prod/openai_api_key.txt
+echo "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" > .secrets/prod/openai_api_key.txt
+echo "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" > .secrets/prod/anthropic_api_key.txt
+echo "AIzaSyDtoR6fNWH29y8AQ50hmHfkg6e_iV5dq30" > .secrets/prod/gemini_api_key.txt
+echo "sk-ldUaHff4pjVxRDI8WWcRvRKmJVM7RsyVF0GxEMkPShWPaZa3" > .secrets/prod/stability_api_key.txt
 # ... altre chiavi prod
 ```
 
