@@ -15,7 +15,7 @@
 
 ## ⚡ Quick Start - Avvio Rapido
 
-> **Tempo richiesto: 20 minuti** | Per chi vuole partire subito
+> **Tempo richiesto: 15 minuti** | Per chi vuole partire subito
 
 ### 🔧 **PREREQUISITO**: Clone del Repository
 
@@ -44,7 +44,7 @@ ls -la
 ### 1️⃣ Setup Automatico Completo
 ```bash
 # Rendi eseguibili gli script
-chmod +x setup-env.sh ssl-setup.sh deploy.sh manage.sh
+chmod +x setup-env.sh ssl-setup.sh deploy.sh manage.sh test-nginx-simple.sh
 
 # 🎯 Setup automatico di tutto l'ambiente (2 min)
 ./setup-env.sh
@@ -53,17 +53,16 @@ chmod +x setup-env.sh ssl-setup.sh deploy.sh manage.sh
 ### 2️⃣ Configurazione API Keys
 ```bash
 # Inserisci le tue API keys (1 min)
-echo "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" > .secrets/dev/openai_api_key.txt
-echo "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" > .secrets/dev/anthropic_api_key.txt
-echo "AIzaSyDtoR6fNWH29y8AQ50hmHfkg6e_iV5dq30" > .secrets/dev/gemini_api_key.txt
-echo "sk-ldUaHff4pjVxRDI8WWcRvRKmJVM7RsyVF0GxEMkPShWPaZa3" > .secrets/dev/stability_api_key.txt
+echo "your-openai-api-key-here" > .secrets/dev/openai_api_key.txt
+echo "your-anthropic-api-key-here" > .secrets/dev/anthropic_api_key.txt
+echo "your-gemini-api-key-here" > .secrets/dev/gemini_api_key.txt
+echo "your-stability-api-key-here" > .secrets/dev/stability_api_key.txt
 
-# Ripeti per produzione con chiavi diverse
-echo "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" > .secrets/prod/openai_api_key.txt
-echo "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" > .secrets/prod/anthropic_api_key.txt
-echo "AIzaSyDtoR6fNWH29y8AQ50hmHfkg6e_iV5dq30" > .secrets/prod/gemini_api_key.txt
-echo "sk-ldUaHff4pjVxRDI8WWcRvRKmJVM7RsyVF0GxEMkPShWPaZa3" > .secrets/prod/stability_api_key.txt
-# ... altre chiavi prod
+# Ripeti per produzione con chiavi diverse (RACCOMANDATO)
+echo "your-prod-openai-api-key-here" > .secrets/prod/openai_api_key.txt
+echo "your-prod-anthropic-api-key-here" > .secrets/prod/anthropic_api_key.txt
+echo "your-prod-gemini-api-key-here" > .secrets/prod/gemini_api_key.txt
+echo "your-prod-stability-api-key-here" > .secrets/prod/stability_api_key.txt
 ```
 
 ### 3️⃣ Configurazione DNS
@@ -119,7 +118,7 @@ Questa guida implementa un sistema di deployment completo per AI-PlayGround con:
 - **🏭 Produzione**: `pl-ai.it` - Ambiente live per utenti finali
 - **🔧 Sviluppo**: `dev.pl-ai.it` - Ambiente test per sviluppo
 
-#### Architettura (25 Servizi Containerizzati)
+#### Architettura (25+ Servizi Containerizzati)
 
 ```
 ┌─────────────────┐    ┌─────────────────┐
@@ -132,9 +131,9 @@ Questa guida implementa un sistema di deployment completo per AI-PlayGround con:
 │            IONOS SERVER                 │
 │  ┌─────────────┐  ┌─────────────────┐   │
 │  │    NGINX    │  │    DOCKER       │   │
-│  │ (Reverse    │  │  25 CONTAINERS  │   │
-│  │  Proxy)     │  │   - 9 Database  │   │
-│  │  SSL/TLS    │  │   - 9 Backend   │   │
+│  │ (Reverse    │  │  25+ CONTAINERS │   │
+│  │  Proxy)     │  │   - 11 Database │   │
+│  │  SSL/TLS    │  │   - 11 Backend  │   │
 │  │  Load Bal.) │  │   - 4 Workers   │   │
 │  │             │  │   - 3 Infra     │   │
 │  └─────────────┘  └─────────────────┘   │
@@ -159,13 +158,14 @@ pl-ai_AI-PlayGround/
 ├── 📄 docker-compose.yml          # Configurazione base
 ├── 📄 docker-compose.dev.yml      # Override sviluppo 
 ├── 📄 docker-compose.prod.yml     # Override produzione 
-├── 📄 .env.dev                    # Variabili ambiente sviluppo
-├── 📄 .env.prod                   # Variabili ambiente produzione
+├── 📄 .env.dev                    # Variabili ambiente sviluppo (515+ variabili)
+├── 📄 .env.prod                   # Variabili ambiente produzione (515+ variabili)
 ├── 🛠️ setup-env.sh               # Setup automatico environment
 ├── 🚀 deploy.sh                   # Script deployment automatizzato
 ├── 🔐 ssl-setup.sh               # Setup automatico SSL
 ├── 🎛️ manage.sh                   # Interfaccia gestione generale
-├── 📖 DEPLOYMENT_BIBLE.md         # Questa guida completa
+├── 🧪 test-nginx-simple.sh       # Test validazione NGINX
+├── 📖 docs/guida_deploy/DEPLOYMENT_BIBLE.md  # Questa guida completa
 ├── .secrets/                      # Directory secrets
 │   ├── dev/                      # Secrets sviluppo
 │   └── prod/                     # Secrets produzione
@@ -186,9 +186,9 @@ pl-ai_AI-PlayGround/
    sudo usermod -aG docker $USER
    newgrp docker
    
-   # Verifica installazione
+   # Verifica installazione (Docker Compose V2 integrato)
    docker --version
-   docker compose version  # Deve essere V2!
+   docker compose version  # Comando V2 integrato
    ```
 
 2. **Certbot per SSL**
@@ -206,10 +206,10 @@ pl-ai_AI-PlayGround/
 
 | Risorsa | Minimo | Consigliato | Produzione |
 |---------|--------|-------------|------------|
-| CPU     | 2 core | 4 core      | 8 core     |
-| RAM     | 4GB    | 8GB         | 16GB       |
-| Storage | 50GB   | 100GB SSD   | 200GB SSD  |
-| Banda   | 100MB  | 1GB         | Illimitata |
+| CPU     | 4 core | 8 core      | 16 core    |
+| RAM     | 8GB    | 16GB        | 32GB       |
+| Storage | 100GB  | 200GB SSD   | 500GB SSD  |
+| Banda   | 1GB    | Illimitata  | Illimitata |
 
 ### 🛠️ Setup Dettagliato
 
@@ -275,15 +275,6 @@ git status
 git log --oneline -5  # Ultimi 5 commit
 ```
 
-**🔧 Setup Posizionamento:**
-```bash
-# Percorso finale consigliato:
-# /home/aiplayground/pl-ai_AI-PlayGround/
-
-# Crea link simbolico per accesso rapido (opzionale)
-sudo ln -s /home/aiplayground/pl-ai_AI-PlayGround /opt/pl-ai
-```
-
 #### 1. Setup Automatico Environment
 
 Lo script `setup-env.sh` automatizza la configurazione iniziale:
@@ -297,12 +288,12 @@ chmod +x setup-env.sh
 ```
 
 **Cosa fa automaticamente:**
-- ✅ Verifica presenza file `.env.dev` e `.env.prod`
-- ✅ Genera password sicure per tutti i 9 database
+- ✅ Crea file `.env.dev` e `.env.prod` con **515+ variabili consolidate**
+- ✅ Genera password sicure per tutti gli 11 database PostgreSQL
 - ✅ Crea struttura directory `.secrets/` con permessi sicuri (700/600)
 - ✅ Genera template per API keys di sviluppo e produzione
 - ✅ Configura domini personalizzabili
-- ✅ Valida configurazione Docker Compose
+- ✅ Include configurazioni complete per tutti i microservizi
 
 #### 2. Configurazione Personalizzata Domini
 
@@ -454,7 +445,7 @@ chmod +x deploy.sh
 ./deploy.sh dev up --build
 
 # 2. Verifica servizi
-./deploy.sh dev ps
+./deploy.sh dev status
 
 # 3. Test health check
 curl -k https://dev.pl-ai.it/health
@@ -469,57 +460,51 @@ curl -k https://dev.pl-ai.it/health
 ./deploy.sh prod up --build -d
 
 # 2. Verifica tutti i servizi
-./deploy.sh prod ps
+./deploy.sh prod status
 
 # 3. Test completo
 curl -k https://pl-ai.it/health
 curl -k https://pl-ai.it/api/auth/health
-curl -k https://pl-ai.it/api/user/health
+curl -k https://pl-ai.it/api/users/health
 
 # 4. Monitoring
-./deploy.sh prod stats
+docker stats --no-stream
 ```
 
 #### Configurazioni Environment
 
-**File `.env.dev` (Sviluppo):**
+**File `.env.dev` (Sviluppo) - 515+ variabili:**
 ```bash
 # Debug attivo
-DEBUG=true
+DJANGO_DEBUG=true
 LOG_LEVEL=DEBUG
 
 # Domini sviluppo
 DOMAIN=dev.pl-ai.it
 CORS_ALLOWED_ORIGINS=https://dev.pl-ai.it,http://localhost:3000
 
-# Rate limiting rilassato
-RATE_LIMIT_PER_MINUTE=1000
-RATE_LIMIT_BURST=100
-
-# Database con prefisso dev
-AUTH_DB_NAME=dev_auth_db
-USER_DB_NAME=dev_user_db
-# ... altri DB
+# Database con configurazioni sviluppo
+AUTH_DB_NAME=auth_db
+USER_DB_NAME=user_db
+CHATBOT_DB_NAME=chatbot_db
+# ... altri 8 database
 ```
 
-**File `.env.prod` (Produzione):**
+**File `.env.prod` (Produzione) - 515+ variabili:**
 ```bash
 # Debug disattivato
-DEBUG=false
-LOG_LEVEL=INFO
+DJANGO_DEBUG=false
+LOG_LEVEL=WARNING
 
 # Domini produzione
 DOMAIN=pl-ai.it
 CORS_ALLOWED_ORIGINS=https://pl-ai.it,https://www.pl-ai.it
 
-# Rate limiting severo
-RATE_LIMIT_PER_MINUTE=500
-RATE_LIMIT_BURST=50
-
-# Database produzione
-AUTH_DB_NAME=prod_auth_db
-USER_DB_NAME=prod_user_db
-# ... altri DB
+# Database produzione con nomi separati
+AUTH_DB_NAME=auth_db_prod
+USER_DB_NAME=user_db_prod
+CHATBOT_DB_NAME=chatbot_db_prod
+# ... altri 8 database
 ```
 
 ### 🧪 Test di Validazione
@@ -557,11 +542,6 @@ Prima del deployment, è fondamentale validare le configurazioni NGINX:
    • Media file serving
    • API routing completo
    • Frontend SPA support
-
-⚠️  Note per il deployment:
-   • I certificati SSL verranno generati da Let's Encrypt
-   • Gli upstream Docker funzioneranno nel compose
-   • Configurazioni testate e pronte per la produzione
 ```
 
 **Test Manuali Aggiuntivi:**
@@ -575,14 +555,6 @@ grep -n "ssl_certificate" nginx/nginx.*.conf
 grep -n "limit_req" nginx/nginx.prod.conf
 ```
 
-**Checklist Pre-Deployment:**
-- [ ] Test script NGINX passa ✅
-- [ ] Configurazioni SSL verificate
-- [ ] Rate limiting configurato (prod)
-- [ ] Security headers presenti
-- [ ] Routing API completo
-- [ ] Upstream services mappati
-
 ### 🔍 Monitoraggio e Logging
 
 #### Health Checks Automatici
@@ -591,7 +563,8 @@ Ogni servizio ha health checks configurati:
 
 ```bash
 # Verifica stato servizi
-docker compose ps
+./deploy.sh dev status
+./deploy.sh prod status
 
 # Health check manuale
 curl -k https://dev.pl-ai.it/health
@@ -646,7 +619,7 @@ docker system prune -f
 Lo script `deploy.sh` include funzionalità di backup:
 
 ```bash
-# Backup ambiente sviluppo (tutti i 9 database)
+# Backup ambiente sviluppo (tutti gli 11 database)
 ./deploy.sh dev backup
 
 # Backup ambiente produzione
@@ -657,7 +630,7 @@ Lo script `deploy.sh` include funzionalità di backup:
 ```
 
 **Cosa viene salvato:**
-- ✅ Tutti i 9 database PostgreSQL
+- ✅ Tutti gli 11 database PostgreSQL
 - ✅ Volumi Docker persistenti  
 - ✅ File di configurazione
 - ✅ Certificati SSL
@@ -674,21 +647,6 @@ ls -la backups/
 
 # Restore solo database specifico
 ./deploy.sh dev restore --backup="backups/dev/latest" --db="auth_db"
-```
-
-#### Backup Automatico Schedulato
-
-Configura backup automatico giornaliero:
-
-```bash
-# Aggiungi a crontab
-crontab -e
-
-# Backup giornaliero alle 2:00 AM
-0 2 * * * /path/to/pl-ai_AI-PlayGround/deploy.sh prod backup >/dev/null 2>&1
-
-# Backup sviluppo settimanale (domenica alle 1:00 AM)
-0 1 * * 0 /path/to/pl-ai_AI-PlayGround/deploy.sh dev backup >/dev/null 2>&1
 ```
 
 ### 🔒 Sicurezza Avanzata
@@ -716,20 +674,6 @@ add_header Content-Security-Policy "default-src 'self'";
 - 🔒 **Resource limits** per prevenire DoS
 - 📊 **Health checks** per tutti i servizi
 - 🔄 **Restart policies** configurate
-
-#### Rate Limiting
-
-**Sviluppo (.env.dev):**
-```bash
-RATE_LIMIT_PER_MINUTE=1000  # Rilassato per testing
-RATE_LIMIT_BURST=100
-```
-
-**Produzione (.env.prod):**
-```bash
-RATE_LIMIT_PER_MINUTE=500   # Più severo
-RATE_LIMIT_BURST=50
-```
 
 #### Gestione Secrets
 
@@ -779,7 +723,7 @@ Usa l'interfaccia interattiva per gestioni rapide:
 **Status e Monitoring:**
 ```bash
 # Status rapido tutti gli ambienti  
-./deploy.sh dev ps && ./deploy.sh prod ps
+./deploy.sh dev status && ./deploy.sh prod status
 
 # Logs rapidi errori
 ./deploy.sh prod logs --tail=50 | grep ERROR
@@ -797,7 +741,7 @@ docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 ./deploy.sh dev up --build frontend
 
 # Scale workers
-./deploy.sh prod up --scale data_analysis_worker=3
+./deploy.sh prod up --scale data_analysis_worker=3 -d
 ```
 
 **Manutenzione:**
@@ -807,9 +751,6 @@ docker system prune -f
 
 # Test configurazioni NGINX
 ./test-nginx-simple.sh
-
-# Cleanup logs vecchi
-./deploy.sh dev logs --tail=0
 
 # Restart NGINX (per nuovi SSL)
 ./deploy.sh prod restart nginx
@@ -837,9 +778,9 @@ netstat -tulpn | grep :80
 curl -w "@curl-format.txt" -o /dev/null -s https://pl-ai.it/
 
 # Database connections
-./deploy.sh prod exec auth_db psql -U user -c "SELECT count(*) FROM pg_stat_activity;"
+./deploy.sh prod exec auth_db psql -U auth_admin -c "SELECT count(*) FROM pg_stat_activity;"
 
-# Queue status (RabbitMQ)
+# Queue status (RabbitMQ)  
 ./deploy.sh prod exec rabbitmq rabbitmqctl list_queues
 ```
 
@@ -871,11 +812,8 @@ df -h && docker system df
 
 **Mensile:**
 ```bash
-# Rotazione logs
-./deploy.sh prod logs --tail=0
-
 # Update immagini Docker
-./deploy.sh prod pull
+./deploy.sh prod down
 ./deploy.sh prod up --build -d
 
 # Backup completo di sicurezza
@@ -935,7 +873,7 @@ dig +short pl-ai.it
 **Diagnosi:**
 ```bash
 # Status dettagliato
-./deploy.sh prod ps
+./deploy.sh prod status
 
 # Logs specifici errori
 ./deploy.sh prod logs [servizio_problema]
@@ -967,10 +905,10 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.
 **Diagnosi:**
 ```bash
 # Verifica container database
-./deploy.sh prod ps | grep _db
+./deploy.sh prod status | grep _db
 
 # Test connessione diretta
-./deploy.sh prod exec auth_db psql -U auth_user -d auth_db
+./deploy.sh prod exec auth_db psql -U auth_admin -d auth_db_prod
 
 # Verifica variabili environment
 ./deploy.sh prod exec auth_service printenv | grep DB_
@@ -1032,9 +970,6 @@ docker system prune -f
 # Verifica frontend container
 ./deploy.sh prod logs frontend
 
-# Test direct access
-curl -I http://localhost:3000  # Se frontend espone porta
-
 # Verifica NGINX config
 ./deploy.sh prod exec nginx cat /etc/nginx/conf.d/default.conf
 ```
@@ -1081,15 +1016,6 @@ curl -I http://localhost:3000  # Se frontend espone porta
 # 4. Rebuild da zero
 ./deploy.sh prod up --build -d
 ```
-
-#### Contatto Emergenza
-
-Se hai problemi critici non risolvibili:
-
-1. **Documenta il problema**: Logs, errori, timestamp
-2. **Backup immediato**: `./deploy.sh prod backup --timestamp="emergency"`
-3. **Notifica utenti**: Usa pagina manutenzione se necessario
-4. **Recovery plan**: Identifica backup funzionante più recente
 
 ### 📋 Checklist Debugging
 
@@ -1147,11 +1073,11 @@ Le configurazioni database sono ottimizzate per:
 deploy:
   resources:
     limits:
-      cpus: '0.5'        # Per servizi standard
-      memory: 512M
+      cpus: '2.0'        # Per servizi backend
+      memory: 2G
     reservations:
-      cpus: '0.25'
-      memory: 256M
+      cpus: '1.0'
+      memory: 1G
 ```
 
 ### 🔄 Scaling Avanzato
@@ -1183,15 +1109,15 @@ Tutti i file sono disponibili nella repository:
 - `docker-compose.yml` - Configurazione base
 - `docker-compose.dev.yml` - Override sviluppo  
 - `docker-compose.prod.yml` - Override produzione
-- `.env.dev` - Environment sviluppo
-- `.env.prod` - Environment produzione
+- `.env.dev` - Environment sviluppo (515+ variabili)
+- `.env.prod` - Environment produzione (515+ variabili)
 - `nginx/nginx.dev.conf` - NGINX sviluppo
 - `nginx/nginx.prod.conf` - NGINX produzione
 
 ### 🔧 Script Automatizzazione
 
-- `setup-env.sh` - Setup automatico environment
-- `deploy.sh` - Deployment multi-ambiente
+- `setup-env.sh` - Setup automatico environment (515+ variabili)
+- `deploy.sh` - Deployment multi-ambiente (dev/staging/prod)
 - `ssl-setup.sh` - Configurazione SSL automatica
 - `manage.sh` - Interfaccia gestione interattiva
 - `test-nginx-simple.sh` - Test validazione configurazioni NGINX
@@ -1208,6 +1134,21 @@ Tutti i file sono disponibili nella repository:
 - API Base: https://pl-ai.it/api  
 - Health Check: https://pl-ai.it/health
 
+### 🔑 Microservizi Configurati
+
+Il sistema include 11 microservizi backend completamente configurati:
+1. **Auth Service** - Autenticazione e autorizzazione
+2. **User Service** - Gestione profili utente
+3. **Chatbot Service** - Servizio chat AI
+4. **RAG Service** - Retrieval Augmented Generation
+5. **LLM Service** - Large Language Models
+6. **Image Generator Service** - Generazione immagini AI
+7. **Image Classifier Service** - Classificazione immagini
+8. **Data Analysis Service** - Analisi dati e dataset
+9. **Resource Manager Service** - Gestione file e risorse
+10. **Learning Service** - Sistema di apprendimento
+11. **Cost Monitoring Service** - Monitoraggio costi API
+
 ---
 
 ## 🎉 Conclusione
@@ -1220,6 +1161,7 @@ Hai ora implementato un sistema di deployment professionale multi-ambiente per A
 ✅ **Backup affidabile** - Sistema backup/recovery automatico  
 ✅ **Performance ottimizzate** - NGINX tuning, container optimization  
 ✅ **Scalabilità** - Horizontal scaling ready  
+✅ **515+ configurazioni consolidate** - Sistema completo e professionale
 
 **Prossimi passi consigliati:**
 1. Setup monitoring avanzato (Prometheus/Grafana)
@@ -1238,4 +1180,4 @@ Per problemi o domande:
 3. Usa interfaccia di gestione: `./manage.sh`
 4. Backup preventivo: `./deploy.sh [env] backup`
 
-**Buon deployment! 🚀**
+**Sistema AI-PlayGround pronto per la produzione! 🚀**
