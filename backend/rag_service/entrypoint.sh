@@ -25,7 +25,23 @@ except Exception as e:
 # Funzione per aspettare RabbitMQ
 wait_for_rabbitmq() {
     echo "Aspettando RabbitMQ..."
-    while ! python -c "import pika; pika.BlockingConnection(pika.ConnectionParameters('rabbitmq'))" > /dev/null 2>&1; do
+    while ! python -c "
+import pika
+import os
+# Usa le credenziali dalle variabili d'ambiente
+rabbitmq_user = os.environ.get('RABBITMQ_USER', 'guest')
+rabbitmq_password = os.environ.get('RABBITMQ_PASSWORD', 'guest')
+rabbitmq_host = os.environ.get('RABBITMQ_HOST', 'rabbitmq')
+rabbitmq_port = int(os.environ.get('RABBITMQ_PORT', '5672'))
+
+credentials = pika.PlainCredentials(rabbitmq_user, rabbitmq_password)
+connection_params = pika.ConnectionParameters(
+    host=rabbitmq_host,
+    port=rabbitmq_port,
+    credentials=credentials
+)
+pika.BlockingConnection(connection_params)
+" > /dev/null 2>&1; do
         echo "RabbitMQ non ancora pronto, aspetto 2 secondi..."
         sleep 2
     done

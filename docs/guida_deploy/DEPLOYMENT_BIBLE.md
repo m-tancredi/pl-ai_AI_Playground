@@ -1181,3 +1181,121 @@ Per problemi o domande:
 4. Backup preventivo: `./deploy.sh [env] backup`
 
 **Sistema AI-PlayGround pronto per la produzione! 🚀**
+
+## 📊 **Tabella Dettagliata Port Binding**
+
+### 🔧 **AMBIENTE SVILUPPO (DEV)**
+
+| Servizio | Host Port | Container Port | Scopo |
+|----------|-----------|----------------|-------|
+| **Database** |  |  |  |
+| `auth_db` | `5433` | `5432` | 🔍 Debug diretto con client DB |
+| `user_db` | `5434` | `5432` | 🔍 Debug diretto con client DB |
+| `chatbot_db` | `5435` | `5432` | 🔍 Debug diretto con client DB |
+| `image_generator_db` | `5436` | `5432` | 🔍 Debug diretto con client DB |
+| `resource_db` | `5437` | `5432` | 🔍 Debug diretto con client DB |
+| `classifier_db` | `5438` | `5432` | 🔍 Debug diretto con client DB |
+| `analysis_db` | `5439` | `5432` | 🔍 Debug diretto con client DB |
+| `rag_db` | `5440` | `5432` | 🔍 Debug diretto con client DB |
+| `learning_db` | `5441` | `5432` | 🔍 Debug diretto con client DB |
+| **API Services** |  |  |  |
+| `auth_service` | `8001` | `8000` | 🔧 Debug e test API diretto |
+| `user_service` | `8002` | `8000` | 🔧 Debug e test API diretto |
+| `chatbot_service` | `8003` | `8000` | 🔧 Debug e test API diretto |
+| `image_generator_service` | `8004` | `8000` | 🔧 Debug e test API diretto |
+| `resource_manager_service` | `8005` | `8000` | 🔧 Debug e test API diretto |
+| `image_classifier_service` | `8006` | `8000` | 🔧 Debug e test API diretto |
+| `data_analysis_service` | `8007` | `8000` | 🔧 Debug e test API diretto |
+| `rag_service` | `8008` | `8000` | 🔧 Debug e test API diretto |
+| `learning_service` | `8009` | `8000` | 🔧 Debug e test API diretto |
+| **Frontend & Infra** |  |  |  |
+| `frontend` | `3000` | `3000` | ⚛️ Accesso React dev server |
+| `rabbitmq` | `15672` | `15672` | 🐰 Management UI |
+| `nginx` | `80, 443` | `80, 443` | 🌐 Reverse proxy |
+
+### 🏭 **AMBIENTE PRODUZIONE (PROD)**
+
+| Servizio | Host Port | Container Port | Scopo |
+|----------|-----------|----------------|-------|
+| **Database** | `❌ NESSUNA` | `5432 (solo interno)` | 🔒 Sicurezza - accesso solo via API |
+| **API Services** | `❌ NESSUNA` | `8000 (solo interno)` | 🔒 Sicurezza - accesso solo via NGINX |
+| **Frontend** | `❌ NESSUNA` | `3000 (solo interno)` | 🔒 Sicurezza - servito solo via NGINX |
+| **RabbitMQ** | `❌ NESSUNA` | `5672 (solo interno)` | 🔒 Sicurezza - management UI disabilitato |
+| **NGINX** | `80, 443` | `80, 443` | 🌐 **UNICO PUNTO DI ACCESSO** |
+
+## 🎯 **Esempi Pratici di Accesso**
+
+### 🔧 **In Sviluppo puoi fare:**
+
+```bash
+# Accesso diretto ai database
+psql -h localhost -p 5433 -U admin -d auth_db
+
+# Test API diretti 
+curl http://localhost:8001/admin/
+curl http://localhost:8002/api/users/
+curl http://localhost:8003/api/chat/
+
+# Frontend React dev
+curl http://localhost:3000
+
+# RabbitMQ Management
+curl http://localhost:15672
+
+# Via NGINX (come in produzione)
+curl https://dev.pl-ai.it/api/auth/
+```
+
+### 🏭 **In Produzione puoi fare SOLO:**
+
+```bash
+# UNICO accesso via NGINX
+curl https://pl-ai.it/
+curl https://pl-ai.it/api/auth/
+curl https://pl-ai.it/api/users/
+
+# Tutto il resto è bloccato:
+curl http://localhost:8001  # ❌ Connection refused
+curl http://localhost:5433  # ❌ Connection refused  
+curl http://localhost:3000  # ❌ Connection refused
+```
+
+## 🔐 **Logica di Sicurezza**
+
+### **🔧 DEV - Massima Accessibilità**
+- **Scopo**: Debugging, sviluppo, test
+- **Porte esposte**: Tutte per accesso diretto
+- **Vantaggi**: 
+  - Debug facile di singoli servizi
+  - Test API individuali 
+  - Accesso diretto ai database
+  - Monitoring RabbitMQ
+
+### **🏭 PROD - Massima Sicurezza**
+- **Scopo**: Produzione sicura
+- **Porte esposte**: Solo NGINX (80/443)
+- **Vantaggi**:
+  - Superficie d'attacco minimale
+  - SSL terminato su NGINX
+  - Rate limiting centralizzato
+  - Logging centralizzato
+  - Zero esposizione database
+
+## 🌐 **Comunicazione Interna**
+
+**In entrambi gli ambienti**, tutti i servizi comunicano internamente usando la rete Docker:
+
+```yaml
+# Esempio: chatbot_service → auth_service
+internal_url: "http://auth_service:8000/api/"
+
+# Esempio: API → Database  
+database_url: "postgres://user:pass@auth_db:5432/db"
+
+# Esempio: Workers → RabbitMQ
+broker_url: "amqp://user:pass@rabbitmq:5672//"
+```
+
+**🎯 La rete interna Docker (`pl-ai-network`) permette sempre la comunicazione tra container usando i nomi dei servizi come hostname.**
+
+Questa architettura garantisce **flessibilità in sviluppo** e **sicurezza in produzione**! 🚀
