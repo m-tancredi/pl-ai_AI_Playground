@@ -105,3 +105,4 @@ htmlcov/
 
 # Permetti solo file che iniziano con commento (template)
 !*.txt 
+.cursorignore

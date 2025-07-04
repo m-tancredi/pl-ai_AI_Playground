@@ -396,11 +396,10 @@ services:
   
   nginx:
     volumes:
-      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./nginx/nginx.dev.vps.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "80:80"
-      - "443:443"
+      - "8081:80"    # Cambiato da 80:80 a 8081:80
+      # Rimuovo 443:443 perché SSL sarà gestito dall'NGINX principale della VPS
     environment:
       - DOMAIN=${DOMAIN}
 

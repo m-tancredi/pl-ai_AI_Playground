@@ -1,21 +1,21 @@
-# 🚀 AI-PlayGround - Biblia del Deployment Multi-Ambiente
+# 🚀 AI-PlayGround - Biblia del Deployment Multi-Ambiente VPS IONOS
 
-> **La guida completa dalla A alla Z per il deployment multi-ambiente del tuo AI-PlayGround**
+> **La guida completa per il deployment multi-ambiente su VPS IONOS del tuo AI-PlayGround**
 
 ## 📋 Indice Navigabile
 
-### 🚀 [Quick Start](#-quick-start---avvio-rapido)
+### 🚀 [Quick Start VPS](#-quick-start-vps)
 ### 📖 [Guida Completa](#-guida-completa)
 ### 🔧 [Riferimento Quotidiano](#-riferimento-quotidiano) 
 ### 🚨 [Troubleshooting](#-troubleshooting)
 
-> **⚠️ IMPORTANTE**: Prima di iniziare, assicurati di aver clonato il repository sulla VPS IONOS (vedi [Prerequisito Clone Repository](#-prerequisito-clone-del-repository))
+> **⚠️ IMPORTANTE**: Questa guida supporta deployment multi-ambiente su VPS IONOS con coesistenza di altri siti (blackix.it e twinelib.it).
 
 ---
 
-## ⚡ Quick Start - Avvio Rapido
+## ⚡ Quick Start VPS
 
-> **Tempo richiesto: 15 minuti** | Per chi vuole partire subito
+> **Tempo richiesto: 10 minuti** | Setup rapido per VPS IONOS
 
 ### 🔧 **PREREQUISITO**: Clone del Repository
 
@@ -25,14 +25,10 @@
 # 1. Connettiti alla VPS IONOS
 ssh root@[IP_DELLA_TUA_VPS]
 
-# 2. Crea utente dedicato (consigliato)
-sudo adduser aiplayground
-sudo usermod -aG docker aiplayground
-sudo usermod -aG sudo aiplayground
+# 2. Vai nella directory dei progetti
+cd /opt
 
-# 3. Cambia utente e clona repository
-su - aiplayground
-cd ~
+# 3. Clona il repository
 git clone https://github.com/[TUO-USERNAME]/pl-ai_AI-PlayGround.git
 cd pl-ai_AI-PlayGround
 
@@ -41,103 +37,136 @@ ls -la
 # Dovresti vedere: docker-compose.yml, frontend/, backend/, nginx/, etc.
 ```
 
-### 1️⃣ Setup Automatico Completo
+### 1️⃣ Setup Automatico VPS
 ```bash
-# Rendi eseguibili gli script
-chmod +x setup-env.sh ssl-setup.sh deploy.sh manage.sh test-nginx-simple.sh
+# Rendi eseguibile lo script di setup
+chmod +x setup-vps.sh
 
-# 🎯 Setup automatico di tutto l'ambiente (2 min)
-./setup-env.sh
+# 🎯 Setup automatico per VPS (2 min)
+./setup-vps.sh
 ```
 
 ### 2️⃣ Configurazione API Keys
 ```bash
-# Inserisci le tue API keys (1 min)
-echo "your-openai-api-key-here" > .secrets/dev/openai_api_key.txt
-echo "your-anthropic-api-key-here" > .secrets/dev/anthropic_api_key.txt
-echo "your-gemini-api-key-here" > .secrets/dev/gemini_api_key.txt
-echo "your-stability-api-key-here" > .secrets/dev/stability_api_key.txt
+# Crea directory secrets se non esiste
+mkdir -p .secrets
 
-# Ripeti per produzione con chiavi diverse (RACCOMANDATO)
-echo "your-prod-openai-api-key-here" > .secrets/prod/openai_api_key.txt
-echo "your-prod-anthropic-api-key-here" > .secrets/prod/anthropic_api_key.txt
-echo "your-prod-gemini-api-key-here" > .secrets/prod/gemini_api_key.txt
-echo "your-prod-stability-api-key-here" > .secrets/prod/stability_api_key.txt
+# Inserisci le tue API keys
+echo "sk-proj-YOUR-OPENAI-API-KEY-HERE" > .secrets/openai_api_key.txt
+echo "sk-ant-api03-YOUR-ANTHROPIC-API-KEY-HERE" > .secrets/anthropic_api_key.txt
+echo "AIzaSy-YOUR-GEMINI-API-KEY-HERE" > .secrets/gemini_api_key.txt
+echo "sk-YOUR-STABILITY-API-KEY-HERE" > .secrets/stability_api_key.txt
+
+# Imposta permessi sicuri
+chmod 600 .secrets/*.txt
 ```
 
 ### 3️⃣ Configurazione DNS
-Nel pannello IONOS, aggiungi questi record:
+Nel pannello IONOS, aggiungi questo record:
 ```
-A    @      [IP_SERVER]    3600
-A    www    [IP_SERVER]    3600  
 A    dev    [IP_SERVER]    3600
 ```
 
-### 4️⃣ Test Configurazioni
+### 4️⃣ Configurazione NGINX VPS
 ```bash
-# Test validazione NGINX (30 sec)
-./test-nginx-simple.sh
-# Deve passare ✅ prima di procedere!
+# Copia la configurazione NGINX per la VPS
+sudo cp nginx/dev.pl-ai.it.conf /etc/nginx/sites-available/dev.pl-ai.it
+
+# Attiva il sito
+sudo ln -s /etc/nginx/sites-available/dev.pl-ai.it /etc/nginx/sites-enabled/
+
+# Test configurazione NGINX
+sudo nginx -t
+
+# Ricarica NGINX
+sudo systemctl reload nginx
 ```
 
 ### 5️⃣ Setup SSL
 ```bash
-# Test sviluppo con staging (2 min)
-./ssl-setup.sh dev --staging
+# Genera certificato SSL per dev.pl-ai.it
+sudo certbot --nginx -d dev.pl-ai.it
 
-# Produzione (2 min)
-./ssl-setup.sh prod
+# Verifica certificato
+sudo certbot certificates
 ```
 
 ### 6️⃣ Deploy
 ```bash
-# Deploy sviluppo (5 min)
-./deploy.sh dev up --build
+# Deploy ambiente sviluppo (5 min)
+./deploy.sh up -d --build
 
-# Deploy produzione (5 min)
-./deploy.sh prod up --build
+# Verifica servizi
+docker compose ps
 ```
 
 ### 7️⃣ Verifica
 ```bash
-# Test connessioni
+# Test connessioni sviluppo
 curl -k https://dev.pl-ai.it/health
-curl -k https://pl-ai.it/health
+curl -k https://dev.pl-ai.it/api/auth/health
 
-# 🎉 FATTO! I tuoi ambienti sono online!
+# 🎉 FATTO! Il tuo ambiente di sviluppo è online su dev.pl-ai.it!
+
+# Per PRODUZIONE, ripeti il processo sostituendo 'dev' con 'prod':
+# ./deploy.sh prod up -d --build
+# curl -k https://pl-ai.it/health
 ```
 
 ---
 
 ## 📖 Guida Completa
 
-### 🎯 Panoramica Sistema
+### 🎯 Panoramica Sistema VPS
 
-Questa guida implementa un sistema di deployment completo per AI-PlayGround con:
+Questa guida implementa un sistema di deployment multi-ambiente per AI-PlayGround su VPS IONOS con:
 
+- **🔧 Sviluppo**: `dev.pl-ai.it` - Ambiente di sviluppo e test
 - **🏭 Produzione**: `pl-ai.it` - Ambiente live per utenti finali
-- **🔧 Sviluppo**: `dev.pl-ai.it` - Ambiente test per sviluppo
+- **🏠 Coesistenza**: Con `blackix.it` e `twinelib.it` già presenti
 
-#### Architettura (25+ Servizi Containerizzati)
+#### Architettura VPS Multi-Ambiente (25+ Servizi Containerizzati)
 
 ```
-┌─────────────────┐    ┌─────────────────┐
-│   PRODUZIONE    │    │   SVILUPPO      │
-│   pl-ai.it      │    │   dev.pl-ai.it  │
-└─────────────────┘    └─────────────────┘
-         │                       │
-         ▼                       ▼
-┌─────────────────────────────────────────┐
-│            IONOS SERVER                 │
-│  ┌─────────────┐  ┌─────────────────┐   │
-│  │    NGINX    │  │    DOCKER       │   │
-│  │ (Reverse    │  │  25+ CONTAINERS │   │
-│  │  Proxy)     │  │   - 11 Database │   │
-│  │  SSL/TLS    │  │   - 11 Backend  │   │
-│  │  Load Bal.) │  │   - 4 Workers   │   │
-│  │             │  │   - 3 Infra     │   │
-│  └─────────────┘  └─────────────────┘   │
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                               VPS IONOS                                      │
+│                                                                              │
+│  ┌─────────────┐    ┌─────────────────────────────────────────────────────┐ │
+│  │    NGINX    │    │                   DOCKER                           │ │
+│  │   (Host)    │    │              50+ CONTAINERS                        │ │
+│  │             │    │                                                     │ │
+│  │ blackix.it  │    │  ┌─────────────────────────────────────────────────┐ │ │
+│  │ twinelib.it │    │  │              SVILUPPO                           │ │ │
+│  │ dev.pl-ai.it ────┼─▶│      NGINX Container (Port 8081)                │ │ │
+│  │ pl-ai.it    ─────┼─▶│                                                 │ │ │
+│  │             │    │  │  ┌─────────────────────────────────────────────┐ │ │ │
+│  │  Port 80/443│    │  │  │          AI-PlayGround DEV                  │ │ │ │
+│  │             │    │  │  │                                             │ │ │ │
+│  │             │    │  │  │  • 10 Database                              │ │ │ │
+│  │             │    │  │  │  • 10 Backend APIs                          │ │ │ │
+│  │             │    │  │  │  • 4 Workers                                │ │ │ │
+│  │             │    │  │  │  • 1 Frontend                               │ │ │ │
+│  │             │    │  │  │  • 1 RabbitMQ                               │ │ │ │
+│  │             │    │  │  └─────────────────────────────────────────────┘ │ │ │
+│  │             │    │  └─────────────────────────────────────────────────┘ │ │
+│  │             │    │                                                     │ │
+│  │             │    │  ┌─────────────────────────────────────────────────┐ │ │
+│  │             │    │  │             PRODUZIONE                          │ │ │
+│  │             │    │  │       NGINX Container (Port 80/443)             │ │ │
+│  │             │    │  │                                                 │ │ │
+│  │             │    │  │  ┌─────────────────────────────────────────────┐ │ │ │
+│  │             │    │  │  │          AI-PlayGround PROD                 │ │ │ │
+│  │             │    │  │  │                                             │ │ │ │
+│  │             │    │  │  │  • 10 Database (SSL/TLS)                    │ │ │ │
+│  │             │    │  │  │  • 10 Backend APIs (Secure)                 │ │ │ │
+│  │             │    │  │  │  • 4 Workers (Scaled)                       │ │ │ │
+│  │             │    │  │  │  • 1 Frontend (Optimized)                   │ │ │ │
+│  │             │    │  │  │  • 1 RabbitMQ (Secure)                      │ │ │ │
+│  │             │    │  │  └─────────────────────────────────────────────┘ │ │ │
+│  │             │    │  └─────────────────────────────────────────────────┘ │ │
+│  │             │    └─────────────────────────────────────────────────────┘ │
+│  └─────────────┘                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 #### 🎯 Funzionalità Chiave
@@ -151,348 +180,317 @@ Questa guida implementa un sistema di deployment completo per AI-PlayGround con:
 ✅ **Monitoring** - Logging e health checks integrati  
 ✅ **Sicurezza** - Best practices di sicurezza implementate  
 
-### 🗂️ Struttura Files
+### 🗂️ Struttura Files VPS Multi-Ambiente
 
 ```
 pl-ai_AI-PlayGround/
 ├── 📄 docker-compose.yml          # Configurazione base
-├── 📄 docker-compose.dev.yml      # Override sviluppo 
-├── 📄 docker-compose.prod.yml     # Override produzione 
-├── 📄 .env.dev                    # Variabili ambiente sviluppo (515+ variabili)
-├── 📄 .env.prod                   # Variabili ambiente produzione (515+ variabili)
-├── 🛠️ setup-env.sh               # Setup automatico environment
-├── 🚀 deploy.sh                   # Script deployment automatizzato
-├── 🔐 ssl-setup.sh               # Setup automatico SSL
-├── 🎛️ manage.sh                   # Interfaccia gestione generale
-├── 🧪 test-nginx-simple.sh       # Test validazione NGINX
+├── 📄 docker-compose.dev.yml      # Override sviluppo VPS (dev.pl-ai.it)
+├── 📄 docker-compose.prod.yml     # Override produzione (pl-ai.it)
+├── 📄 .env.dev                    # Variabili ambiente sviluppo 
+├── 📄 .env.prod                   # Variabili ambiente produzione
+├── 🛠️ setup-vps.sh               # Setup automatico VPS
+├── 🚀 deploy.sh                   # Script deployment multi-ambiente
+├── 📖 docs/DEPLOY_VPS_INSTRUCTIONS.md  # Istruzioni specifiche VPS
 ├── 📖 docs/guida_deploy/DEPLOYMENT_BIBLE.md  # Questa guida completa
 ├── .secrets/                      # Directory secrets
 │   ├── dev/                      # Secrets sviluppo
+│   │   ├── openai_api_key.txt
+│   │   ├── anthropic_api_key.txt
+│   │   ├── gemini_api_key.txt
+│   │   └── stability_api_key.txt
 │   └── prod/                     # Secrets produzione
+│       ├── openai_api_key.txt
+│       ├── anthropic_api_key.txt
+│       ├── gemini_api_key.txt
+│       └── stability_api_key.txt
 └── nginx/
-    ├── nginx.conf                 # Configurazione base NGINX
-    ├── nginx.dev.conf            # Configurazione sviluppo
-    └── nginx.prod.conf           # Configurazione produzione
+    ├── dev.pl-ai.it.conf         # Configurazione NGINX VPS (sviluppo)
+    ├── pl-ai.it.conf             # Configurazione NGINX VPS (produzione)
+    ├── nginx.dev.vps.conf        # Configurazione NGINX Container (sviluppo)
+    └── nginx.prod.conf           # Configurazione NGINX Container (produzione)
 ```
 
-### 🔧 Prerequisiti Dettagliati
+### 🔧 Prerequisiti VPS
 
 #### Software Server IONOS
 
 1. **Docker & Docker Compose V2**
    ```bash
-   # Installa Docker
+   # Installa Docker (se non già installato)
    curl -fsSL https://get.docker.com | sh
    sudo usermod -aG docker $USER
    newgrp docker
    
-   # Verifica installazione (Docker Compose V2 integrato)
+   # Verifica installazione
    docker --version
-   docker compose version  # Comando V2 integrato
+   docker compose version
    ```
 
-2. **Certbot per SSL**
+2. **NGINX** (già installato sulla VPS)
    ```bash
+   # Verifica NGINX
+   sudo systemctl status nginx
+   
+   # Test configurazione
+   sudo nginx -t
+   ```
+
+3. **Certbot per SSL**
+   ```bash
+   # Installa Certbot se non presente
    sudo apt-get update
    sudo apt-get install -y certbot python3-certbot-nginx
    ```
 
-3. **Utilità Sistema**
-   ```bash
-   sudo apt-get install -y git openssl curl wget
-   ```
+#### Porte Utilizzate Multi-Ambiente
+
+| Servizio | Porta VPS | Porta Container | Scopo |
+|----------|-----------|----------------|-------|
+| **Reverse Proxy** | | | |
+| NGINX VPS | 80, 443 | - | Reverse proxy principale per tutti i domini |
+| **Sviluppo** | | | |
+| AI-PlayGround DEV | 8081 | 80 | Container NGINX per dev.pl-ai.it |
+| **Produzione** | | | |
+| AI-PlayGround PROD | 80, 443 | 80, 443 | Container NGINX per pl-ai.it (diretto) |
+| **Sicurezza** | | | |
+| Database | - | 5432 | Solo comunicazione interna Docker |
+| API Services | - | 8000 | Solo comunicazione interna Docker |
+| RabbitMQ | - | 5672 | Solo comunicazione interna Docker |
 
 #### Risorse Server Consigliate
 
-| Risorsa | Minimo | Consigliato | Produzione |
-|---------|--------|-------------|------------|
-| CPU     | 4 core | 8 core      | 16 core    |
-| RAM     | 8GB    | 16GB        | 32GB       |
-| Storage | 100GB  | 200GB SSD   | 500GB SSD  |
-| Banda   | 1GB    | Illimitata  | Illimitata |
+| Risorsa | Minimo | Consigliato | 
+|---------|--------|-------------|
+| CPU     | 4 core | 8 core      |
+| RAM     | 8GB    | 16GB        |
+| Storage | 100GB  | 200GB SSD   |
+| Banda   | 1GB    | Illimitata  |
 
-### 🛠️ Setup Dettagliato
+### 🛠️ Setup Dettagliato VPS
 
-#### 0. Clone Repository sulla VPS (PREREQUISITO)
+#### 1. Setup Automatico VPS
 
-Prima di tutto, devi avere il progetto sulla VPS IONOS:
-
-**🔧 Setup Iniziale VPS:**
-```bash
-# Connessione SSH alla VPS
-ssh root@[IP_DELLA_TUA_VPS]
-
-# Aggiorna sistema
-sudo apt update && sudo apt upgrade -y
-
-# Installa prerequisiti base
-sudo apt install -y git curl wget
-
-# Crea utente dedicato (security best practice)
-sudo adduser aiplayground
-sudo usermod -aG sudo aiplayground
-
-# Se Docker già installato, aggiungi al gruppo
-sudo usermod -aG docker aiplayground
-```
-
-**📦 Clone del Repository:**
-```bash
-# Cambia all'utente dedicato
-su - aiplayground
-cd ~
-
-# Opzione 1: Repository pubblico (HTTPS)
-git clone https://github.com/[TUO-USERNAME]/pl-ai_AI-PlayGround.git
-
-# Opzione 2: Repository privato con token
-git clone https://[TOKEN]@github.com/[TUO-USERNAME]/pl-ai_AI-PlayGround.git
-
-# Opzione 3: Repository privato con SSH key
-# (genera prima SSH key sulla VPS e aggiungila a GitHub)
-ssh-keygen -t ed25519 -C "vps@pl-ai.it"
-cat ~/.ssh/id_ed25519.pub  # Copia e aggiungi a GitHub Deploy Keys
-git clone git@github.com:[TUO-USERNAME]/pl-ai_AI-PlayGround.git
-```
-
-**✅ Verifica Clone:**
-```bash
-# Entra nella directory
-cd pl-ai_AI-PlayGround
-
-# Verifica struttura completa
-ls -la
-# Output atteso:
-# drwxr-xr-x  3 user user 4096 backend/
-# drwxr-xr-x  2 user user 4096 frontend/
-# drwxr-xr-x  2 user user 4096 nginx/
-# -rw-r--r--  1 user user 1234 docker-compose.yml
-# -rw-r--r--  1 user user  567 docker-compose.dev.yml
-# -rw-r--r--  1 user user  890 docker-compose.prod.yml
-
-# Verifica Git status
-git status
-git log --oneline -5  # Ultimi 5 commit
-```
-
-#### 1. Setup Automatico Environment
-
-Lo script `setup-env.sh` automatizza la configurazione iniziale:
+Lo script `setup-vps.sh` automatizza la configurazione iniziale per la VPS:
 
 ```bash
 # Rendilo eseguibile
-chmod +x setup-env.sh
+chmod +x setup-vps.sh
 
 # Avvia il setup
-./setup-env.sh
+./setup-vps.sh
 ```
 
 **Cosa fa automaticamente:**
-- ✅ Crea file `.env.dev` e `.env.prod` con **515+ variabili consolidate**
-- ✅ Genera password sicure per tutti gli 11 database PostgreSQL
+- ✅ Crea file `.env.dev` con variabili per VPS
+- ✅ Genera password sicure per tutti i database PostgreSQL
 - ✅ Crea struttura directory `.secrets/` con permessi sicuri (700/600)
-- ✅ Genera template per API keys di sviluppo e produzione
-- ✅ Configura domini personalizzabili
+- ✅ Configura docker-compose per VPS (porta 8081)
+- ✅ Prepara configurazioni NGINX per coesistenza
 - ✅ Include configurazioni complete per tutti i microservizi
 
-#### 2. Configurazione Personalizzata Domini
-
-Durante il setup puoi personalizzare i domini:
-
-```bash
-# Lo script chiederà:
-# "Vuoi personalizzare i domini? (y/N)"
-# 
-# Se sì, inserisci:
-# - Dominio principale: tuodominio.it
-# - Dominio sviluppo: dev.tuodominio.it  
-# - Email per SSL: admin@tuodominio.it
-```
-
-#### 3. Configurazione DNS IONOS
+#### 2. Configurazione DNS IONOS
 
 Accedi al **Pannello IONOS** → **Domini** → **pl-ai.it** → **DNS**
 
-Aggiungi questi record:
+Aggiungi questi record per entrambi gli ambienti:
 
 ```
 Tipo  Nome  Valore                TTL   Priorità
-A     @     [IP_DEL_TUO_SERVER]   3600  -
-A     www   [IP_DEL_TUO_SERVER]   3600  -
-A     dev   [IP_DEL_TUO_SERVER]   3600  -
+A     @     [IP_DEL_TUO_SERVER]   3600  -    # pl-ai.it (produzione)
+A     www   [IP_DEL_TUO_SERVER]   3600  -    # www.pl-ai.it
+A     dev   [IP_DEL_TUO_SERVER]   3600  -    # dev.pl-ai.it (sviluppo)
 ```
 
 **Verifica propagazione DNS:**
 ```bash
-# Test risoluzione domini
-nslookup pl-ai.it
+# Test risoluzione dominio
 nslookup dev.pl-ai.it
-nslookup www.pl-ai.it
-
-# Con dig (più dettagliato)
-dig +short pl-ai.it
 dig +short dev.pl-ai.it
 
 # Test da esterni
-curl -I http://pl-ai.it
 curl -I http://dev.pl-ai.it
 ```
 
-#### 4. Setup SSL/TLS Automatico
+#### 3. Configurazione NGINX VPS Multi-Ambiente
 
-Lo script `ssl-setup.sh` gestisce certificati Let's Encrypt:
+Configura NGINX sulla VPS per il reverse proxy multi-ambiente:
 
 ```bash
-# Rendilo eseguibile
-chmod +x ssl-setup.sh
+# Copia le configurazioni NGINX per entrambi gli ambienti
+sudo cp nginx/dev.pl-ai.it.conf /etc/nginx/sites-available/dev.pl-ai.it
+sudo cp nginx/pl-ai.it.conf /etc/nginx/sites-available/pl-ai.it
 
-# Test con staging (consigliato prima volta)
-./ssl-setup.sh dev --staging
+# Attiva entrambi i siti
+sudo ln -s /etc/nginx/sites-available/dev.pl-ai.it /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/pl-ai.it /etc/nginx/sites-enabled/
 
-# Setup produzione
-./ssl-setup.sh prod
+# Test configurazione
+sudo nginx -t
+
+# Ricarica NGINX
+sudo systemctl reload nginx
 ```
 
-**Funzionalità SSL Script:**
-- ✅ **Installazione automatica Certbot** (se mancante)
-- ✅ **Backup certificati esistenti**
-- ✅ **Generazione certificati Let's Encrypt**
-- ✅ **Configurazione rinnovo automatico**
-- ✅ **Test configurazione SSL**
-- ✅ **Restart automatico servizi**
+#### 4. Setup SSL/TLS Multi-Ambiente
 
-**Verifica SSL:**
+Configura certificati Let's Encrypt per entrambi gli ambienti:
+
 ```bash
-# Test certificati
+# Genera certificati SSL per entrambi i domini
+sudo certbot --nginx -d dev.pl-ai.it
+sudo certbot --nginx -d pl-ai.it -d www.pl-ai.it
+
+# Verifica certificati
 sudo certbot certificates
 
-# Test rinnovo
+# Test rinnovo automatico
 sudo certbot renew --dry-run
-
-# Verifica configurazione
-openssl s_client -connect pl-ai.it:443 -servername pl-ai.it
-openssl s_client -connect dev.pl-ai.it:443 -servername dev.pl-ai.it
 ```
 
-#### 5. Configurazione API Keys Dettagliata
+#### 5. Configurazione API Keys Multi-Ambiente
 
-Dopo `setup-env.sh`, configura le API keys:
+Configura le API keys per entrambi gli ambienti:
 
-**Struttura generata:**
+```bash
+# Crea directory secrets per entrambi gli ambienti
+mkdir -p .secrets/dev .secrets/prod
+
+# Inserisci le API keys SVILUPPO (possono essere di test/lower-tier)
+echo "sk-proj-YOUR-DEV-OPENAI-KEY" > .secrets/dev/openai_api_key.txt
+echo "sk-ant-api03-YOUR-DEV-ANTHROPIC-KEY" > .secrets/dev/anthropic_api_key.txt
+echo "AIzaSy-YOUR-DEV-GEMINI-KEY" > .secrets/dev/gemini_api_key.txt
+echo "sk-YOUR-DEV-STABILITY-KEY" > .secrets/dev/stability_api_key.txt
+
+# Inserisci le API keys PRODUZIONE (SEPARATE e con rate limit alto)
+echo "sk-proj-YOUR-PROD-OPENAI-KEY" > .secrets/prod/openai_api_key.txt
+echo "sk-ant-api03-YOUR-PROD-ANTHROPIC-KEY" > .secrets/prod/anthropic_api_key.txt
+echo "AIzaSy-YOUR-PROD-GEMINI-KEY" > .secrets/prod/gemini_api_key.txt
+echo "sk-YOUR-PROD-STABILITY-KEY" > .secrets/prod/stability_api_key.txt
+
+# Imposta permessi sicuri
+chmod 600 .secrets/dev/*.txt .secrets/prod/*.txt
+```
+
+**Struttura secrets multi-ambiente:**
 ```
 .secrets/
-├── dev/           # API keys sviluppo
+├── dev/                          # Ambiente sviluppo
 │   ├── openai_api_key.txt
-│   ├── anthropic_api_key.txt  
+│   ├── anthropic_api_key.txt
 │   ├── gemini_api_key.txt
 │   └── stability_api_key.txt
-└── prod/          # API keys produzione (separate!)
+└── prod/                         # Ambiente produzione
     ├── openai_api_key.txt
     ├── anthropic_api_key.txt
     ├── gemini_api_key.txt
     └── stability_api_key.txt
 ```
 
-**Configurazione chiavi:**
-
-```bash
-# 🔧 SVILUPPO (usa chiavi di test/lower-tier)
-echo "sk-proj-DEV_OPENAI_KEY_HERE" > .secrets/dev/openai_api_key.txt
-echo "sk-ant-api03-DEV_ANTHROPIC_KEY" > .secrets/dev/anthropic_api_key.txt  
-echo "AIzaSy_DEV_GEMINI_KEY_HERE" > .secrets/dev/gemini_api_key.txt
-echo "sk-DEV_STABILITY_KEY_HERE" > .secrets/dev/stability_api_key.txt
-
-# 🏭 PRODUZIONE (usa chiavi separate di produzione)
-echo "sk-proj-PROD_OPENAI_KEY_HERE" > .secrets/prod/openai_api_key.txt
-echo "sk-ant-api03-PROD_ANTHROPIC_KEY" > .secrets/prod/anthropic_api_key.txt
-echo "AIzaSy_PROD_GEMINI_KEY_HERE" > .secrets/prod/gemini_api_key.txt  
-echo "sk-PROD_STABILITY_KEY_HERE" > .secrets/prod/stability_api_key.txt
-```
-
 **Best Practices API Keys:**
-- 🔒 **Mai condividere** chiavi tra ambienti
-- 💰 **Rate limiting** diverso per dev/prod
-- 📊 **Monitoring** separato per usage
+- 🔒 **Permessi sicuri** sui file (600)
+- 💰 **Rate limiting** configurato
+- 📊 **Monitoring** utilizzo
 - 🔄 **Rotazione** periodica delle chiavi
-- 🚫 **Revoca immediata** chiavi compromesse
+- 🚫 **Mai committare** in git
 
-### 🚀 Deployment Dettagliato
+### 🚀 Deployment VPS Multi-Ambiente
 
 #### Script di Deployment
 
-Il deployment è gestito dallo script `deploy.sh`:
+Il deployment è gestito dallo script `deploy.sh` per entrambi gli ambienti:
 
 ```bash
 # Rendilo eseguibile
 chmod +x deploy.sh
 
-# Sintassi base
+# Sintassi base per VPS multi-ambiente
 ./deploy.sh [ambiente] [comando] [opzioni]
 
-# Esempi
-./deploy.sh dev up --build           # Deploy sviluppo con build
-./deploy.sh prod up -d              # Deploy produzione in background
-./deploy.sh dev down                # Stop sviluppo
-./deploy.sh prod restart            # Restart produzione
-./deploy.sh dev logs -f frontend    # Logs in tempo reale
+# Esempi SVILUPPO
+./deploy.sh dev up --build      # Deploy sviluppo con build
+./deploy.sh dev up -d           # Deploy sviluppo in background
+./deploy.sh dev down            # Stop sviluppo
+./deploy.sh dev restart         # Restart sviluppo
+./deploy.sh dev logs -f         # Logs sviluppo in tempo reale
+
+# Esempi PRODUZIONE
+./deploy.sh prod up --build -d  # Deploy produzione con build
+./deploy.sh prod down           # Stop produzione
+./deploy.sh prod restart        # Restart produzione
+./deploy.sh prod logs -f        # Logs produzione in tempo reale
 ```
 
 #### Processo Deployment Completo
 
-**Sviluppo:**
+**Deployment Sviluppo:**
 ```bash
-# 1. Deploy sviluppo
-./deploy.sh dev up --build
+# 1. Deploy ambiente sviluppo
+./deploy.sh dev up --build -d
 
 # 2. Verifica servizi
-./deploy.sh dev status
+./deploy.sh dev ps
 
 # 3. Test health check
 curl -k https://dev.pl-ai.it/health
 
 # 4. Logs in tempo reale
 ./deploy.sh dev logs -f
+
+# 5. Monitoring
+docker stats --no-stream
 ```
 
-**Produzione:**
+**Deployment Produzione:**
 ```bash
-# 1. Deploy produzione  
+# 1. Deploy ambiente produzione
 ./deploy.sh prod up --build -d
 
-# 2. Verifica tutti i servizi
-./deploy.sh prod status
+# 2. Verifica servizi
+./deploy.sh prod ps
 
-# 3. Test completo
+# 3. Test health check completo
 curl -k https://pl-ai.it/health
 curl -k https://pl-ai.it/api/auth/health
 curl -k https://pl-ai.it/api/users/health
 
-# 4. Monitoring
-docker stats --no-stream
+# 4. Logs produzione
+./deploy.sh prod logs -f
+
+# 5. Monitoring avanzato
+docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
 ```
 
-#### Configurazioni Environment
+#### Configurazioni Environment Multi-Ambiente
 
-**File `.env.dev` (Sviluppo) - 515+ variabili:**
+**File `.env.dev` (Sviluppo VPS) - Variabili principali:**
 ```bash
-# Debug attivo
+# Debug attivo per sviluppo
 DJANGO_DEBUG=true
 LOG_LEVEL=DEBUG
 
-# Domini sviluppo
+# Dominio sviluppo
 DOMAIN=dev.pl-ai.it
 CORS_ALLOWED_ORIGINS=https://dev.pl-ai.it,http://localhost:3000
 
-# Database con configurazioni sviluppo
-AUTH_DB_NAME=auth_db
-USER_DB_NAME=user_db
-CHATBOT_DB_NAME=chatbot_db
-# ... altri 8 database
+# Configurazione porte VPS sviluppo
+NGINX_HOST_PORT=8081
+NGINX_CONTAINER_PORT=80
+
+# Database sviluppo
+AUTH_DB_NAME=auth_db_dev
+USER_DB_NAME=user_db_dev
+CHATBOT_DB_NAME=chatbot_db_dev
+# ... altri database
+
+# Configurazioni less restrictive per sviluppo
+RATE_LIMIT_ANON=100/hour
+RATE_LIMIT_USER=1000/hour
 ```
 
-**File `.env.prod` (Produzione) - 515+ variabili:**
+**File `.env.prod` (Produzione) - Variabili principali:**
 ```bash
-# Debug disattivato
+# Debug disattivato per produzione
 DJANGO_DEBUG=false
 LOG_LEVEL=WARNING
 
@@ -500,11 +498,25 @@ LOG_LEVEL=WARNING
 DOMAIN=pl-ai.it
 CORS_ALLOWED_ORIGINS=https://pl-ai.it,https://www.pl-ai.it
 
-# Database produzione con nomi separati
+# Configurazione porte produzione (diretto)
+NGINX_HOST_PORT=80,443
+NGINX_CONTAINER_PORT=80,443
+
+# Database produzione (nomi separati)
 AUTH_DB_NAME=auth_db_prod
 USER_DB_NAME=user_db_prod
 CHATBOT_DB_NAME=chatbot_db_prod
-# ... altri 8 database
+# ... altri database
+
+# Sicurezza produzione
+SECURE_SSL_REDIRECT=true
+SESSION_COOKIE_SECURE=true
+CSRF_COOKIE_SECURE=true
+SECURE_HSTS_SECONDS=31536000
+
+# Rate limiting produzione
+RATE_LIMIT_ANON=50/hour
+RATE_LIMIT_USER=500/hour
 ```
 
 ### 🧪 Test di Validazione
@@ -1080,16 +1092,16 @@ deploy:
       memory: 1G
 ```
 
-### 🔄 Scaling Avanzato
+### 🔄 Scaling VPS
 
 #### Horizontal Scaling Workers
 
 ```bash
 # Scale data analysis workers
-./deploy.sh prod up --scale data_analysis_worker=4 -d
+./deploy.sh up --scale data_analysis_worker=4 -d
 
 # Scale RAG workers
-./deploy.sh prod up --scale rag_worker=3 -d
+./deploy.sh up --scale rag_worker=3 -d
 
 # Monitor performance
 docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
@@ -1103,36 +1115,40 @@ NGINX è configurato per load balancing automatico tra servizi replicati.
 
 ## 📚 Appendici
 
-### 📄 File Configurazione Completi
+### 📄 File Configurazione VPS
 
 Tutti i file sono disponibili nella repository:
 - `docker-compose.yml` - Configurazione base
-- `docker-compose.dev.yml` - Override sviluppo  
-- `docker-compose.prod.yml` - Override produzione
-- `.env.dev` - Environment sviluppo (515+ variabili)
-- `.env.prod` - Environment produzione (515+ variabili)
-- `nginx/nginx.dev.conf` - NGINX sviluppo
-- `nginx/nginx.prod.conf` - NGINX produzione
+- `docker-compose.dev.yml` - Override sviluppo VPS
+- `.env.dev` - Environment sviluppo VPS
+- `setup-vps.sh` - Script setup automatico VPS
+- `nginx/dev.pl-ai.it.conf` - NGINX VPS host
+- `nginx/nginx.dev.vps.conf` - NGINX container
 
 ### 🔧 Script Automatizzazione
 
-- `setup-env.sh` - Setup automatico environment (515+ variabili)
-- `deploy.sh` - Deployment multi-ambiente (dev/staging/prod)
-- `ssl-setup.sh` - Configurazione SSL automatica
-- `manage.sh` - Interfaccia gestione interattiva
-- `test-nginx-simple.sh` - Test validazione configurazioni NGINX
+- `setup-vps.sh` - Setup automatico VPS
+- `deploy.sh` - Deployment VPS
+- `docs/DEPLOY_VPS_INSTRUCTIONS.md` - Istruzioni dettagliate
 
-### 🌐 URLs e Endpoint
+### 🌐 URLs e Endpoint VPS Multi-Ambiente
 
-**Sviluppo:**
+**Sviluppo VPS:**
 - Frontend: https://dev.pl-ai.it
 - API Base: https://dev.pl-ai.it/api
 - Health Check: https://dev.pl-ai.it/health
 
 **Produzione:**
 - Frontend: https://pl-ai.it
-- API Base: https://pl-ai.it/api  
+- Frontend Alt: https://www.pl-ai.it  
+- API Base: https://pl-ai.it/api
 - Health Check: https://pl-ai.it/health
+
+**Coesistenza VPS:**
+- blackix.it - Sito esistente via socket Unix
+- twinelib.it - Sito esistente via localhost:8080
+- dev.pl-ai.it - AI-PlayGround sviluppo via localhost:8081
+- pl-ai.it - AI-PlayGround produzione via porte 80/443 dirette
 
 ### 🔑 Microservizi Configurati
 
@@ -1153,22 +1169,23 @@ Il sistema include 11 microservizi backend completamente configurati:
 
 ## 🎉 Conclusione
 
-Hai ora implementato un sistema di deployment professionale multi-ambiente per AI-PlayGround con:
+Hai ora implementato un sistema di deployment professionale multi-ambiente per AI-PlayGround su VPS IONOS con:
 
-✅ **Automazione completa** - Setup e deployment con un comando  
-✅ **Sicurezza enterprise** - SSL, rate limiting, secrets management  
-✅ **Monitoring robusto** - Logs, health checks, metriche  
-✅ **Backup affidabile** - Sistema backup/recovery automatico  
-✅ **Performance ottimizzate** - NGINX tuning, container optimization  
-✅ **Scalabilità** - Horizontal scaling ready  
-✅ **515+ configurazioni consolidate** - Sistema completo e professionale
+✅ **Multi-Ambiente** - Sviluppo (dev.pl-ai.it) e Produzione (pl-ai.it)  
+✅ **Automazione VPS** - Setup e deployment con script dedicato  
+✅ **Sicurezza enterprise** - SSL, NGINX reverse proxy, secrets management separati  
+✅ **Monitoring robusto** - Logs, health checks, metriche Docker per entrambi gli ambienti  
+✅ **Coesistenza** - Funziona con blackix.it e twinelib.it esistenti  
+✅ **Performance ottimizzate** - NGINX tuning, container optimization, resource limits  
+✅ **Scalabilità** - Horizontal scaling ready con worker replicati  
+✅ **Configurazione consolidata** - Sistema completo e professionale per entrambi gli ambienti
 
 **Prossimi passi consigliati:**
 1. Setup monitoring avanzato (Prometheus/Grafana)
-2. Implementazione CI/CD pipeline
+2. Implementazione CI/CD pipeline per entrambi gli ambienti
 3. Test automatizzati deployment
-4. Disaster recovery plan completo
-5. Documentation API endpoint
+4. Backup automatico database per produzione
+5. Load balancer per alta disponibilità
 
 ---
 
@@ -1176,114 +1193,96 @@ Hai ora implementato un sistema di deployment professionale multi-ambiente per A
 
 Per problemi o domande:
 1. Consulta la sezione [Troubleshooting](#-troubleshooting)
-2. Verifica logs: `./deploy.sh [env] logs`
-3. Usa interfaccia di gestione: `./manage.sh`
-4. Backup preventivo: `./deploy.sh [env] backup`
+2. Verifica logs ambiente specifico: `./deploy.sh [dev|prod] logs`
+3. Controlla status: `./deploy.sh [dev|prod] ps`
+4. Controlla configurazione NGINX: `sudo nginx -t`
 
-**Sistema AI-PlayGround pronto per la produzione! 🚀**
+**Sistema AI-PlayGround multi-ambiente su VPS IONOS pronto! 🚀**
 
-## 📊 **Tabella Dettagliata Port Binding**
+## 📊 **Configurazione Port Binding VPS**
 
-### 🔧 **AMBIENTE SVILUPPO (DEV)**
-
-| Servizio | Host Port | Container Port | Scopo |
-|----------|-----------|----------------|-------|
-| **Database** |  |  |  |
-| `auth_db` | `5433` | `5432` | 🔍 Debug diretto con client DB |
-| `user_db` | `5434` | `5432` | 🔍 Debug diretto con client DB |
-| `chatbot_db` | `5435` | `5432` | 🔍 Debug diretto con client DB |
-| `image_generator_db` | `5436` | `5432` | 🔍 Debug diretto con client DB |
-| `resource_db` | `5437` | `5432` | 🔍 Debug diretto con client DB |
-| `classifier_db` | `5438` | `5432` | 🔍 Debug diretto con client DB |
-| `analysis_db` | `5439` | `5432` | 🔍 Debug diretto con client DB |
-| `rag_db` | `5440` | `5432` | 🔍 Debug diretto con client DB |
-| `learning_db` | `5441` | `5432` | 🔍 Debug diretto con client DB |
-| **API Services** |  |  |  |
-| `auth_service` | `8001` | `8000` | 🔧 Debug e test API diretto |
-| `user_service` | `8002` | `8000` | 🔧 Debug e test API diretto |
-| `chatbot_service` | `8003` | `8000` | 🔧 Debug e test API diretto |
-| `image_generator_service` | `8004` | `8000` | 🔧 Debug e test API diretto |
-| `resource_manager_service` | `8005` | `8000` | 🔧 Debug e test API diretto |
-| `image_classifier_service` | `8006` | `8000` | 🔧 Debug e test API diretto |
-| `data_analysis_service` | `8007` | `8000` | 🔧 Debug e test API diretto |
-| `rag_service` | `8008` | `8000` | 🔧 Debug e test API diretto |
-| `learning_service` | `8009` | `8000` | 🔧 Debug e test API diretto |
-| **Frontend & Infra** |  |  |  |
-| `frontend` | `3000` | `3000` | ⚛️ Accesso React dev server |
-| `rabbitmq` | `15672` | `15672` | 🐰 Management UI |
-| `nginx` | `80, 443` | `80, 443` | 🌐 Reverse proxy |
-
-### 🏭 **AMBIENTE PRODUZIONE (PROD)**
+### 🔧 **AMBIENTE VPS MULTI-AMBIENTE**
 
 | Servizio | Host Port | Container Port | Scopo |
 |----------|-----------|----------------|-------|
-| **Database** | `❌ NESSUNA` | `5432 (solo interno)` | 🔒 Sicurezza - accesso solo via API |
-| **API Services** | `❌ NESSUNA` | `8000 (solo interno)` | 🔒 Sicurezza - accesso solo via NGINX |
-| **Frontend** | `❌ NESSUNA` | `3000 (solo interno)` | 🔒 Sicurezza - servito solo via NGINX |
-| **RabbitMQ** | `❌ NESSUNA` | `5672 (solo interno)` | 🔒 Sicurezza - management UI disabilitato |
-| **NGINX** | `80, 443` | `80, 443` | 🌐 **UNICO PUNTO DI ACCESSO** |
+| **Reverse Proxy VPS** |  |  |  |
+| `NGINX VPS` | `80, 443` | - | 🌐 Host principale (tutti i domini) |
+| **Sviluppo (dev.pl-ai.it)** |  |  |  |
+| `NGINX Container DEV` | `8081` | `80` | 🌐 Container AI-PlayGround sviluppo |
+| **Produzione (pl-ai.it)** |  |  |  |
+| `NGINX Container PROD` | `80, 443` | `80, 443` | 🌐 Container AI-PlayGround produzione (diretto) |
+| **Sicurezza (entrambi)** |  |  |  |
+| `Database` | `❌ NESSUNA` | `5432 (solo interno)` | 🔒 Sicurezza - accesso solo via API |
+| `API Services` | `❌ NESSUNA` | `8000 (solo interno)` | 🔒 Sicurezza - accesso solo via NGINX |
+| `Frontend` | `❌ NESSUNA` | `3000 (solo interno)` | 🔒 Sicurezza - servito solo via NGINX |
+| `RabbitMQ` | `❌ NESSUNA` | `5672 (solo interno)` | 🔒 Sicurezza - management UI disabilitato |
 
-## 🎯 **Esempi Pratici di Accesso**
+## 🎯 **Esempi Pratici di Accesso VPS**
 
-### 🔧 **In Sviluppo puoi fare:**
+### 🌐 **Accesso Pubblico Multi-Ambiente:**
 
 ```bash
-# Accesso diretto ai database
-psql -h localhost -p 5433 -U admin -d auth_db
-
-# Test API diretti 
-curl http://localhost:8001/admin/
-curl http://localhost:8002/api/users/
-curl http://localhost:8003/api/chat/
-
-# Frontend React dev
-curl http://localhost:3000
-
-# RabbitMQ Management
-curl http://localhost:15672
-
-# Via NGINX (come in produzione)
+# Accesso SVILUPPO via NGINX VPS
+curl https://dev.pl-ai.it/
 curl https://dev.pl-ai.it/api/auth/
-```
+curl https://dev.pl-ai.it/api/users/
 
-### 🏭 **In Produzione puoi fare SOLO:**
-
-```bash
-# UNICO accesso via NGINX
+# Accesso PRODUZIONE via NGINX VPS
 curl https://pl-ai.it/
 curl https://pl-ai.it/api/auth/
 curl https://pl-ai.it/api/users/
+curl https://www.pl-ai.it/
 
-# Tutto il resto è bloccato:
-curl http://localhost:8001  # ❌ Connection refused
-curl http://localhost:5433  # ❌ Connection refused  
-curl http://localhost:3000  # ❌ Connection refused
+# Altri siti coesistenti
+curl https://blackix.it/
+curl https://twinelib.it/
 ```
 
-## 🔐 **Logica di Sicurezza**
+### 🔧 **Accesso Interno per Debug Multi-Ambiente:**
 
-### **🔧 DEV - Massima Accessibilità**
-- **Scopo**: Debugging, sviluppo, test
-- **Porte esposte**: Tutte per accesso diretto
-- **Vantaggi**: 
-  - Debug facile di singoli servizi
-  - Test API individuali 
-  - Accesso diretto ai database
-  - Monitoring RabbitMQ
+```bash
+# SSH sulla VPS per debug
+ssh root@[VPS_IP]
 
-### **🏭 PROD - Massima Sicurezza**
-- **Scopo**: Produzione sicura
-- **Porte esposte**: Solo NGINX (80/443)
+# Test container interno SVILUPPO
+docker exec -it [dev_container_name] /bin/bash
+
+# Test container interno PRODUZIONE
+docker exec -it [prod_container_name] /bin/bash
+
+# Logs di debug SVILUPPO
+./deploy.sh dev logs -f auth_service
+./deploy.sh dev logs -f frontend
+
+# Logs di debug PRODUZIONE
+./deploy.sh prod logs -f auth_service
+./deploy.sh prod logs -f frontend
+
+# Monitoring per ambiente specifico
+./deploy.sh dev ps
+./deploy.sh prod ps
+```
+
+## 🔐 **Logica di Sicurezza VPS**
+
+### **🔒 Sicurezza Massima**
+- **Scopo**: Ambiente sicuro per sviluppo
+- **Porte esposte**: Solo NGINX VPS (80/443)
 - **Vantaggi**:
   - Superficie d'attacco minimale
-  - SSL terminato su NGINX
-  - Rate limiting centralizzato
-  - Logging centralizzato
-  - Zero esposizione database
+  - SSL terminato su NGINX VPS
+  - Coesistenza con altri siti
+  - Zero esposizione database/API diretta
+
+### **🏠 Coesistenza Multi-Sito**
+- **blackix.it**: Sito esistente via socket Unix
+- **twinelib.it**: Sito esistente via localhost:8080
+- **dev.pl-ai.it**: AI-PlayGround sviluppo via localhost:8081
+- **pl-ai.it**: AI-PlayGround produzione via porte 80/443 dirette
 
 ## 🌐 **Comunicazione Interna**
 
-**In entrambi gli ambienti**, tutti i servizi comunicano internamente usando la rete Docker:
+**Tutti i servizi comunicano internamente usando la rete Docker:**
 
 ```yaml
 # Esempio: chatbot_service → auth_service
@@ -1298,4 +1297,4 @@ broker_url: "amqp://user:pass@rabbitmq:5672//"
 
 **🎯 La rete interna Docker (`pl-ai-network`) permette sempre la comunicazione tra container usando i nomi dei servizi come hostname.**
 
-Questa architettura garantisce **flessibilità in sviluppo** e **sicurezza in produzione**! 🚀
+Questa architettura garantisce **sicurezza enterprise** e **coesistenza multi-sito** su VPS IONOS! 🚀
