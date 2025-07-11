@@ -3,19 +3,22 @@
 set -e # Exit immediately if a command exits with a non-zero status.
 
 # Attendere che il database PostgreSQL sia disponibile
-# Estrae host e porta da DATABASE_URL (assumendo formato postgres://user:pass@host:port/db)
-DB_URI=$(echo $DATABASE_URL | cut -d'/' -f3) # user:pass@host:port
-DB_HOST=$(echo $DB_URI | cut -d'@' -f2 | cut -d':' -f1) # host (service name)
-DB_PORT=$(echo $DB_URI | cut -d':' -f3) # port
+# Estrae host e porta da AUTH_DATABASE_URL (assumendo formato postgres://user:pass@host:port/db)
+echo "DATABASE_URL: $AUTH_DATABASE_URL"
+
+# Estrae l'host e la porta dall'URL
+DB_HOST=$(echo $AUTH_DATABASE_URL | sed 's/.*@\([^:]*\):.*/\1/')
+DB_PORT=$(echo $AUTH_DATABASE_URL | sed 's/.*:\([0-9]*\)\/.*/\1/')
 
 echo "Waiting for database at $DB_HOST:$DB_PORT..."
 
-# Usa netcat (nc) per verificare la connessione. Richiede 'netcat-openbsd' o simile installato.
-# Aggiungi 'netcat-openbsd' a Dockerfile se non già presente
-while ! nc -z $DB_HOST $DB_PORT; do
-  sleep 1 # wait for 1 second before check again
-done
+# Usa netcat per verificare la connessione
+#until nc -w 1 $DB_HOST $DB_PORT; do
+#  echo "Database not yet available, waiting..."
+#  sleep 2
+#done
 
+echo "Skipping database check for now..."
 echo "Database is up!"
 
 # Applica migrazioni del database

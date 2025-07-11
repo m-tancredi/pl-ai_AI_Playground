@@ -2,7 +2,7 @@
 
 # Wait for database
 echo "Waiting for database..."
-while ! nc -z $SERVICE_DB_HOST $SERVICE_DB_PORT; do
+while ! nc -z $LEARNING_DB_HOST $LEARNING_DB_PORT; do
   sleep 0.1
 done
 echo "Database connected!"

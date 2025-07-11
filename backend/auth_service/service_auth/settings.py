@@ -23,6 +23,8 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS_STRING = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1')
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STRING.split(',') if host.strip()]
+# Aggiungi IP del container per comunicazione interna Docker
+ALLOWED_HOSTS.extend(['172.23.0.24', 'auth_service', '*'])
 
 
 # Application definition
@@ -159,9 +161,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
-        # Add BrowsableAPIRenderer only if DEBUG is True for easier development
-        'rest_framework.renderers.BrowsableAPIRenderer' if DEBUG else None,
-    ],
+    ] + (['rest_framework.renderers.BrowsableAPIRenderer'] if DEBUG else []),
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
         'rest_framework.parsers.FormParser',

@@ -154,8 +154,7 @@ REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
         # Aggiungi BrowsableAPIRenderer solo in DEBUG
-        ('rest_framework.renderers.BrowsableAPIRenderer' if DEBUG else None),
-    ],
+    ] + (['rest_framework.renderers.BrowsableAPIRenderer'] if DEBUG else []),
      'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
         'rest_framework.parsers.FormParser',

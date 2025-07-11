@@ -85,11 +85,11 @@ WSGI_APPLICATION = "chatbot_service.wsgi.application"
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'chatbot_db'),
-        'USER': os.environ.get('DB_USER', 'chatbot_user'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'chatbot_pass'),
-        'HOST': os.environ.get('DB_HOST', 'db'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+        'NAME': os.environ.get('CHATBOT_DB_NAME', 'chatbot_db'),
+        'USER': os.environ.get('CHATBOT_DB_USER', 'chatbot_user'),
+        'PASSWORD': os.environ.get('CHATBOT_DB_PASSWORD', 'chatbot_pass'),
+        'HOST': os.environ.get('CHATBOT_DB_HOST', 'chatbot_db'),
+        'PORT': os.environ.get('CHATBOT_DB_PORT', '5432'),
     }
 }
 
@@ -153,8 +153,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer' if DEBUG else None,
-    ],
+    ] + (['rest_framework.renderers.BrowsableAPIRenderer'] if DEBUG else []),
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
         'rest_framework.parsers.FormParser',
