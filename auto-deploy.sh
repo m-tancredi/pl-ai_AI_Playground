@@ -5,6 +5,7 @@
 # =============================================================================
 # Questo script automatizza il deployment dal branch dev
 # Uso: ./auto-deploy.sh [--force] [--no-backup] [--help]
+# Uso: ./auto-deploy.sh [--force] [--no-backup] [--help]
 # =============================================================================
 
 set -euo pipefail
