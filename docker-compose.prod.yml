@@ -703,7 +703,7 @@ services:
       context: ./nginx
       dockerfile: Dockerfile
     container_name: pl-ai-nginx-prod
-    ports: ["8080:80"]
+    ports: ["8081:80"]
     networks:
       - pl-ai-network
       - ai_platform_network

@@ -104,7 +104,7 @@ create_backup() {
 check_ports() {
     log "Verifico disponibilità porte..."
     
-    REQUIRED_PORTS=(8080)
+    REQUIRED_PORTS=(8081)
     
     for port in "${REQUIRED_PORTS[@]}"; do
         if netstat -tuln | grep -q ":$port "; then
@@ -262,7 +262,7 @@ health_check() {
     log "Controllo salute dei servizi..."
     
     # Controllo endpoint principale
-    if curl -f -s "http://localhost:8080/" > /dev/null; then
+    if curl -f -s "http://localhost:8081/" > /dev/null; then
         success "Applicazione raggiungibile localmente"
     else
         error "Applicazione non raggiungibile"
@@ -363,6 +363,7 @@ deployment_summary() {
     echo "=================================="
     echo ""
     echo "🌐 Sito: https://$DOMAIN"
+    echo "🔧 Porta interna: 8081"
     echo "📊 Monitoring: /var/log/ai-playground-monitor.log"
     echo "🔧 Logs: docker-compose -f $DOCKER_COMPOSE_FILE logs -f"
     echo "📂 Backup: $BACKUP_DIR"

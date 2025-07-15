@@ -126,8 +126,8 @@ check_endpoints() {
     log "Controllo endpoint applicazione..."
     
     local endpoints=(
-        "http://localhost:8080/"
-        "http://localhost:8080/api/v1/health/"
+        "http://localhost:8081/"
+        "http://localhost:8081/api/v1/health/"
         "https://$DOMAIN/"
     )
     

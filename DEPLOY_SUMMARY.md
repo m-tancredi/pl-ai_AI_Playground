@@ -10,7 +10,7 @@ Ho creato una soluzione completa per il deploy del progetto AI-PlayGround su VPS
 - **File**: `nginx-vps.conf`
 - **Funzionalità**: Integrazione con configurazione esistente
 - **Caratteristiche**:
-  - Upstream per AI-PlayGround (127.0.0.1:8080)
+  - Upstream per AI-PlayGround (127.0.0.1:8081)
   - Headers di sicurezza
   - Logging dedicato
   - Timeout ottimizzati per operazioni AI
@@ -80,7 +80,7 @@ Internet
     ↓
 [Nginx VPS - Port 80/443]
     ↓
-[AI-PlayGround - Port 8080]
+[AI-PlayGround - Port 8081]
     ↓
 [Docker Nginx - Port 80]
     ↓
