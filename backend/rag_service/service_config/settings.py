@@ -169,8 +169,8 @@ CELERY_TASK_ALWAYS_EAGER = False  # Importante: non eseguire task in modo sincro
 CELERY_EAGER_PROPAGATES_EXCEPTIONS = True
 
 # RAG settings
-RAG_UPLOADS_ROOT = os.path.join(MEDIA_ROOT, 'rag_uploads')
-RAG_EMBEDDINGS_ROOT = os.path.join(MEDIA_ROOT, 'rag_embeddings')
+RAG_UPLOADS_ROOT = os.getenv('RAG_UPLOADS_ROOT', os.path.join(MEDIA_ROOT, 'rag_uploads'))
+RAG_EMBEDDINGS_ROOT = os.getenv('RAG_EMBEDDINGS_ROOT', os.path.join(MEDIA_ROOT, 'rag_embeddings'))
 
 # Configurazioni RAG per chunking
 RAG_MAX_CHUNK_SIZE = int(os.getenv('RAG_MAX_CHUNK_SIZE', '1000'))
@@ -192,6 +192,11 @@ EMBEDDING_PROVIDER = os.getenv('EMBEDDING_PROVIDER', 'openai')  # 'openai' o 'se
 # Sentence Transformers settings (fallback)
 SENTENCE_TRANSFORMER_MODEL_NAME = os.getenv('SENTENCE_TRANSFORMER_MODEL_NAME', 'all-MiniLM-L6-v2')
 EMBEDDING_DIMENSION = int(os.getenv('EMBEDDING_DIMENSION', '384'))  # Fallback per Sentence Transformers
+
+# Proxy HTTPS Configuration
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Resource Manager Access
 RESOURCE_MANAGER_INTERNAL_URL = os.getenv('RESOURCE_MANAGER_INTERNAL_URL')
