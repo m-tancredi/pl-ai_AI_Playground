@@ -437,7 +437,7 @@ services:
     env_file: [./backend/resource_manager_service/.env]
     environment: [SERVICE_PROCESS_TYPE=web]
     volumes:
-      - ./backend/resource_manager_service/mediafiles:/mediafiles
+      - ./backend/resource_manager_service/mediafiles:/app/mediafiles
     expose: ["8000"]
     networks: [pl-ai-network]
     depends_on:
@@ -691,7 +691,7 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_VHOST: /
     volumes:
-      - ./backend/resource_manager_service/mediafiles:/mediafiles
+      - ./backend/resource_manager_service/mediafiles:/app/mediafiles
     networks: [pl-ai-network]
     depends_on:
       resource_db: { condition: service_healthy }
