@@ -682,7 +682,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: production
     container_name: pl-ai-frontend-prod
     expose: ["3000"]
     networks: [pl-ai-network]
