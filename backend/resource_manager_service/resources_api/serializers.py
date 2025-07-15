@@ -60,14 +60,7 @@ class ResourceSerializer(serializers.ModelSerializer):
         # Verifica che il file esista prima di generare l'URL
         if obj.file and hasattr(obj.file, 'url') and request:
             try: 
-                # Debug temporaneo
-                print(f"DEBUG: request.is_secure() = {request.is_secure()}")
-                print(f"DEBUG: request.META.get('HTTP_X_FORWARDED_PROTO') = {request.META.get('HTTP_X_FORWARDED_PROTO')}")
-                print(f"DEBUG: request.get_host() = {request.get_host()}")
-                
-                absolute_url = request.build_absolute_uri(obj.file.url)
-                print(f"DEBUG: Generated URL = {absolute_url}")
-                return absolute_url
+                return request.build_absolute_uri(obj.file.url)
             except: return obj.file.url if hasattr(obj.file, 'url') else None
         return None
 
