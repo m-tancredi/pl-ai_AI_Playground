@@ -587,7 +587,13 @@ services:
       dockerfile: Dockerfile
     container_name: pl-ai-rag-worker-prod
     env_file: [./backend/rag_service/.env]
-    environment: [SERVICE_PROCESS_TYPE=worker]
+    environment:
+      SERVICE_PROCESS_TYPE: worker
+      RABBITMQ_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASS:-admin123}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_VHOST: /
     volumes:
       - rag_uploads_data:/app/rag_uploads
       - rag_embeddings_data:/app/rag_embeddings
@@ -613,6 +619,12 @@ services:
     entrypoint: ""
     command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "analysis_tasks", "-c", "1"]
     env_file: [./backend/data_analysis_service/.env]
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASS:-admin123}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_VHOST: /
     volumes:
       - analysis_results_data:/app/analysis_results_storage
     secrets:
@@ -638,6 +650,12 @@ services:
     entrypoint: ""
     command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "classifier_tasks", "-c", "1"]
     env_file: [./backend/image_classifier_service/.env]
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASS:-admin123}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_VHOST: /
     volumes:
       - models_storage_data:/app/models_storage
     networks: [pl-ai-network]
@@ -660,6 +678,12 @@ services:
     entrypoint: ""
     command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "resource_tasks"]
     env_file: [./backend/resource_manager_service/.env]
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASS:-admin123}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_VHOST: /
     volumes:
       - ./backend/resource_manager_service/mediafiles:/mediafiles
     networks: [pl-ai-network]
