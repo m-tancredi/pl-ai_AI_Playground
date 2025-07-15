@@ -522,7 +522,13 @@ services:
       dockerfile: Dockerfile
     container_name: pl-ai-rag-service-prod
     env_file: [./backend/rag_service/.env]
-    environment: [SERVICE_PROCESS_TYPE=web]
+    environment:
+      SERVICE_PROCESS_TYPE: web
+      RABBITMQ_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASS:-admin123}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_VHOST: /
     volumes:
       - rag_uploads_data:/app/rag_uploads
       - rag_embeddings_data:/app/rag_embeddings
