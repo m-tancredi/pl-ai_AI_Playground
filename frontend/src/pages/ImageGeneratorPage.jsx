@@ -79,14 +79,13 @@ const ImageGeneratorPage = () => {
 
     const fileInputRef = useRef(null);
     
-    const API_GATEWAY_ORIGIN = 'http://localhost:8080'; // Definisci la base corretta
-    // Funzione Helper per costruire URL completo (essenziale)
+    // Funzione Helper per costruire URL completo (usa dominio dinamico)
     const buildFullImageUrl = useCallback((relativeUrl) => {
         if (!relativeUrl || typeof relativeUrl !== 'string' || !relativeUrl.startsWith('/media/')) {
             return null;
         }
         const cleanRelativeUrl = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`;
-        return `${API_GATEWAY_ORIGIN}${cleanRelativeUrl}`; // Usa la base hardcodata
+        return `${window.location.origin}${cleanRelativeUrl}`; // Usa il dominio dinamico
     }, []);
 
     // Cleanup preview blob URL
