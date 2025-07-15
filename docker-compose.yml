@@ -260,6 +260,7 @@ services:
     volumes:
       - ./backend/user_service:/app
       - ./backend/user_service/mediafiles:/mediafiles
+      - ./backend/user_service/logs:/app/logs
     secrets:
       - openai_api_key_secret
     expose: ["8000"]
