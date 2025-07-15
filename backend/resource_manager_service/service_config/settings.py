@@ -268,6 +268,10 @@ DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
 # --- Impostazioni Specifiche dell'App ---
 THUMBNAIL_SIZE = (256, 256) # Dimensione thumbnail (larghezza, altezza)
 
+# --- Proxy HTTPS Configuration ---
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 INTERNAL_API_SECRET_HEADER_NAME = 'X-Internal-Secret' # Puoi cambiare il nome se preferisci
 INTERNAL_API_SECRET_VALUE = os.getenv('INTERNAL_API_SECRET', None)
