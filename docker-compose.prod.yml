@@ -1,0 +1,733 @@
+# Docker Compose per Produzione - AI-PlayGround
+# Ottimizzato per VPS con risorse limitate
+
+networks:
+  ai_platform_network:
+    driver: bridge
+  pl-ai-network:
+    driver: bridge
+
+volumes:
+  analysis_db_data:
+  analysis_results_data:
+  chatbot_db_data:
+  classifier_db_data:
+  image_generator_db_data:
+  image_generator_media:
+  models_storage_data:
+  postgres_data:
+  rabbitmq_data:
+  resource_db_data:
+  resource_media_data:
+  rag_db_data:
+  rag_uploads_data:
+  rag_embeddings_data:
+  user_db_data:
+  learning_db_data:
+  nginx_logs:
+
+secrets:
+  anthropic_api_key_secret:
+    file: ./.secrets/anthropic_api_key.txt
+  gemini_api_key_secret:
+    file: ./.secrets/gemini_api_key.txt
+  openai_api_key_secret:
+    file: ./.secrets/openai_api_key.txt
+  stability_api_key_secret:
+    file: ./.secrets/stability_api_key.txt
+
+services:
+  # =============================================================================
+  # DATABASE SERVICES - Ottimizzati per produzione
+  # =============================================================================
+  
+  auth_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-auth-db-prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${AUTH_DB_USER:-plai_user}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-plai_password}
+      POSTGRES_DB: ${AUTH_DB_NAME:-plai_db}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    # Rimuovo l'esposizione della porta esterna per sicurezza
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-plai_user} -d $${POSTGRES_DB:-plai_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    # Limiti di memoria per ottimizzare le risorse
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  user_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-user-db-prod
+    volumes:
+      - user_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${USER_DB_USER:-user_user}
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD:-user_password}
+      POSTGRES_DB: ${USER_DB_NAME:-user_db}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-user_user} -d $${POSTGRES_DB:-user_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  chatbot_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-chatbot-db-prod
+    volumes:
+      - chatbot_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${CHATBOT_DB_USER:-chatbot_user}
+      POSTGRES_PASSWORD: ${CHATBOT_DB_PASSWORD:-chatbot_pass}
+      POSTGRES_DB: ${CHATBOT_DB_NAME:-chatbot_db}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-chatbot_user} -d $${POSTGRES_DB:-chatbot_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  image_generator_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-image-generator-db-prod
+    volumes:
+      - image_generator_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${IMAGE_GEN_DB_USER:-imagegen_user}
+      POSTGRES_PASSWORD: ${IMAGE_GEN_DB_PASSWORD:-imagegen_password}
+      POSTGRES_DB: ${IMAGE_GEN_DB_NAME:-imagegen_db}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-imagegen_user} -d $${POSTGRES_DB:-imagegen_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  resource_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-resource-db-prod
+    volumes:
+      - resource_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${RESOURCE_DB_USER:-resource_user}
+      POSTGRES_PASSWORD: ${RESOURCE_DB_PASSWORD:-resource_password}
+      POSTGRES_DB: ${RESOURCE_DB_NAME:-resource_db}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-resource_user} -d $${POSTGRES_DB:-resource_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  classifier_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-classifier-db-prod
+    volumes:
+      - classifier_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${CLASSIFIER_DB_USER:-classifier_user}
+      POSTGRES_PASSWORD: ${CLASSIFIER_DB_PASSWORD:-classifier_password}
+      POSTGRES_DB: ${CLASSIFIER_DB_NAME:-classifier_db}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-classifier_user} -d $${POSTGRES_DB:-classifier_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  analysis_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-analysis-db-prod
+    volumes:
+      - analysis_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${ANALYSIS_DB_USER:-analysis_user}
+      POSTGRES_PASSWORD: ${ANALYSIS_DB_PASSWORD:-analysis_password}
+      POSTGRES_DB: ${ANALYSIS_DB_NAME:-analysis_db}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-analysis_user} -d $${POSTGRES_DB:-analysis_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  rag_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-rag-db-prod
+    volumes:
+      - rag_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${RAG_DB_USER:-rag_user}
+      POSTGRES_PASSWORD: ${RAG_DB_PASSWORD:-rag_password}
+      POSTGRES_DB: ${RAG_DB_NAME:-rag_db}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-rag_user} -d $${POSTGRES_DB:-rag_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  learning_db:
+    image: postgres:15-alpine
+    container_name: pl-ai-learning-db-prod
+    volumes:
+      - learning_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${LEARNING_DB_USER:-learning_user}
+      POSTGRES_PASSWORD: ${LEARNING_DB_PASSWORD:-learning_password}
+      POSTGRES_DB: ${LEARNING_DB_NAME:-learning_db}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    expose: ["5432"]
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-learning_user} -d $${POSTGRES_DB:-learning_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # =============================================================================
+  # MESSAGE BROKER - Ottimizzato per produzione
+  # =============================================================================
+  
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: pl-ai-rabbitmq-prod
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq/
+    # Rimuovo l'esposizione della porta di management per sicurezza
+    expose: ["5672"]
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-admin123}
+    networks: [pl-ai-network]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running", "-q"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # =============================================================================
+  # BACKEND SERVICES - Ottimizzati per produzione
+  # =============================================================================
+  
+  auth_service:
+    build:
+      context: ./backend/auth_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-auth-service-prod
+    env_file: [./backend/auth_service/.env]
+    expose: ["8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      auth_db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/login/ || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  user_service:
+    build:
+      context: ./backend/user_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-user-service-prod
+    env_file: [./backend/user_service/.env]
+    volumes:
+      - ./backend/user_service/mediafiles:/mediafiles
+      - ./backend/user_service/logs:/app/logs
+    secrets:
+      - openai_api_key_secret
+    expose: ["8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      user_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/login/ || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  chatbot_service:
+    build:
+      context: ./backend/chatbot_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-chatbot-service-prod
+    environment:
+      DB_NAME: ${CHATBOT_DB_NAME:-chatbot_db}
+      DB_USER: ${CHATBOT_DB_USER:-chatbot_user}
+      DB_PASSWORD: ${CHATBOT_DB_PASSWORD:-chatbot_pass}
+      DB_HOST: chatbot_db
+      DB_PORT: 5432
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key_secret
+      GEMINI_API_KEY_FILE: /run/secrets/gemini_api_key_secret
+      ANTHROPIC_API_KEY_FILE: /run/secrets/anthropic_api_key_secret
+    secrets:
+      - openai_api_key_secret
+      - gemini_api_key_secret
+      - anthropic_api_key_secret
+    expose: ["8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      chatbot_db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/login/ || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  image_generator_service:
+    build:
+      context: ./backend/image_generator_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-image-generator-service-prod
+    env_file: [./backend/image_generator_service/.env]
+    volumes:
+      - image_generator_media:/app/mediafiles
+    secrets:
+      - openai_api_key_secret
+      - stability_api_key_secret
+    expose: ["8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      image_generator_db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/login/ || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  resource_manager_service:
+    build:
+      context: ./backend/resource_manager_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-resource-manager-service-prod
+    env_file: [./backend/resource_manager_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=web]
+    volumes:
+      - ./backend/resource_manager_service/mediafiles:/mediafiles
+    expose: ["8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      resource_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/login/ || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  image_classifier_service:
+    build:
+      context: ./backend/image_classifier_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-classifier-service-prod
+    env_file: [./backend/image_classifier_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=web]
+    volumes:
+      - models_storage_data:/app/models_storage
+    expose: ["8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      classifier_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/login/ || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  data_analysis_service:
+    build:
+      context: ./backend/data_analysis_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-data-analysis-service-prod
+    env_file: [./backend/data_analysis_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=web]
+    volumes:
+      - analysis_results_data:/app/analysis_results_storage
+    secrets:
+      - openai_api_key_secret
+    expose: ["8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      analysis_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      resource_manager_service: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/login/ || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  rag_service:
+    build:
+      context: ./backend/rag_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-rag-service-prod
+    env_file: [./backend/rag_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=web]
+    volumes:
+      - rag_uploads_data:/app/rag_uploads
+      - rag_embeddings_data:/app/rag_embeddings
+    secrets:
+      - openai_api_key_secret
+    expose: ["8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      rag_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/login/ || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  learning_service:
+    build:
+      context: ./backend/learning_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-learning-service-prod
+    env_file: [./backend/learning_service/.env]
+    volumes:
+      - ./backend/learning_service/mediafiles:/mediafiles
+      - ./backend/learning_service/logs:/app/logs
+    secrets:
+      - openai_api_key_secret
+    expose: ["8000"]
+    networks: [pl-ai-network]
+    depends_on:
+      learning_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/login/ || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # =============================================================================
+  # WORKER SERVICES - Ottimizzati per produzione
+  # =============================================================================
+  
+  rag_worker:
+    build:
+      context: ./backend/rag_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-rag-worker-prod
+    env_file: [./backend/rag_service/.env]
+    environment: [SERVICE_PROCESS_TYPE=worker]
+    volumes:
+      - rag_uploads_data:/app/rag_uploads
+      - rag_embeddings_data:/app/rag_embeddings
+    secrets:
+      - openai_api_key_secret
+    networks: [pl-ai-network]
+    depends_on:
+      rag_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  data_analysis_worker:
+    build:
+      context: ./backend/data_analysis_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-data-analysis-worker-prod
+    entrypoint: ""
+    command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "analysis_tasks", "-c", "1"]
+    env_file: [./backend/data_analysis_service/.env]
+    volumes:
+      - analysis_results_data:/app/analysis_results_storage
+    secrets:
+      - openai_api_key_secret
+    networks: [pl-ai-network]
+    depends_on:
+      analysis_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      resource_manager_service: { condition: service_started }
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  image_classifier_worker:
+    build:
+      context: ./backend/image_classifier_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-image-classifier-worker-prod
+    entrypoint: ""
+    command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "classifier_tasks", "-c", "1"]
+    env_file: [./backend/image_classifier_service/.env]
+    volumes:
+      - models_storage_data:/app/models_storage
+    networks: [pl-ai-network]
+    depends_on:
+      classifier_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  resource_manager_worker:
+    build:
+      context: ./backend/resource_manager_service
+      dockerfile: Dockerfile
+    container_name: pl-ai-resource-manager-worker-prod
+    entrypoint: ""
+    command: ["celery", "-A", "service_config", "worker", "--loglevel=INFO", "-Q", "resource_tasks"]
+    env_file: [./backend/resource_manager_service/.env]
+    volumes:
+      - ./backend/resource_manager_service/mediafiles:/mediafiles
+    networks: [pl-ai-network]
+    depends_on:
+      resource_db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # =============================================================================
+  # FRONTEND SERVICE - Ottimizzato per produzione
+  # =============================================================================
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: pl-ai-frontend-prod
+    expose: ["3000"]
+    networks: [pl-ai-network]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # =============================================================================
+  # REVERSE PROXY - Ottimizzato per produzione
+  # =============================================================================
+  
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: pl-ai-nginx-prod
+    ports: ["8080:80"]
+    networks:
+      - pl-ai-network
+      - ai_platform_network
+    volumes:
+      - analysis_results_data:/media_analysis_results:ro
+      - image_generator_media:/media_images:ro
+      - ./backend/resource_manager_service/mediafiles:/media_resources:ro
+      - ./backend/user_service/mediafiles:/media_users:ro
+      - rag_uploads_data:/media_rag_uploads:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      auth_service: { condition: service_healthy }
+      user_service: { condition: service_healthy }
+      image_generator_service: { condition: service_healthy }
+      resource_manager_service: { condition: service_healthy }
+      image_classifier_service: { condition: service_started }
+      data_analysis_service: { condition: service_healthy }
+      rag_service: { condition: service_healthy }
+      learning_service: { condition: service_healthy }
+      frontend: { condition: service_started }
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M 
