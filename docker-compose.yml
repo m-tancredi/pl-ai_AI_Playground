@@ -409,7 +409,13 @@ services:
       dockerfile: Dockerfile
     container_name: pl-ai-rag-service
     env_file: [./backend/rag_service/.env]
-    environment: [SERVICE_PROCESS_TYPE=web]
+    environment:
+      SERVICE_PROCESS_TYPE: web
+      RABBITMQ_USER: admin
+      RABBITMQ_PASSWORD: admin123
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_VHOST: /
     volumes:
       - ./backend/rag_service:/app
       - rag_uploads_data:/app/rag_uploads
@@ -462,7 +468,13 @@ services:
       context: ./backend/rag_service
       dockerfile: Dockerfile
     env_file: [./backend/rag_service/.env]
-    environment: [SERVICE_PROCESS_TYPE=worker]
+    environment:
+      SERVICE_PROCESS_TYPE: worker
+      RABBITMQ_USER: admin
+      RABBITMQ_PASSWORD: admin123
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_VHOST: /
     volumes:
       - ./backend/rag_service:/app
       - rag_uploads_data:/app/rag_uploads
