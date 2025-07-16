@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FaEye, FaEdit, FaTrash, FaSpinner } from 'react-icons/fa';
 
 const MiniSpinner = () => <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-indigo-500"></div>;
 
@@ -16,13 +17,14 @@ const ImageCard = ({ image, buildFullUrl, onViewDetails, onEdit, onDelete, isDel
     const fullImageUrl = buildFullUrl(image.image_url);
 
     return (
-        <div className="bg-white rounded-lg shadow-md overflow-hidden group relative border hover:shadow-lg transition-shadow duration-200">
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden group relative border hover:shadow-xl transition-all duration-300 hover:scale-105">
+            {/* Immagine */}
             <div className="aspect-square w-full overflow-hidden bg-gray-100 flex items-center justify-center">
                 {fullImageUrl && !imageLoadError ? (
                      <img
                         src={fullImageUrl}
                         alt={image.name || `Generated ${image.id}`}
-                        className="w-full h-full object-cover group-hover:opacity-75 transition-opacity duration-300"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                         loading="lazy"
                         onError={handleImageError}
                      />
@@ -34,28 +36,47 @@ const ImageCard = ({ image, buildFullUrl, onViewDetails, onEdit, onDelete, isDel
                     </div>
                 )}
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-2 sm:p-3 text-white">
-                <div className="mb-10 sm:mb-8">
-                    <h3 className="font-semibold text-xs sm:text-sm truncate" title={image.name || 'Unnamed Image'}>
+            
+            {/* Overlay con informazioni */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-3 text-white">
+                <div className="flex-1">
+                    <h3 className="font-semibold text-sm truncate mb-1" title={image.name || 'Unnamed Image'}>
                         {image.name || 'Unnamed Image'}
                     </h3>
-                    <p className="text-xs opacity-80 truncate" title={image.prompt || 'No prompt'}>
+                    <p className="text-xs opacity-90 truncate" title={image.prompt || 'No prompt'}>
                         {truncatedPrompt || 'No prompt'}
                     </p>
                 </div>
-                <div className="absolute bottom-1 right-1 sm:bottom-2 sm:right-2 flex space-x-1">
-                     {/* View Details Button */}
-                     <button onClick={() => onViewDetails(image)} title="View Details" aria-label="View Details" className="p-1 sm:p-1.5 bg-blue-500 bg-opacity-70 rounded-full hover:bg-opacity-100 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>...</svg> {/* Icona Occhio */}
-                     </button>
-                     {/* Edit Button */}
-                     <button onClick={() => onEdit(image)} title="Edit Name/Description" aria-label="Edit Image" className="p-1 sm:p-1.5 bg-yellow-500 bg-opacity-70 rounded-full hover:bg-opacity-100 hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-300 transition-colors">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>...</svg> {/* Icona Matita */}
-                     </button>
-                     {/* Delete Button */}
-                     <button onClick={() => onDelete(image.id)} disabled={isDeleting} title="Delete Image" aria-label="Delete Image" className={`p-1 sm:p-1.5 bg-red-500 bg-opacity-70 rounded-full hover:bg-opacity-100 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 transition-colors ${isDeleting ? 'cursor-wait opacity-50' : ''}`}>
-                         {isDeleting ? <MiniSpinner /> : (<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>...</svg> /* Icona Cestino */ )}
-                     </button>
+                
+                {/* Pulsanti di azione */}
+                <div className="flex flex-col gap-1 mt-3">
+                    {/* Visualizza Dettagli */}
+                    <button 
+                        onClick={() => onViewDetails(image)} 
+                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/80 hover:bg-blue-600/90 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105"
+                    >
+                        <FaEye className="text-xs" />
+                        Visualizza Dettagli
+                    </button>
+                    
+                    {/* Modifica */}
+                    <button 
+                        onClick={() => onEdit(image)} 
+                        className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/80 hover:bg-yellow-600/90 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105"
+                    >
+                        <FaEdit className="text-xs" />
+                        Modifica Nome
+                    </button>
+                    
+                    {/* Elimina */}
+                    <button 
+                        onClick={() => onDelete(image.id)} 
+                        disabled={isDeleting}
+                        className={`flex items-center gap-2 px-3 py-1.5 bg-red-500/80 hover:bg-red-600/90 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 ${isDeleting ? 'cursor-wait opacity-50' : ''}`}
+                    >
+                        {isDeleting ? <FaSpinner className="animate-spin text-xs" /> : <FaTrash className="text-xs" />}
+                        {isDeleting ? 'Eliminando...' : 'Elimina'}
+                    </button>
                 </div>
             </div>
         </div>

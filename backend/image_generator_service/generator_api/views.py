@@ -50,7 +50,7 @@ def format_prompt(prompt, style=None):
 def get_api_key(model_name):
     """Ottiene la chiave API corretta usando l'helper dei segreti."""
     try:
-        if model_name == 'dalle':
+        if model_name in ['dalle-2', 'dalle-3', 'dalle-3-hd', 'gpt-image-1', 'dalle']:  # Supporta anche 'dalle' legacy
             return get_secret('openai_api_key')
         elif model_name == 'stability':
             return get_secret('stability_api_key')
@@ -121,22 +121,22 @@ class TextToImageView(views.APIView):
         model_name = validated_data['model']
         style = validated_data.get('style')
         aspect_ratio = validated_data.get('aspect_ratio', '1:1')
+        quality = validated_data.get('quality', 'standard')
         user_id = request.user.id
 
         try:
             api_key = get_api_key(model_name)
             formatted_prompt = format_prompt(prompt, style)
 
-            if model_name == 'dalle':
-                api_response = self._call_dalle(api_key, formatted_prompt, aspect_ratio)
+            if model_name in ['dalle-2', 'dalle-3', 'dalle-3-hd', 'gpt-image-1']:
+                api_response = self._call_dalle(api_key, formatted_prompt, aspect_ratio, model_name, quality)
                 if isinstance(api_response, dict) and 'b64_json' in api_response:
                      local_url_relative, _ = save_temp_image(api_response['b64_json'], model_name, user_id)
-                # Se DALL-E restituisse URL esterni e volessimo scaricarli:
-                # elif isinstance(api_response, dict) and 'url' in api_response:
-                #      print(f"DALL-E returned URL: {api_response['url']}. Downloading...")
-                #      response_img = requests.get(api_response['url'], timeout=30)
-                #      response_img.raise_for_status()
-                #      local_url_relative, _ = save_temp_image(response_img.content, model_name, user_id)
+                elif isinstance(api_response, dict) and 'url' in api_response:
+                     print(f"DALL-E returned URL: {api_response['url']}. Downloading...")
+                     response_img = requests.get(api_response['url'], timeout=30)
+                     response_img.raise_for_status()
+                     local_url_relative, _ = save_temp_image(response_img.content, model_name, user_id)
                 else:
                      raise ValueError("Unexpected or missing image data in DALL-E API response.")
 
@@ -152,7 +152,8 @@ class TextToImageView(views.APIView):
             response_data = {
                 'image_url': local_url_relative,
                 'prompt_used': formatted_prompt,
-                'model_used': model_name
+                'model_used': model_name,
+                'quality_used': quality if model_name in ['dalle-2', 'dalle-3', 'dalle-3-hd', 'gpt-image-1'] else None
             }
             return Response(response_data, status=status.HTTP_201_CREATED)
             # --- FINE CORREZIONE ---
@@ -174,19 +175,64 @@ class TextToImageView(views.APIView):
             # import traceback; traceback.print_exc();
             return Response({"error": "An unexpected error occurred during image generation."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def _call_dalle(self, api_key, prompt, aspect_ratio):
-        """Chiama l'API DALL-E (v3 o v2)."""
+    def _call_dalle(self, api_key, prompt, aspect_ratio, model_name, quality='standard'):
+        """Chiama l'API DALL-E con supporto per diversi modelli e qualità."""
         api_url = f"{settings.OPENAI_API_BASE_URL}/images/generations"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        size = ASPECT_RATIO_MAP_DALLE.get(aspect_ratio, '1024x1024') # Default
+        
+        # GPT-image-1 ha dimensioni supportate diverse
+        if model_name == 'gpt-image-1':
+            # Mappa le dimensioni supportate da GPT-image-1
+            gpt_image_size_map = {
+                '1:1': '1024x1024',
+                '16:9': '1536x1024',  # Invece di 1792x1024
+                '9:16': '1024x1536'   # Invece di 1024x1792
+            }
+            size = gpt_image_size_map.get(aspect_ratio, '1024x1024')
+        else:
+            size = ASPECT_RATIO_MAP_DALLE.get(aspect_ratio, '1024x1024') # Default per altri modelli
 
+        # Mappa i nomi dei modelli per l'API OpenAI
+        model_mapping = {
+            'dalle-2': 'dall-e-2',
+            'dalle-3': 'dall-e-3',
+            'dalle-3-hd': 'dall-e-3',
+            'gpt-image-1': 'gpt-image-1'
+        }
+        
+        api_model = model_mapping.get(model_name, 'dall-e-3')
+        
         payload = {
-            "model": "dall-e-3", # O "dall-e-2"
+            "model": api_model,
             "prompt": prompt,
             "n": 1,
-            "size": size,
-            "response_format": "b64_json" # Richiedi base64 per salvarlo localmente
+            "size": size
         }
+        
+        # Il parametro response_format non è supportato da tutti i modelli
+        # GPT-image-1 non supporta response_format, usa sempre URL
+        if model_name != 'gpt-image-1':
+            payload["response_format"] = "b64_json"  # Richiedi base64 per salvarlo localmente
+        
+        # Aggiungi qualità per DALL-E 3 e GPT-image-1 (non supportata in DALL-E 2)
+        if model_name in ['dalle-3', 'dalle-3-hd']:
+            payload["quality"] = quality
+            
+        # Per DALL-E 3 HD, forza la qualità HD
+        if model_name == 'dalle-3-hd':
+            payload["quality"] = "hd"
+            
+        # GPT-image-1 usa valori di qualità diversi
+        if model_name == 'gpt-image-1':
+            # Mappa i valori standard ai valori supportati da GPT-image-1
+            quality_mapping = {
+                'standard': 'medium',
+                'hd': 'high'
+            }
+            payload["quality"] = quality_mapping.get(quality, 'medium')
+            
+        print(f"Chiamando DALL-E API con payload: {payload}")
+        
         try:
             response = requests.post(api_url, headers=headers, json=payload, timeout=90) # Timeout più lungo
             response.raise_for_status()
@@ -340,7 +386,7 @@ class PromptEnhanceView(views.APIView):
         original_prompt = serializer.validated_data['prompt']
 
         try:
-             api_key = get_api_key('dalle') # Usa chiave OpenAI
+             api_key = get_api_key('dalle-3') # Usa chiave OpenAI per DALL-E 3
              enhanced_prompt = self._call_openai_chat(api_key, original_prompt)
 
              if enhanced_prompt:

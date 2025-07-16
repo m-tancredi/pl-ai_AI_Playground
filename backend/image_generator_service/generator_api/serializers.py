@@ -8,12 +8,23 @@ from .models import GeneratedImage
 class TextToImageRequestSerializer(serializers.Serializer):
     """Serializer per validare l'input della richiesta text-to-image."""
     prompt = serializers.CharField(required=True, max_length=1000)
-    model = serializers.ChoiceField(choices=['dalle', 'stability'], required=True)
+    model = serializers.ChoiceField(
+        choices=[
+            'dalle-2', 'dalle-3', 'dalle-3-hd', 'gpt-image-1', 'stability'
+        ], 
+        required=True
+    )
     style = serializers.CharField(required=False, allow_blank=True, max_length=100)
     aspect_ratio = serializers.ChoiceField(
         choices=['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'],
         required=False,
         default='1:1'
+    )
+    quality = serializers.ChoiceField(
+        choices=['standard', 'hd'],
+        required=False,
+        default='standard',
+        help_text="Quality level for DALL-E models (standard/hd)"
     )
     # high_quality = serializers.BooleanField(required=False, default=False) # Opzionale
 
@@ -22,6 +33,7 @@ class ImageResponseSerializer(serializers.Serializer):
     image_url = serializers.CharField(read_only=True, help_text="URL locale temporaneo o URL persistente")
     prompt_used = serializers.CharField(read_only=True)
     model_used = serializers.CharField(read_only=True)
+    quality_used = serializers.CharField(read_only=True, required=False)
 
 # --- Serializers per Image-to-Image ---
 # Nota: Non usiamo un serializer DRF standard per deserializzare richieste multipart/form-data
@@ -48,9 +60,7 @@ class ImageSaveRequestSerializer(serializers.Serializer):
     image_url = serializers.CharField(required=True, help_text="Temporary local URL (relative to MEDIA_URL) of the image to save")
     prompt = serializers.CharField(required=False, allow_blank=True)
     model = serializers.CharField(required=False, allow_blank=True)
-    style = serializers.CharField(required=False, allow_blank=True, allow_null=True)  # <-- Aggiungi allow_null=True
-    name = serializers.CharField(required=False, allow_blank=True, max_length=255, help_text="Optional name for the saved image")
-    description = serializers.CharField(required=False, allow_blank=True, help_text="Optional description for the saved image")
+    quality = serializers.CharField(required=False, allow_blank=True)
 
 
 class ImageSaveResponseSerializer(serializers.ModelSerializer):
