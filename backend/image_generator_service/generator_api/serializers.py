@@ -41,8 +41,22 @@ class ImageResponseSerializer(serializers.Serializer):
 class ImageToImageRequestDataDoc(serializers.Serializer):
     prompt = serializers.CharField(required=True, max_length=1000)
     image = serializers.ImageField(required=True, help_text="File immagine iniziale")
+    model = serializers.ChoiceField(
+        choices=[
+            'dalle-2', 'gpt-image-1', 'stability'
+        ], 
+        required=False,
+        default='gpt-image-1',
+        help_text="Modelli supportati per image-to-image editing"
+    )
     style = serializers.CharField(required=False, allow_blank=True, max_length=100)
-    image_strength = serializers.FloatField(required=False, min_value=0.0, max_value=1.0, default=0.35)
+    quality = serializers.ChoiceField(
+        choices=['standard', 'hd'],
+        required=False,
+        default='standard',
+        help_text="Quality level for DALL-E models (standard/hd)"
+    )
+    image_strength = serializers.FloatField(required=False, min_value=0.0, max_value=1.0, default=0.35, help_text="For Stability AI only")
 
 # --- Serializers per Prompt Enhancement ---
 class PromptEnhanceRequestSerializer(serializers.Serializer):
@@ -53,6 +67,38 @@ class PromptEnhanceResponseSerializer(serializers.Serializer):
     """Serializer per formattare la risposta del miglioramento prompt."""
     original_prompt = serializers.CharField(read_only=True)
     enhanced_prompt = serializers.CharField(read_only=True)
+
+# --- Serializers per Usage Tracking ---
+class UsageRecordSerializer(serializers.Serializer):
+    """Serializer per un singolo record di consumo."""
+    id = serializers.IntegerField(read_only=True)
+    operation_type = serializers.CharField()
+    model_used = serializers.CharField()
+    prompt = serializers.CharField()
+    quality = serializers.CharField()
+    aspect_ratio = serializers.CharField()
+    tokens_consumed = serializers.IntegerField()
+    cost_usd = serializers.DecimalField(max_digits=10, decimal_places=6)
+    cost_eur = serializers.DecimalField(max_digits=10, decimal_places=6)
+    success = serializers.BooleanField()
+    response_time_ms = serializers.IntegerField()
+    created_at = serializers.DateTimeField()
+
+class UsageSummarySerializer(serializers.Serializer):
+    """Serializer per il riassunto dei consumi."""
+    total_tokens = serializers.IntegerField()
+    total_cost_usd = serializers.DecimalField(max_digits=10, decimal_places=6)
+    total_cost_eur = serializers.DecimalField(max_digits=10, decimal_places=6)
+    total_calls = serializers.IntegerField()
+    by_model = serializers.ListSerializer(child=serializers.DictField())
+    by_operation = serializers.ListSerializer(child=serializers.DictField())
+
+class UsageResponseSerializer(serializers.Serializer):
+    """Serializer per la risposta completa dell'API di consumo."""
+    summary = UsageSummarySerializer()
+    recent_records = serializers.ListSerializer(child=UsageRecordSerializer())
+    period = serializers.CharField()
+    user_id = serializers.IntegerField()
 
 # --- Serializers per Salvataggio Immagine ---
 class ImageSaveRequestSerializer(serializers.Serializer):
@@ -77,16 +123,9 @@ class ImageSaveResponseSerializer(serializers.ModelSerializer):
         read_only_fields = fields # Tutti i campi sono letti dal modello appena creato/salvato
 
     def get_image_url(self, obj):
-        """Costruisce l'URL assoluto per il file immagine."""
-        request = self.context.get('request')
-        if obj.image_file and hasattr(obj.image_file, 'url') and request:
-            try:
-                return request.build_absolute_uri(obj.image_file.url)
-            except:
-                 if hasattr(obj.image_file, 'url'):
-                     return obj.image_file.url
-                 else:
-                     return None
+        """Costruisce l'URL relativo per il file immagine."""
+        if obj.image_file and hasattr(obj.image_file, 'url'):
+            return obj.image_file.url  # Restituisci sempre URL relativo /media/...
         return None
 
 # --- Serializer per la Galleria (CRUD su GeneratedImage) ---

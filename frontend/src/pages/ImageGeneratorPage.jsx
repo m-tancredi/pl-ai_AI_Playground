@@ -17,6 +17,8 @@ import { FaMagic, FaImage, FaStar, FaImages, FaEye, FaEyeSlash, FaGem, FaPlay } 
 import ImageCard from '../components/ImageCard';
 import ImageDetailModal from '../components/ImageDetailModal';
 import ImageEditModal from '../components/ImageEditModal';
+import UsageWidget from '../components/UsageWidget';
+import UsageModal from '../components/UsageModal';
 
 // --- Componenti UI Moderni ---
 const Spinner = ({ small = false }) => (
@@ -108,15 +110,210 @@ const ModelCard = ({ model, isSelected, onSelect, icon, title, description, badg
     </div>
 );
 
-const ComingSoonBadge = () => (
-    <div className="flex items-center justify-center p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-dashed border-purple-300 rounded-xl">
-        <div className="text-center">
-            <FaStar className="mx-auto text-purple-500 text-3xl mb-2" />
-            <p className="text-purple-700 font-semibold text-lg">Coming Soon</p>
-            <p className="text-purple-600 text-sm mt-1">La funzionalità Image-to-Image sarà disponibile presto!</p>
+const ImageToImageSection = ({ onGenerate, isGenerating, result, error }) => {
+    const [editPrompt, setEditPrompt] = useState('');
+    const [editImage, setEditImage] = useState(null);
+    const [editModel, setEditModel] = useState('gpt-image-1');
+    const [editQuality, setEditQuality] = useState('standard');
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const fileInputRef = useRef(null);
+    
+    const handleImageUpload = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
+                alert('Il file deve essere inferiore a 10MB');
+                return;
+            }
+            
+            setEditImage(file);
+            const reader = new FileReader();
+            reader.onload = (e) => setPreviewUrl(e.target.result);
+            reader.readAsDataURL(file);
+        }
+    };
+    
+    const handleEditSubmit = () => {
+        if (!editPrompt.trim()) {
+            alert('Inserisci un prompt per modificare l\'immagine');
+            return;
+        }
+        if (!editImage) {
+            alert('Carica un\'immagine da modificare');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('prompt', editPrompt);
+        formData.append('image', editImage);
+        formData.append('model', editModel);
+        formData.append('quality', editQuality);
+        
+        onGenerate(formData);
+    };
+    
+    const resetEditForm = () => {
+        setEditPrompt('');
+        setEditImage(null);
+        setEditModel('gpt-image-1');
+        setEditQuality('standard');
+        setPreviewUrl(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+    
+    return (
+        <div className="space-y-6">
+            {/* Upload Immagine */}
+            <div className="space-y-4">
+                <label className="block text-sm font-bold text-gray-700">
+                    Carica Immagine da Modificare
+                </label>
+                <div className="flex items-center space-x-4">
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        id="image-upload"
+                    />
+                    <label
+                        htmlFor="image-upload"
+                        className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-xl shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                    >
+                        <FaImage className="mr-2" />
+                        Seleziona Immagine
+                    </label>
+                    {editImage && (
+                        <span className="text-sm text-gray-600">
+                            {editImage.name}
+                        </span>
+                    )}
+                </div>
+                
+                {/* Preview dell'immagine */}
+                {previewUrl && (
+                    <div className="mt-4">
+                        <img
+                            src={previewUrl}
+                            alt="Anteprima"
+                            className="max-w-xs h-auto rounded-xl shadow-lg border-2 border-gray-200"
+                        />
+                    </div>
+                )}
+            </div>
+            
+            {/* Prompt di Editing */}
+            <div className="space-y-2">
+                <label className="block text-sm font-bold text-gray-700">
+                    Prompt di Modifica
+                </label>
+                <textarea
+                    rows="3"
+                    value={editPrompt}
+                    onChange={(e) => setEditPrompt(e.target.value)}
+                    placeholder="Descrivi come vuoi modificare l'immagine..."
+                    className="w-full p-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 resize-none"
+                />
+            </div>
+            
+            {/* Selezione Modello */}
+            <div className="space-y-2">
+                <label className="block text-sm font-bold text-gray-700">
+                    Modello AI
+                </label>
+                <p className="text-sm text-gray-600 mb-3">
+                    Solo alcuni modelli supportano l'editing di immagini
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                    {[
+                        { id: 'gpt-image-1', title: 'GPT-Image-1', badge: 'NUOVO' },
+                        { id: 'dalle-2', title: 'DALL·E 2', badge: null },
+                        { id: 'stability', title: 'Stability AI', badge: null }
+                    ].map((modelConfig) => (
+                        <div
+                            key={modelConfig.id}
+                            className={`p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                                editModel === modelConfig.id
+                                    ? 'border-purple-500 bg-purple-50'
+                                    : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                            onClick={() => setEditModel(modelConfig.id)}
+                        >
+                            <div className="flex items-center justify-between">
+                                <span className="font-medium text-gray-800">{modelConfig.title}</span>
+                                {modelConfig.badge && (
+                                    <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                                        modelConfig.badge === 'HD' ? 'bg-yellow-100 text-yellow-800' :
+                                        modelConfig.badge === 'NUOVO' ? 'bg-green-100 text-green-800' :
+                                        'bg-gray-100 text-gray-600'
+                                    }`}>
+                                        {modelConfig.badge}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+            
+            {/* Selezione Qualità (solo per GPT-Image-1) */}
+            {editModel === 'gpt-image-1' && (
+                <div className="space-y-2">
+                    <label className="block text-sm font-bold text-gray-700">
+                        Qualità
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button
+                            onClick={() => setEditQuality('standard')}
+                            className={`p-3 rounded-xl border-2 transition-all duration-200 ${
+                                editQuality === 'standard'
+                                    ? 'border-purple-500 bg-purple-50'
+                                    : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                        >
+                            <FaImage className="mx-auto text-2xl mb-1 text-purple-500" />
+                            <p className="font-semibold text-gray-800">Standard</p>
+                        </button>
+                        <button
+                            onClick={() => setEditQuality('hd')}
+                            className={`p-3 rounded-xl border-2 transition-all duration-200 ${
+                                editQuality === 'hd'
+                                    ? 'border-purple-500 bg-purple-50'
+                                    : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                        >
+                            <FaGem className="mx-auto text-2xl mb-1 text-yellow-500" />
+                            <p className="font-semibold text-gray-800">HD</p>
+                        </button>
+                    </div>
+                </div>
+            )}
+            
+            {/* Pulsanti */}
+            <div className="flex space-x-4">
+                <ButtonPrimary
+                    onClick={handleEditSubmit}
+                    disabled={isGenerating || !editPrompt.trim() || !editImage}
+                    className="flex-1"
+                >
+                    {isGenerating && <Spinner small />}
+                    <FaMagic className="mr-2" />
+                    {isGenerating ? 'Modifica in corso...' : 'Modifica Immagine'}
+                </ButtonPrimary>
+                <ButtonSecondary
+                    onClick={resetEditForm}
+                    disabled={isGenerating}
+                    className="px-4"
+                >
+                    Reset
+                </ButtonSecondary>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 // --- Fine Componenti UI ---
 
@@ -136,7 +333,6 @@ const ImageGeneratorPage = () => {
     // Stati UI
     const [isEnhancing, setIsEnhancing] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
@@ -152,6 +348,19 @@ const ImageGeneratorPage = () => {
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [selectedImageForModal, setSelectedImageForModal] = useState(null);
+
+    // Stati Modale Usage
+    const [showUsageModal, setShowUsageModal] = useState(false);
+    const [usageData, setUsageData] = useState(null);
+
+    // Stati Image-to-Image
+    const [isGeneratingEdit, setIsGeneratingEdit] = useState(false);
+    const [editedImageData, setEditedImageData] = useState(null);
+    const [editError, setEditError] = useState('');
+    const [editSuccess, setEditSuccess] = useState('');
+    
+    // Ref per il UsageWidget per aggiornamento in tempo reale
+    const usageWidgetRef = useRef(null);
     
     // Configurazione modelli
     const models = [
@@ -191,11 +400,16 @@ const ImageGeneratorPage = () => {
     
     // Funzione Helper per costruire URL completo
     const buildFullImageUrl = useCallback((relativeUrl) => {
-        if (!relativeUrl || typeof relativeUrl !== 'string' || !relativeUrl.startsWith('/media/')) {
+        if (!relativeUrl || typeof relativeUrl !== 'string') {
             return null;
         }
-        const cleanRelativeUrl = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`;
-        return `${window.location.origin}${cleanRelativeUrl}`;
+        
+        // Assicurati che l'URL inizi con /media/
+        if (!relativeUrl.startsWith('/media/')) {
+            return null;
+        }
+        
+        return `${window.location.origin}${relativeUrl}`;
     }, []);
 
     // Carica galleria quando si apre la sezione
@@ -257,6 +471,11 @@ const ImageGeneratorPage = () => {
             const result = await enhancePrompt({ prompt });
             setPrompt(result.enhanced_prompt);
             setSuccess('Prompt migliorato con successo!');
+            
+            // Aggiorna il widget consumi in tempo reale
+            if (usageWidgetRef.current && usageWidgetRef.current.refreshUsage) {
+                usageWidgetRef.current.refreshUsage();
+            }
         } catch (err) {
             setError(err.response?.data?.error || err.message || 'Errore durante il miglioramento del prompt.');
         } finally {
@@ -264,7 +483,7 @@ const ImageGeneratorPage = () => {
         }
     };
 
-    // Generate Image
+        // Generate Image
     const handleGenerate = async () => {
         if (!prompt.trim()) {
             setError('Un prompt è necessario per generare l\'immagine.');
@@ -285,22 +504,68 @@ const ImageGeneratorPage = () => {
                 aspect_ratio: aspectRatio,
                 quality: quality
             };
-            if (style) data.style = style;
+                if (style) data.style = style;
             
             const result = await generateTextToImage(data);
             
             if (result?.image_url && typeof result.image_url === 'string' && result.image_url.startsWith('/media/')) {
-                setGeneratedImageData({
+                const imageData = {
                     relative_url: result.image_url,
                     prompt: currentFormattedPrompt,
                     model: model,
                     quality: quality,
                     style: style || null,
-                });
-                setSuccess('Immagine generata con successo!');
-            } else {
+                };
+                
+                // Salva automaticamente nella galleria
+                try {
+                    const dataToSave = {
+                        image_url: imageData.relative_url,
+                        prompt: imageData.prompt,
+                        model: imageData.model,
+                        quality: imageData.quality,
+                        style: imageData.style,
+                    };
+                    
+                    const savedImage = await saveGeneratedImage(dataToSave);
+                    setSuccess('Immagine generata e salvata automaticamente nella galleria!');
+                    
+                    // Mostra l'anteprima dell'immagine generata usando l'URL permanente
+                    setGeneratedImageData({
+                        ...imageData,
+                        relative_url: savedImage.image_url // Usa l'URL dell'immagine salvata
+                    });
+                    
+                    // Salva l'immagine appena salvata per assicurarsi che sia visibile
+                    setRecentlySavedImage(savedImage);
+                    
+                    // Pulisce l'immagine recentemente salvata dopo 5 secondi
+                    setTimeout(() => {
+                        setRecentlySavedImage(null);
+                    }, 5000);
+                    
+                    // Aggiorna automaticamente la galleria con l'immagine salvata
+                    setGalleryImages(prev => [savedImage, ...prev.filter(img => img.id !== savedImage.id)]);
+                    
+                    // Mostra automaticamente la galleria se è nascosta
+                    if (!showGallery) {
+                        setShowGallery(true);
+                    }
+                    
+                    // Aggiorna il widget consumi in tempo reale
+                    if (usageWidgetRef.current && usageWidgetRef.current.refreshUsage) {
+                        usageWidgetRef.current.refreshUsage();
+                    }
+                    
+                } catch (saveErr) {
+                    console.error("Auto-save error:", saveErr);
+                    setError('Immagine generata ma errore nel salvataggio automatico.');
+                    // Mantieni comunque i dati dell'immagine per eventuale salvataggio manuale
+                    setGeneratedImageData(imageData);
+                }
+           } else {
                 throw new Error("Dati immagine non validi ricevuti dal server.");
-            }
+           }
         } catch (err) {
             setError(err.response?.data?.error || err.message || 'Errore durante la generazione dell\'immagine.');
             console.error("Generation error:", err.response?.data || err);
@@ -309,53 +574,83 @@ const ImageGeneratorPage = () => {
         }
     };
 
-    // Save Image con aggiornamento automatico galleria
-    const handleSaveToGallery = async () => {
-        if (!generatedImageData?.relative_url) {
-            setError('Errore interno: impossibile salvare i dati dell\'immagine.');
-            return;
-        }
-        
-        setIsSaving(true);
-        setError('');
-        setSuccess('');
-        
+
+
+    // Generate Image-to-Image
+    const handleImageToImageGenerate = async (formData) => {
+        setIsGeneratingEdit(true);
+        setEditError('');
+        setEditSuccess('');
+        setEditedImageData(null);
+
         try {
-            const dataToSave = {
-                image_url: generatedImageData.relative_url,
-                prompt: generatedImageData.prompt,
-                model: generatedImageData.model,
-                quality: generatedImageData.quality,
-                style: generatedImageData.style,
-            };
+            const result = await generateImageToImage(formData);
             
-            const savedImage = await saveGeneratedImage(dataToSave);
-            setSuccess(`Immagine salvata nella galleria!`);
-            setGeneratedImageData(null);
-            
-            // Salva l'immagine appena salvata per assicurarsi che sia visibile
-            setRecentlySavedImage(savedImage);
-            
-            // Pulisce l'immagine recentemente salvata dopo 5 secondi
-            setTimeout(() => {
-                setRecentlySavedImage(null);
-            }, 5000);
-            
-            // Aggiorna automaticamente la galleria con l'immagine salvata
-            setGalleryImages(prev => [savedImage, ...prev.filter(img => img.id !== savedImage.id)]);
-            
-            // Mostra automaticamente la galleria se è nascosta
-            if (!showGallery) {
-                setShowGallery(true);
+            if (result?.image_url && typeof result.image_url === 'string' && result.image_url.startsWith('/media/')) {
+                const imageData = {
+                    relative_url: result.image_url,
+                    prompt: result.prompt_used,
+                    model: result.model_used,
+                    quality: result.quality_used,
+                };
+                
+                // Salva automaticamente nella galleria
+                try {
+                    const dataToSave = {
+                        image_url: imageData.relative_url,
+                        prompt: imageData.prompt,
+                        model: imageData.model,
+                        quality: imageData.quality,
+                    };
+                    
+                    const savedImage = await saveGeneratedImage(dataToSave);
+                    setEditSuccess('Immagine modificata e salvata automaticamente nella galleria!');
+                    
+                    // Mostra l'anteprima dell'immagine modificata usando l'URL permanente
+                    setEditedImageData({
+                        ...imageData,
+                        relative_url: savedImage.image_url // Usa l'URL dell'immagine salvata
+                    });
+                    
+                    // Salva l'immagine appena salvata per assicurarsi che sia visibile
+                    setRecentlySavedImage(savedImage);
+                    
+                    // Pulisce l'immagine recentemente salvata dopo 5 secondi
+                    setTimeout(() => {
+                        setRecentlySavedImage(null);
+                    }, 5000);
+                    
+                    // Aggiorna automaticamente la galleria con l'immagine salvata
+                    setGalleryImages(prev => [savedImage, ...prev.filter(img => img.id !== savedImage.id)]);
+                    
+                    // Mostra automaticamente la galleria se è nascosta
+                    if (!showGallery) {
+                        setShowGallery(true);
+                    }
+                    
+                    // Aggiorna il widget consumi in tempo reale
+                    if (usageWidgetRef.current && usageWidgetRef.current.refreshUsage) {
+                        usageWidgetRef.current.refreshUsage();
+                    }
+                    
+                } catch (saveErr) {
+                    console.error("Auto-save error:", saveErr);
+                    setEditError('Immagine modificata ma errore nel salvataggio automatico.');
+                    // Mantieni comunque i dati dell'immagine per eventuale salvataggio manuale
+                    setEditedImageData(imageData);
+                }
+            } else {
+                throw new Error("Dati immagine non validi ricevuti dal server.");
             }
-            
         } catch (err) {
-            setError('Errore durante il salvataggio dell\'immagine.');
-            console.error("Save error:", err.response?.data || err);
+            setEditError(err.response?.data?.error || err.message || 'Errore durante la modifica dell\'immagine.');
+            console.error("Edit error:", err.response?.data || err);
         } finally {
-            setIsSaving(false);
+            setIsGeneratingEdit(false);
         }
     };
+
+
 
     // Funzioni Callback per Galleria
     const handleViewDetails = (image) => {
@@ -385,8 +680,8 @@ const ImageGeneratorPage = () => {
         }
     };
 
-    const handleUpdateImage = async (imageId, metadata) => {
-        try {
+         const handleUpdateImage = async (imageId, metadata) => {
+         try {
             const updatedImage = await updateImageMetadata(imageId, metadata);
             setGalleryImages(prev => prev.map(img => img.id === imageId ? updatedImage : img));
             setShowEditModal(false);
@@ -396,7 +691,13 @@ const ImageGeneratorPage = () => {
             console.error("Update error:", err);
             return false;
         }
-    };
+     };
+
+     // Funzione per aprire la modale di consumo
+     const handleOpenUsageModal = (usage) => {
+         setUsageData(usage);
+         setShowUsageModal(true);
+     };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 py-8">
@@ -412,6 +713,15 @@ const ImageGeneratorPage = () => {
                         Trasforma le tue idee in immagini straordinarie con OpenAI
                     </p>
                 </div>
+
+                {/* Widget Consumi */}
+                {isAuthenticated && (
+                    <div className="flex justify-center mb-8">
+                        <div className="w-full max-w-xs">
+                            <UsageWidget ref={usageWidgetRef} onOpenDetails={handleOpenUsageModal} />
+                        </div>
+                    </div>
+                )}
 
                 {/* Messaggi Globali */}
                 {error && <Alert type="error" message={error} onClose={() => setError('')} />}
@@ -566,11 +876,11 @@ const ImageGeneratorPage = () => {
                                 </div>
                             )}
 
-                            {generatedImageData && !isGenerating && (
+                                                 {generatedImageData && !isGenerating && (
                                 <div className="w-full text-center">
                                     <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 mb-4">
-                                        <img
-                                            src={buildFullImageUrl(generatedImageData.relative_url)}
+                             <img
+                                 src={buildFullImageUrl(generatedImageData.relative_url)}
                                             alt="Immagine generata"
                                             className="max-w-full h-auto mx-auto rounded-xl shadow-lg border-4 border-white"
                                             onError={(e) => {
@@ -586,17 +896,12 @@ const ImageGeneratorPage = () => {
                                             <p><strong>Qualità:</strong> {generatedImageData.quality}</p>
                                         )}
                                     </div>
-                                    <ButtonPrimary
-                                        onClick={handleSaveToGallery}
-                                        disabled={isSaving}
-                                        className="mx-auto"
-                                    >
-                                        {isSaving && <Spinner small />}
+                                    <div className="flex items-center justify-center text-green-600 bg-green-50 rounded-xl p-3">
                                         <FaImages className="mr-2" />
-                                        Salva nella Galleria
-                                    </ButtonPrimary>
-                                </div>
-                            )}
+                                        <span className="font-medium">Immagine salvata automaticamente nella galleria!</span>
+                                    </div>
+                         </div>
+                     )}
 
                             {!generatedImageData && !isGenerating && (
                                 <div className="text-center py-12">
@@ -610,16 +915,87 @@ const ImageGeneratorPage = () => {
                     </Card>
                 </div>
 
-                {/* Sezione Image-to-Image - Coming Soon */}
-                <Card className="mb-12">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center text-white shadow-lg">
-                            <FaImage className="text-xl" />
+                {/* Sezione Image-to-Image */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+                    {/* Colonna Input Image-to-Image */}
+                    <Card>
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center text-white shadow-lg">
+                                <FaImage className="text-xl" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-800">Image-to-Image</h2>
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-800">Image-to-Image</h2>
-                    </div>
-                    <ComingSoonBadge />
-                </Card>
+                        
+                        {/* Messaggi specifici per image-to-image */}
+                        {editError && <Alert type="error" message={editError} onClose={() => setEditError('')} />}
+                        {editSuccess && <Alert type="success" message={editSuccess} onClose={() => setEditSuccess('')} />}
+                        
+                        <ImageToImageSection
+                            onGenerate={handleImageToImageGenerate}
+                            isGenerating={isGeneratingEdit}
+                            result={editedImageData}
+                            error={editError}
+                        />
+                    </Card>
+
+                    {/* Colonna Output Image-to-Image */}
+                    <Card className="flex flex-col">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center text-white shadow-lg">
+                                <FaMagic className="text-xl" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-800">Immagine Modificata</h2>
+                        </div>
+
+                        <div className="flex-1 flex items-center justify-center">
+                            {isGeneratingEdit && (
+                                <div className="text-center py-12">
+                                    <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <Spinner />
+                                    </div>
+                                    <p className="text-gray-600 text-lg font-medium">Modifica in corso...</p>
+                                    <p className="text-gray-500 text-sm mt-1">Questo può richiedere alcuni secondi</p>
+                                </div>
+                            )}
+
+                                                         {editedImageData && !isGeneratingEdit && (
+                                 <div className="w-full text-center">
+                                     <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 mb-4">
+                                         <img
+                                             src={buildFullImageUrl(editedImageData.relative_url)}
+                                             alt="Immagine modificata"
+                                             className="max-w-full h-auto mx-auto rounded-xl shadow-lg border-4 border-white"
+                                             onError={(e) => {
+                                                 console.error("Error loading edited image:", buildFullImageUrl(editedImageData.relative_url));
+                                                 setEditError("Errore durante il caricamento dell'immagine modificata.");
+                                                 setEditedImageData(null);
+                                             }}
+                                         />
+                                     </div>
+                                     <div className="text-sm text-gray-600 mb-4">
+                                         <p><strong>Modello:</strong> {editedImageData.model}</p>
+                                         {editedImageData.quality && (
+                                             <p><strong>Qualità:</strong> {editedImageData.quality}</p>
+                                         )}
+                                     </div>
+                                     <div className="flex items-center justify-center text-green-600 bg-green-50 rounded-xl p-3">
+                                         <FaImages className="mr-2" />
+                                         <span className="font-medium">Immagine salvata automaticamente nella galleria!</span>
+                                     </div>
+                                 </div>
+                             )}
+
+                            {!editedImageData && !isGeneratingEdit && (
+                                <div className="text-center py-12">
+                                    <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <FaMagic className="text-gray-400 text-3xl" />
+                                    </div>
+                                    <p className="text-gray-500 text-lg">L'immagine modificata apparirà qui</p>
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+                </div>
 
                 {/* Sezione Galleria */}
                 {isAuthenticated && (
@@ -677,20 +1053,27 @@ const ImageGeneratorPage = () => {
                     </Card>
                 )}
 
-                {/* Modali Galleria */}
-                <ImageDetailModal
-                    isOpen={showDetailModal}
-                    onClose={() => setShowDetailModal(false)}
-                    image={selectedImageForModal}
+                                {/* Modali Galleria */}
+             <ImageDetailModal
+                isOpen={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                image={selectedImageForModal}
                     buildFullUrl={buildFullImageUrl}
-                />
-                <ImageEditModal
-                    isOpen={showEditModal}
-                    onClose={() => setShowEditModal(false)}
-                    image={selectedImageForModal}
-                    onSave={handleUpdateImage}
+             />
+            <ImageEditModal
+                isOpen={showEditModal}
+                onClose={() => setShowEditModal(false)}
+                image={selectedImageForModal}
+                onSave={handleUpdateImage}
                     buildFullUrl={buildFullImageUrl}
-                />
+             />
+
+             {/* Modale Usage */}
+             <UsageModal
+                isOpen={showUsageModal}
+                onClose={() => setShowUsageModal(false)}
+                usage={usageData}
+             />
             </div>
         </div>
     );

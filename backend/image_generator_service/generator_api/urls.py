@@ -12,6 +12,9 @@ urlpatterns = [
     path('generate/image-to-image/', views.ImageToImageView.as_view(), name='generate_image_to_image'),
     path('enhance-prompt/', views.PromptEnhanceView.as_view(), name='enhance_prompt'),
     path('save/', views.ImageSaveView.as_view(), name='save_image'),
+    
+    # Endpoint per tracking consumi
+    path('usage/', views.UsageTrackingView.as_view(), name='usage_tracking'),
 
     # Include le URL CRUD generate dal router per la galleria
     # Questo creerà automaticamente:
