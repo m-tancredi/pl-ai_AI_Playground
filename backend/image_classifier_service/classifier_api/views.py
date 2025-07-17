@@ -11,9 +11,11 @@ import os
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.utils import timezone
+from django.http import HttpResponse, FileResponse
 
 from rest_framework import views, status, permissions, exceptions, viewsets, generics
 from rest_framework.response import Response
+from rest_framework.decorators import action
 
 from .models import TrainedModel
 from .serializers import (
@@ -223,26 +225,46 @@ class TrainedModelViewSet(viewsets.ModelViewSet): # Assicurati sia ModelViewSet
         user = self.request.user
         return TrainedModel.objects.filter(owner_id=user.id).order_by('-created_at')
 
-    # Non serve perform_create, la creazione avviene tramite /train/
-    # perform_update (per PATCH) è gestito da ModelViewSet e usa il serializer
-    # perform_destroy (per DELETE) è gestito da ModelViewSet e chiama .delete() del modello
-    """ Permette di listare e vedere dettagli dei modelli addestrati dall'utente. """
-    serializer_class = TrainedModelSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = [JWTCustomAuthentication]
-    lookup_field = 'id' # Usa UUID come lookup
-
-    def get_queryset(self):
-        """ Filtra per utente loggato. """
-        user = self.request.user
-        return TrainedModel.objects.filter(owner_id=user.id).order_by('-created_at')
-
-    # Aggiungi destroy se vuoi permettere la cancellazione via API
-    # def destroy(self, request, *args, **kwargs):
-    #     instance = self.get_object()
-    #     self.perform_destroy(instance)
-    #     return Response(status=status.HTTP_204_NO_CONTENT)
-
-    # def perform_destroy(self, instance):
-    #     # Il metodo delete del modello gestisce la cancellazione dei file
-    #     instance.delete()
+    @action(detail=True, methods=['get'])
+    def download(self, request, id=None):
+        """
+        Scarica il file del modello TensorFlow (.keras)
+        """
+        try:
+            # Ottieni il modello (get_object già controlla l'ownership tramite get_queryset)
+            model_instance = self.get_object()
+            
+            # Verifica che il modello sia completato
+            if model_instance.status != TrainedModel.Status.COMPLETED:
+                return Response(
+                    {"error": "Il modello non è ancora pronto per il download."}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Ottieni il path completo del file del modello
+            model_path = model_instance.get_full_model_path()
+            
+            if not model_path or not os.path.exists(model_path):
+                return Response(
+                    {"error": "File del modello non trovato."}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Genera nome file per il download
+            filename = f"{model_instance.name.replace(' ', '_')}.keras"
+            
+            # Ritorna il file come response
+            response = FileResponse(
+                open(model_path, 'rb'),
+                as_attachment=True,
+                filename=filename
+            )
+            response['Content-Type'] = 'application/octet-stream'
+            
+            return response
+            
+        except Exception as e:
+            return Response(
+                {"error": f"Errore durante il download: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

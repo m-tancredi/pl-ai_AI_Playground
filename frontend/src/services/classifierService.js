@@ -83,6 +83,61 @@ export const listUserModels = async () => {
 };
 
 /**
+ * Aggiorna il nome e/o la descrizione di un modello esistente.
+ * @param {string} modelId - L'UUID del modello da aggiornare.
+ * @param {object} updateData - Oggetto contenente i campi da aggiornare: { name?: string, description?: string }
+ * @returns {Promise<object>} Promise che risolve con i dati del modello aggiornato.
+ */
+export const updateModel = async (modelId, updateData) => {
+    try {
+        const response = await apiClient.patch(`${API_CLASSIFIER_URL}/models/${modelId}/`, updateData);
+        return response.data;
+    } catch (error) {
+        console.error(`API Error updating model ${modelId}:`, error.response?.data || error.message);
+        throw error;
+    }
+};
+
+/**
+ * Scarica il file del modello TensorFlow (.keras).
+ * @param {string} modelId - L'UUID del modello da scaricare.
+ * @returns {Promise<Blob>} Promise che risolve con il file del modello come Blob.
+ */
+export const downloadModel = async (modelId) => {
+    try {
+        const response = await apiClient.get(`${API_CLASSIFIER_URL}/models/${modelId}/download/`, {
+            responseType: 'blob' // Importante per scaricare file binari
+        });
+        
+        // Ottieni il nome del file dall'header Content-Disposition se presente
+        const contentDisposition = response.headers['content-disposition'];
+        let fileName = 'model.keras';
+        
+        if (contentDisposition) {
+            const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+            if (fileNameMatch) {
+                fileName = fileNameMatch[1];
+            }
+        }
+        
+        // Crea un URL per il blob e avvia il download
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        return response.data;
+    } catch (error) {
+        console.error(`API Error downloading model ${modelId}:`, error.response?.data || error.message);
+        throw error;
+    }
+};
+
+/**
  * Aggiorna i metadati (es. nome, descrizione) di un modello addestrato.
  * @param {string} modelId - L'UUID del modello.
  * @param {object} metadata - Oggetto contenente i campi da aggiornare (es. { name: "Nuovo Nome", description: "Nuova Desc." }).

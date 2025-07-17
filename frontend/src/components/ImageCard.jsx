@@ -57,7 +57,7 @@ const ImageCard = ({ image, buildFullUrl, onViewDetails, onEdit, onDelete, isDel
                     >
                         <FaEye className="text-xs" />
                         Visualizza Dettagli
-                    </button>
+                     </button>
                     
                     {/* Modifica */}
                     <button 
@@ -66,7 +66,7 @@ const ImageCard = ({ image, buildFullUrl, onViewDetails, onEdit, onDelete, isDel
                     >
                         <FaEdit className="text-xs" />
                         Modifica Nome
-                    </button>
+                     </button>
                     
                     {/* Elimina */}
                     <button 
@@ -76,7 +76,7 @@ const ImageCard = ({ image, buildFullUrl, onViewDetails, onEdit, onDelete, isDel
                     >
                         {isDeleting ? <FaSpinner className="animate-spin text-xs" /> : <FaTrash className="text-xs" />}
                         {isDeleting ? 'Eliminando...' : 'Elimina'}
-                    </button>
+                     </button>
                 </div>
             </div>
         </div>
