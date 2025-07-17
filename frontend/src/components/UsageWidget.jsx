@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { FaChartBar, FaCoins, FaImages, FaEye, FaSpinner } from 'react-icons/fa';
+import { FaChartBar, FaCoins, FaImages, FaEye, FaSpinner, FaBrain, FaDatabase } from 'react-icons/fa';
 import { getUserUsage, formatCurrency, formatNumber } from '../services/usageService';
 
-const UsageWidget = forwardRef(({ onOpenDetails }, ref) => {
+const UsageWidget = forwardRef(({ 
+    onOpenDetails,
+    serviceName = 'images', 
+    serviceDisplayName = 'Generazione Immagini',
+    getUsageData = getUserUsage 
+}, ref) => {
     const [usage, setUsage] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -11,10 +16,10 @@ const UsageWidget = forwardRef(({ onOpenDetails }, ref) => {
         try {
             setLoading(true);
             setError(null);
-            const data = await getUserUsage('current_month');
+            const data = await getUsageData('current_month');
             setUsage(data);
         } catch (err) {
-            console.error('Error fetching usage:', err);
+            console.error(`Error fetching ${serviceName} usage:`, err);
             setError('Errore nel caricamento dei dati');
         } finally {
             setLoading(false);
@@ -35,11 +40,11 @@ const UsageWidget = forwardRef(({ onOpenDetails }, ref) => {
             // Ricarica i dati prima di aprire il modale
             try {
                 setLoading(true);
-                const freshData = await getUserUsage('current_month');
+                const freshData = await getUsageData('current_month');
                 setUsage(freshData);
                 onOpenDetails(freshData);
             } catch (err) {
-                console.error('Error fetching fresh usage data:', err);
+                console.error(`Error fetching fresh ${serviceName} usage data:`, err);
                 onOpenDetails(usage); // Fallback ai dati cached
             } finally {
                 setLoading(false);
@@ -96,11 +101,19 @@ const UsageWidget = forwardRef(({ onOpenDetails }, ref) => {
             </div>
 
             <div className="space-y-2">
-                {/* Immagini generate */}
+                {/* Operazioni eseguite */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <FaImages className="text-blue-500 text-xs" />
-                        <span className="text-xs text-gray-600">Immagini</span>
+                        {serviceName === 'analysis' ? (
+                            <FaBrain className="text-blue-500 text-xs" />
+                        ) : serviceName === 'images' ? (
+                            <FaImages className="text-blue-500 text-xs" />
+                        ) : (
+                            <FaDatabase className="text-blue-500 text-xs" />
+                        )}
+                        <span className="text-xs text-gray-600">
+                            {serviceName === 'analysis' ? 'Analisi' : 'Operazioni'}
+                        </span>
                     </div>
                     <span className="text-sm font-semibold text-gray-800">
                         {formatNumber(totalCalls)}

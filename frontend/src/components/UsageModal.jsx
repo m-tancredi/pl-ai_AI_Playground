@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { FaTimes, FaChartBar, FaCoins, FaImages, FaClock, FaCheck, FaTimes as FaTimesCircle, FaRobot, FaCalendarAlt, FaSpinner } from 'react-icons/fa';
+import { FaTimes, FaChartBar, FaCoins, FaImages, FaClock, FaCheck, FaTimes as FaTimesCircle, FaRobot, FaCalendarAlt, FaSpinner, FaBrain } from 'react-icons/fa';
 import { formatCurrency, formatNumber, getModelDisplayName, getOperationDisplayName, getUserUsage } from '../services/usageService';
 
-const UsageModal = ({ isOpen, onClose, usage: initialUsage }) => {
+const UsageModal = ({ 
+    isOpen, 
+    onClose, 
+    serviceName = 'generator', 
+    serviceDisplayName = 'Generatore Immagini',
+    usage: initialUsage, 
+    getUsageData = getUserUsage,
+    getOperationDisplayName: customGetOperationDisplayName = getOperationDisplayName,
+    getModelDisplayName: customGetModelDisplayName = getModelDisplayName
+}) => {
     const [activeTab, setActiveTab] = useState('overview');
     const [usage, setUsage] = useState(initialUsage);
     const [loading, setLoading] = useState(false);
@@ -13,7 +22,7 @@ const UsageModal = ({ isOpen, onClose, usage: initialUsage }) => {
             const fetchFreshData = async () => {
                 try {
                     setLoading(true);
-                    const freshData = await getUserUsage('current_month');
+                    const freshData = await getUsageData('current_month');
                     setUsage(freshData);
                 } catch (err) {
                     console.error('Error fetching fresh usage data in modal:', err);
@@ -26,7 +35,7 @@ const UsageModal = ({ isOpen, onClose, usage: initialUsage }) => {
 
             fetchFreshData();
         }
-    }, [isOpen, initialUsage]);
+    }, [isOpen, initialUsage, getUsageData]);
 
     if (!isOpen) return null;
 
@@ -41,7 +50,7 @@ const UsageModal = ({ isOpen, onClose, usage: initialUsage }) => {
                                 <FaChartBar className="text-2xl" />
                                 <div>
                                     <h2 className="text-xl font-bold">Dettagli Consumi</h2>
-                                    <p className="text-purple-100 text-sm">Caricamento dati...</p>
+                                    <p className="text-purple-100 text-sm">{serviceDisplayName} - Caricamento dati...</p>
                                 </div>
                             </div>
                             <button
@@ -69,6 +78,27 @@ const UsageModal = ({ isOpen, onClose, usage: initialUsage }) => {
     const recentRecords = usage?.recent_records || [];
     const byModel = summary.by_model || [];
     const byOperation = summary.by_operation || [];
+
+    // Determina icona e nome del servizio
+    const getServiceInfo = (serviceName) => {
+        switch (serviceName) {
+            case 'analysis':
+                return {
+                    icon: <FaBrain className="text-blue-500" />,
+                    name: 'Analisi',
+                    color: 'blue'
+                };
+            case 'generator':
+            default:
+                return {
+                    icon: <FaImages className="text-blue-500" />,
+                    name: 'Immagini',
+                    color: 'blue'
+                };
+        }
+    };
+
+    const serviceInfo = getServiceInfo(serviceName);
 
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleDateString('it-IT', {
@@ -112,8 +142,8 @@ const UsageModal = ({ isOpen, onClose, usage: initialUsage }) => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-blue-50 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
-                        <FaImages className="text-blue-500" />
-                        <span className="text-sm font-medium text-blue-700">Immagini</span>
+                        {serviceInfo.icon}
+                        <span className="text-sm font-medium text-blue-700">{serviceInfo.name}</span>
                     </div>
                     <div className="text-2xl font-bold text-blue-900">
                         {formatNumber(summary.total_calls || 0)}
@@ -163,7 +193,7 @@ const UsageModal = ({ isOpen, onClose, usage: initialUsage }) => {
                             <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg">
                                 <div className="flex items-center gap-3">
                                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${getModelColor(model.model_used)}`}>
-                                        {getModelDisplayName(model.model_used)}
+                                        {customGetModelDisplayName(model.model_used)}
                                     </span>
                                     <span className="text-sm text-gray-600">
                                         {model.calls} chiamate
@@ -201,7 +231,7 @@ const UsageModal = ({ isOpen, onClose, usage: initialUsage }) => {
                                 <div className="flex items-center gap-3">
                                     {getOperationIcon(operation.operation_type)}
                                     <span className="font-medium text-gray-800">
-                                        {getOperationDisplayName(operation.operation_type)}
+                                        {customGetOperationDisplayName(operation.operation_type)}
                                     </span>
                                     <span className="text-sm text-gray-600">
                                         {operation.calls} chiamate
@@ -247,7 +277,7 @@ const UsageModal = ({ isOpen, onClose, usage: initialUsage }) => {
                                     {getOperationIcon(record.operation_type)}
                                     <div>
                                         <div className="font-medium text-gray-800">
-                                            {getOperationDisplayName(record.operation_type)}
+                                            {customGetOperationDisplayName(record.operation_type)}
                                         </div>
                                         <div className="text-xs text-gray-500">
                                             {formatDate(record.created_at)}
@@ -266,7 +296,7 @@ const UsageModal = ({ isOpen, onClose, usage: initialUsage }) => {
 
                             <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
                                 <span className={`px-2 py-1 rounded-full text-xs font-bold ${getModelColor(record.model_used)}`}>
-                                    {getModelDisplayName(record.model_used)}
+                                    {customGetModelDisplayName(record.model_used)}
                                 </span>
                                 <span>{formatNumber(record.tokens_consumed)} token</span>
                                 <span>{formatResponseTime(record.response_time_ms)}</span>
@@ -312,7 +342,7 @@ const UsageModal = ({ isOpen, onClose, usage: initialUsage }) => {
                             <div>
                                 <h2 className="text-xl font-bold">Dettagli Consumi</h2>
                                 <p className="text-purple-100 text-sm">
-                                    Periodo: {usage?.period === 'current_month' ? 'Questo mese' : 'Tutti i tempi'}
+                                    {serviceDisplayName} - Periodo: {usage?.period === 'current_month' ? 'Questo mese' : 'Tutti i tempi'}
                                 </p>
                             </div>
                         </div>

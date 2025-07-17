@@ -1,6 +1,7 @@
 import os
 import uuid
 import json
+from decimal import Decimal
 from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
@@ -81,3 +82,113 @@ class SyntheticDatasetJob(models.Model):
         ordering = ['-created_at']
         verbose_name = "Synthetic Dataset Job"
         verbose_name_plural = "Synthetic Dataset Jobs"
+
+
+class AnalysisUsageTracking(models.Model):
+    """Modello per tracciare i consumi delle chiamate API del servizio di analisi dati."""
+    
+    # Scelte per i tipi di operazione
+    OPERATION_TYPES = [
+        ('algorithm-suggestion', 'Algorithm Suggestion'),
+        ('data-analysis', 'Data Analysis'),
+        ('instance-prediction', 'Instance Prediction'),
+        ('synthetic-dataset', 'Synthetic Dataset Generation'),
+    ]
+    
+    # Scelte per i modelli
+    MODEL_CHOICES = [
+        ('gpt-4', 'GPT-4'),
+        ('gpt-3.5-turbo', 'GPT-3.5 Turbo'),
+        ('claude-3-sonnet', 'Claude 3 Sonnet'),
+        ('custom-ml', 'Custom ML Model'),
+        ('scikit-learn', 'Scikit-learn'),
+    ]
+    
+    # Informazioni utente e chiamata
+    user_id = models.PositiveBigIntegerField(
+        db_index=True,
+        help_text="User ID from the authentication service"
+    )
+    
+    operation_type = models.CharField(
+        max_length=30,
+        choices=OPERATION_TYPES,
+        help_text="Type of operation performed"
+    )
+    
+    model_used = models.CharField(
+        max_length=50,
+        choices=MODEL_CHOICES,
+        help_text="AI model used for the operation"
+    )
+    
+    # Dati dell'operazione
+    input_data = models.TextField(
+        help_text="Input data used (prompt, dataset info, etc.)"
+    )
+    
+    output_summary = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Summary of the output generated"
+    )
+    
+    # Parametri specifici dell'analisi
+    task_type = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        help_text="Type of ML task (regression, classification, etc.)"
+    )
+    
+    algorithm_used = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="ML algorithm used in the analysis"
+    )
+    
+    # Consumi e costi
+    tokens_consumed = models.IntegerField(
+        default=0,
+        help_text="Number of tokens consumed"
+    )
+    
+    cost_usd = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        default=Decimal('0.000000'),
+        help_text="Cost in USD"
+    )
+    
+    cost_eur = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        default=Decimal('0.000000'),
+        help_text="Cost in EUR"
+    )
+    
+    # Metadati
+    success = models.BooleanField(
+        default=True,
+        help_text="Whether the operation was successful"
+    )
+    
+    response_time_ms = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Response time in milliseconds"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Analysis Usage: {self.model_used} - {self.operation_type} - User {self.user_id} - ${self.cost_usd}"
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user_id', 'created_at']),
+            models.Index(fields=['user_id', 'operation_type']),
+            models.Index(fields=['user_id', 'model_used']),
+        ]

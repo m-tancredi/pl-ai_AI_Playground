@@ -8,6 +8,7 @@ import requests
 import joblib
 from pathlib import Path
 import traceback # Per loggare stack trace completi
+import time
 
 from django.conf import settings
 from django.core.cache import cache
@@ -22,7 +23,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from openai import OpenAI # Nuovo SDK OpenAI
 
-from .models import AnalysisJob, SyntheticDatasetJob
+from .models import AnalysisJob, SyntheticDatasetJob, AnalysisUsageTracking
 from .serializers import (
     AlgorithmSuggestionRequestSerializer, SuggestionResponseSerializer, DatasetPreviewSerializer,
     AnalysisRunRequestSerializer, AnalysisJobSubmitResponseSerializer,
@@ -32,6 +33,7 @@ from .serializers import (
 )
 from .authentication import JWTCustomAuthentication
 from .tasks import run_analysis_task, generate_synthetic_csv_task
+from .utils import calculate_analysis_usage_summary, calculate_cost_for_analysis, track_analysis_usage
 
 # Costanti per header interno
 INTERNAL_API_HEADER = settings.INTERNAL_API_SECRET_HEADER_NAME
@@ -141,7 +143,13 @@ class SuggestAlgorithmView(views.APIView):
             "num_rows_sample": len(sample_df_openai), "num_cols": len(headers)
         }
         suggestions = []
+        user_id = request.user.id
+        
         if openai_client:
+            # Traccia il tempo di inizio per la chiamata OpenAI
+            start_time = time.time()
+            success = False
+            
             try:
                 prompt_detail = f"Dataset Sample (first {len(sample_df_openai)} rows):\n{sample_df_openai.to_string(index=False, max_rows=10, max_cols=10)}\n\n"
                 prompt_detail += f"Column Headers: {', '.join(headers)}\n"
@@ -295,17 +303,65 @@ class SuggestAlgorithmView(views.APIView):
 
                 print(f"Sending prompt to OpenAI for suggestions (length {len(prompt_detail)}).")
                 completion = openai_client.chat.completions.create(
-                    model="gpt-3.5-turbo", messages=[ {"role": "system", "content": "You are a data science assistant providing ML algorithm suggestions in JSON format."}, {"role": "user", "content": prompt_detail} ],
+                    model="gpt-4", messages=[ {"role": "system", "content": "You are a data science assistant providing ML algorithm suggestions in JSON format."}, {"role": "user", "content": prompt_detail} ],
                     response_format={"type": "json_object"}, temperature=0.3, max_tokens=1024 )
                 ai_response_content = completion.choices[0].message.content
                 print(f"OpenAI Raw Suggestion Response: {ai_response_content}")
+                
+                # Operazione OpenAI completata con successo
+                success = True
+                
+                # Calcola i costi per la chiamata OpenAI
+                tokens_consumed, cost_usd, cost_eur = calculate_cost_for_analysis(
+                    operation_type='algorithm-suggestion',
+                    model_name='gpt-4',
+                    prompt_length=len(prompt_detail),
+                    complexity_factor=1.0
+                )
+                
+                # Traccia l'utilizzo
+                response_time_ms = int((time.time() - start_time) * 1000)
+                track_analysis_usage(
+                    user_id=user_id,
+                    operation_type='algorithm-suggestion',
+                    model_used='gpt-4',
+                    input_data=f"Dataset analysis: {len(df)} rows, {len(df.columns)} columns",
+                    output_summary=f"Generated {len(suggestions)} algorithm suggestions",
+                    tokens_consumed=tokens_consumed,
+                    cost_usd=cost_usd,
+                    cost_eur=cost_eur,
+                    success=success,
+                    response_time_ms=response_time_ms
+                )
+                
                 try:
                     parsed_response = json.loads(ai_response_content)
                     if isinstance(parsed_response, dict) and 'suggestions' in parsed_response and isinstance(parsed_response['suggestions'], list):
                         suggestions = parsed_response['suggestions']
                     else: print("Warning: OpenAI response not in expected format.")
                 except json.JSONDecodeError: print(f"Warning: Failed to parse OpenAI JSON: {ai_response_content}")
-            except Exception as openai_exc: print(f"Error calling OpenAI: {openai_exc}")
+            except Exception as openai_exc:
+                print(f"Error calling OpenAI: {openai_exc}")
+                # Traccia anche i fallimenti
+                response_time_ms = int((time.time() - start_time) * 1000)
+                tokens_consumed, cost_usd, cost_eur = calculate_cost_for_analysis(
+                    operation_type='algorithm-suggestion',
+                    model_name='gpt-4',
+                    prompt_length=len(prompt_detail),
+                    complexity_factor=1.0
+                )
+                track_analysis_usage(
+                    user_id=user_id,
+                    operation_type='algorithm-suggestion',
+                    model_used='gpt-4',
+                    input_data=f"Dataset analysis: {len(df)} rows, {len(df.columns)} columns",
+                    output_summary='',
+                    tokens_consumed=0,  # Nessun token consumato in caso di fallimento
+                    cost_usd=0,
+                    cost_eur=0,
+                    success=False,
+                    response_time_ms=response_time_ms
+                )
         else: print("OpenAI client not initialized, skipping AI suggestions.")
 
         analysis_session_id = uuid.uuid4()
@@ -372,6 +428,23 @@ class RunAnalysisView(views.APIView):
             run_analysis_task.apply_async(args=[job_id_str_for_task], queue='analysis_tasks')
             print(f"Dispatched task for job {job_id_str_for_task} to queue 'analysis_tasks'")
             
+            # Traccia l'avvio del task di analisi 
+            # Il tracking completo dell'analisi sarà fatto nel task celery
+            track_analysis_usage(
+                user_id=user_id,
+                operation_type='data-analysis',
+                model_used='scikit-learn',
+                input_data=f"Analysis job started: {validated_data['task_type']} with {validated_data['selected_algorithm_key']}",
+                output_summary=f"Job {job_id_str_for_task} queued",
+                task_type=validated_data['task_type'],
+                algorithm_used=validated_data['selected_algorithm_key'],
+                tokens_consumed=0,  # Sarà calcolato nel task
+                cost_usd=0,
+                cost_eur=0,
+                success=True,
+                response_time_ms=0
+            )
+            
             return Response({ "analysis_job_id": job_id_str_for_task, "status": job.status, "message": "Analysis task submitted." }, status=status.HTTP_202_ACCEPTED)
         except Exception as e:
             print(f"Error creating Job/dispatching task: {e}")
@@ -403,6 +476,11 @@ class PredictInstanceView(views.APIView):
         print(f"\n--- PredictInstanceView START for job ID {analysis_job_id} ---")
         print(f"  Request User ID: {request.user.id}")
         print(f"  Request Data: {request.data}")
+
+        # Traccia il tempo di inizio
+        start_time = time.time()
+        user_id = request.user.id
+        success = False
 
         # 1. Recupera il Job di Analisi
         try:
@@ -538,6 +616,25 @@ class PredictInstanceView(views.APIView):
                 result_data = {"predicted_class": predicted_class_name, "probabilities": probabilities_dict, "plot_coordinates": plot_coords_list}
                 response_serializer = ClassificationPredictionSerializer(result_data)
                 print(f"--- PredictInstanceView END - SUCCESS (Classification) for job ID {analysis_job_id} ---")
+                
+                # Traccia il successo della predizione
+                success = True
+                response_time_ms = int((time.time() - start_time) * 1000)
+                track_analysis_usage(
+                    user_id=user_id,
+                    operation_type='instance-prediction',
+                    model_used='scikit-learn',
+                    input_data=f"Classification prediction: {str(request.data)[:100]}...",
+                    output_summary=f"Predicted class: {predicted_class_name}",
+                    task_type='classification',
+                    algorithm_used=job.selected_algorithm_key,
+                    tokens_consumed=5,  # Costo fisso per predizione
+                    cost_usd=0.0005,
+                    cost_eur=0.0005 * 0.85,
+                    success=success,
+                    response_time_ms=response_time_ms
+                )
+                
                 return Response(response_serializer.data, status=status.HTTP_200_OK)
 
             elif job.task_type == 'regression':
@@ -550,6 +647,25 @@ class PredictInstanceView(views.APIView):
                 # il frontend lo calcola se necessario (X originale, Y predetto)
                 response_serializer = RegressionPredictionSerializer(result_data)
                 print(f"--- PredictInstanceView END - SUCCESS (Regression) for job ID {analysis_job_id} ---")
+                
+                # Traccia il successo della predizione
+                success = True
+                response_time_ms = int((time.time() - start_time) * 1000)
+                track_analysis_usage(
+                    user_id=user_id,
+                    operation_type='instance-prediction',
+                    model_used='scikit-learn',
+                    input_data=f"Regression prediction: {str(request.data)[:100]}...",
+                    output_summary=f"Predicted value: {predicted_value}",
+                    task_type='regression',
+                    algorithm_used=job.selected_algorithm_key,
+                    tokens_consumed=5,  # Costo fisso per predizione
+                    cost_usd=0.0005,
+                    cost_eur=0.0005 * 0.85,
+                    success=success,
+                    response_time_ms=response_time_ms
+                )
+                
                 return Response(response_serializer.data, status=status.HTTP_200_OK)
             
             else: # Non dovrebbe accadere se il job.task_type è validato all'inizio
@@ -558,10 +674,42 @@ class PredictInstanceView(views.APIView):
 
         except FileNotFoundError as e:
             print(f"--- PredictInstanceView ERROR (FileNotFound) for job {analysis_job_id}: {e} ---")
+            # Traccia il fallimento
+            response_time_ms = int((time.time() - start_time) * 1000)
+            track_analysis_usage(
+                user_id=user_id,
+                operation_type='instance-prediction',
+                model_used='scikit-learn',
+                input_data=f"Prediction failed: {str(request.data)[:100]}...",
+                output_summary=f"FileNotFoundError: {str(e)[:100]}...",
+                task_type=getattr(job, 'task_type', 'unknown'),
+                algorithm_used=getattr(job, 'selected_algorithm_key', 'unknown'),
+                tokens_consumed=0,
+                cost_usd=0,
+                cost_eur=0,
+                success=False,
+                response_time_ms=response_time_ms
+            )
             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(f"--- PredictInstanceView ERROR (General Exception) for job {analysis_job_id}: {e} ---")
             traceback.print_exc()
+            # Traccia il fallimento
+            response_time_ms = int((time.time() - start_time) * 1000)
+            track_analysis_usage(
+                user_id=user_id,
+                operation_type='instance-prediction',
+                model_used='scikit-learn',
+                input_data=f"Prediction failed: {str(request.data)[:100]}...",
+                output_summary=f"Exception: {str(e)[:100]}...",
+                task_type=getattr(job, 'task_type', 'unknown') if 'job' in locals() else 'unknown',
+                algorithm_used=getattr(job, 'selected_algorithm_key', 'unknown') if 'job' in locals() else 'unknown',
+                tokens_consumed=0,
+                cost_usd=0,
+                cost_eur=0,
+                success=False,
+                response_time_ms=response_time_ms
+            )
             return Response({"error": "An unexpected error occurred during prediction."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 class GenerateSyntheticCsvView(views.APIView):
@@ -598,6 +746,21 @@ class GenerateSyntheticCsvView(views.APIView):
             generate_synthetic_csv_task.apply_async(args=[str(job.id)], queue='analysis_tasks') # Usa la stessa coda
             print(f"Dispatched generate_synthetic_csv_task for job ID: {job.id}")
 
+            # Traccia l'avvio del task di generazione dataset sintetico
+            # Il tracking del costo reale sarà fatto nel task celery quando la chiamata OpenAI viene effettuata
+            track_analysis_usage(
+                user_id=user_id,
+                operation_type='synthetic-dataset',
+                model_used='gpt-4',  # Corrisponde al modello effettivamente usato nel task
+                input_data=f"Job queued - Synthetic dataset request: {validated_data['user_prompt'][:100]}...",
+                output_summary=f"Job {job.id} queued for {validated_data['num_rows']} rows",
+                tokens_consumed=0,  # Costo zero per l'avvio del task
+                cost_usd=0,
+                cost_eur=0,
+                success=True,
+                response_time_ms=0
+            )
+
             response_serializer = SyntheticDatasetJobSubmitResponseSerializer({
                 "job_id": job.id,
                 "status": job.status,
@@ -623,3 +786,77 @@ class SyntheticJobStatusView(generics.RetrieveAPIView):
     def get_queryset(self):
         user = self.request.user
         return SyntheticDatasetJob.objects.filter(owner_id=user.id)
+
+
+class UsageTrackingView(views.APIView):
+    """API endpoint per recuperare i dati di consumo del servizio di analisi dati."""
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTCustomAuthentication]
+
+    def get(self, request, *args, **kwargs):
+        """Recupera i dati di consumo dell'utente per il servizio di analisi."""
+        user_id = request.user.id
+        
+        # Parametri query per filtro
+        period = request.query_params.get('period', 'current_month')  # current_month, all_time, last_30_days
+        limit = int(request.query_params.get('limit', 50))  # Limite per i record recenti
+        
+        # Filtra per utente
+        base_queryset = AnalysisUsageTracking.objects.filter(user_id=user_id)
+        
+        # Filtra per periodo
+        if period == 'current_month':
+            from django.utils import timezone
+            from datetime import datetime
+            now = timezone.now()
+            start_of_month = datetime(now.year, now.month, 1, tzinfo=now.tzinfo)
+            queryset = base_queryset.filter(created_at__gte=start_of_month)
+        elif period == 'last_30_days':
+            from django.utils import timezone
+            from datetime import datetime, timedelta
+            now = timezone.now()
+            start_date = now - timedelta(days=30)
+            queryset = base_queryset.filter(created_at__gte=start_date)
+        elif period == 'today':
+            from django.utils import timezone
+            from datetime import datetime
+            now = timezone.now()
+            start_of_day = datetime(now.year, now.month, now.day, tzinfo=now.tzinfo)
+            queryset = base_queryset.filter(created_at__gte=start_of_day)
+        else:  # all_time
+            queryset = base_queryset
+        
+        # Calcola summary usando le utility
+        summary = calculate_analysis_usage_summary(queryset)
+        
+        # Prendi i record recenti per la cronologia
+        recent_records = queryset.order_by('-created_at')[:limit]
+        
+        # Serializza i record recenti
+        recent_records_data = []
+        for record in recent_records:
+            recent_records_data.append({
+                'id': record.id,
+                'operation_type': record.operation_type,
+                'model_used': record.model_used,
+                'input_data': record.input_data[:100] + '...' if len(record.input_data) > 100 else record.input_data,
+                'output_summary': record.output_summary[:100] + '...' if record.output_summary and len(record.output_summary) > 100 else record.output_summary,
+                'task_type': record.task_type,
+                'algorithm_used': record.algorithm_used,
+                'tokens_consumed': record.tokens_consumed,
+                'cost_usd': record.cost_usd,
+                'cost_eur': record.cost_eur,
+                'success': record.success,
+                'response_time_ms': record.response_time_ms,
+                'created_at': record.created_at,
+            })
+        
+        response_data = {
+            'summary': summary,
+            'recent_records': recent_records_data,
+            'period': period,
+            'user_id': user_id,
+            'service_name': 'analysis'
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)

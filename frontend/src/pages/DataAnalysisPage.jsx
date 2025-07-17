@@ -6,6 +6,7 @@ import { FaUpload, FaSpinner, FaTimes, FaBrain, FaChartBar, FaTable, FaCheckCirc
 import { useAuth } from '../context/AuthContext';
 import { listUserResources, uploadResource as uploadResourceViaRM } from '../services/resourceManagerService';
 import { suggestAlgorithm, runAnalysis, getAnalysisResults, predictInstance, createSyntheticCsvJob, getSyntheticCsvJobStatus } from '../services/dataAnalysisService';
+import { getAnalysisUsage } from '../services/usageService';
 import Plot from 'react-plotly.js';
 
 // Importa componenti figli
@@ -13,6 +14,8 @@ import ResourceCard from '../components/ResourceCard';
 import ConsoleLog from '../components/ConsoleLog';
 import TutorialModal from '../components/TutorialModal';
 import EditableDataTable from '../components/EditableDataTable'; // Assumendo che tu abbia creato questo
+import UsageWidget from '../components/UsageWidget';
+import UsageModal from '../components/UsageModal';
 
 // --- COMPONENTI UI MODERNI CON STILE CHATBOT ---
 // Card moderna con ombra profonda e hover - stile chatbot
@@ -358,8 +361,36 @@ const DataAnalysisPage = () => {
     const [currentStep, setCurrentStep] = useState(1);
     const [consoleLogs, setConsoleLogs] = useState([]);
     const [showTutorialModal, setShowTutorialModal] = useState(false);
+    
+    // Usage tracking state
+    const [showUsageModal, setShowUsageModal] = useState(false);
+    const [usageData, setUsageData] = useState(null);
+    const usageWidgetRef = useRef(null);
     const [showAlertModal, setShowAlertModal] = useState(false);
     const [alertModalContent, setAlertModalContent] = useState({ title: '', message: '' });
+
+    // Usage tracking functions
+    const handleOpenUsageModal = async () => {
+        try {
+            const freshData = await getAnalysisUsage('current_month');
+            setUsageData(freshData);
+            setShowUsageModal(true);
+        } catch (error) {
+            console.error('Error fetching usage data:', error);
+            setShowUsageModal(true); // Apri comunque il modale
+        }
+    };
+
+    const handleCloseUsageModal = () => {
+        setShowUsageModal(false);
+        setUsageData(null);
+    };
+    
+    const refreshUsageWidget = () => {
+        if (usageWidgetRef.current) {
+            usageWidgetRef.current.refreshUsage();
+        }
+    };
 
     const pollingIntervalRef = useRef(null);
 
@@ -515,6 +546,9 @@ const DataAnalysisPage = () => {
                 setEditableDatasetHeaders(response.dataset_preview.headers);
             } else { setEditableDatasetData([]); setOriginalDatasetDataForCompare([]); setEditableDatasetHeaders([]); }
             setSuccess('Suggestions received! Configure your analysis.'); setCurrentStep(2);
+            
+            // Refresh usage widget dopo suggerimenti algoritmo
+            refreshUsageWidget();
             if (response.suggestions && response.suggestions.length > 0) {
                 // Se l'utente ha espresso una preferenza, scegli il migliore tra quelli con quel task_type
                 let filteredSuggestions = response.suggestions;
@@ -580,6 +614,9 @@ const DataAnalysisPage = () => {
             setAnalysisJobId(response.analysis_job_id); setJobStatus(response.status);
             setSuccess('Analysis task submitted! Monitoring...'); setCurrentStep(3);
             startJobPolling(response.analysis_job_id);
+            
+            // Refresh usage widget dopo avvio analisi
+            refreshUsageWidget();
         } catch (err) { setError(err.response?.data?.error || 'Failed to start analysis job.');
         } finally { setIsRunningAnalysis(false); }
     };
@@ -657,6 +694,9 @@ const DataAnalysisPage = () => {
                 const result = await predictInstance(analysisJobId, featuresPayload, 'regression');
                 setRegressionPredictionResult(result.predicted_value);
                 logMessage(`Backend prediction: ${result.predicted_value.toFixed(4)}`);
+                
+                // Refresh usage widget dopo predizione
+                refreshUsageWidget();
             } catch (err) { setError(err.response?.data?.error || "Regression prediction API failed."); logMessage(`API predict error: ${err.message}`);
             } finally { setIsPredicting(false); }
         } else { setError("Cannot make prediction: model params/feature name missing."); setIsPredicting(false); }
@@ -694,6 +734,9 @@ const DataAnalysisPage = () => {
 
             console.log("[PredictClass] API Response:", result);
             setClassificationPredictionResult(result); // result = { predicted_class, probabilities, plot_coordinates }
+            
+            // Refresh usage widget dopo predizione
+            refreshUsageWidget();
 
             if (result.plot_coordinates && result.plot_coordinates.length >= 3) { // Assicurati ci siano abbastanza coordinate
                 const coords = result.plot_coordinates;
@@ -836,6 +879,9 @@ const DataAnalysisPage = () => {
             setSyntheticJobId(res.job_id);
             setSyntheticJobStatus({ status: res.status, message: res.message });
             pollSyntheticJobStatus(res.job_id);
+            
+            // Refresh usage widget dopo creazione dataset sintetico
+            refreshUsageWidget();
         } catch (err) {
             setSyntheticError('Errore nella creazione del dataset sintetico.');
         } finally {
@@ -987,6 +1033,23 @@ const DataAnalysisPage = () => {
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50 py-8 px-4">
             <div className="max-w-7xl mx-auto">
+                {/* Header con widget consumi */}
+                <div className="flex justify-between items-center mb-8">
+                    <div className="flex-1">
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2">Analisi Dati</h1>
+                        <p className="text-gray-600">Analizza i tuoi dati con algoritmi di machine learning</p>
+                    </div>
+                    <div className="w-full max-w-xs">
+                        <UsageWidget 
+                            ref={usageWidgetRef}
+                            serviceName="analysis"
+                            serviceDisplayName="Analisi Dati"
+                            onOpenDetails={handleOpenUsageModal}
+                            getUsageData={getAnalysisUsage}
+                        />
+                    </div>
+                </div>
+
                 <StepProgress currentStep={currentStep} />
                 
                 {/* Alert/banner */}
@@ -1400,6 +1463,35 @@ const DataAnalysisPage = () => {
                     </div>
                 )}
             </div>
+            
+            {/* Usage Modal */}
+            <UsageModal
+                isOpen={showUsageModal}
+                onClose={handleCloseUsageModal}
+                serviceName="analysis"
+                serviceDisplayName="Analisi Dati"
+                usage={usageData}
+                getUsageData={getAnalysisUsage}
+                getOperationDisplayName={(operationType) => {
+                    const operationNames = {
+                        'algorithm-suggestion': 'Suggerimento Algoritmo',
+                        'data-analysis': 'Analisi Dati',
+                        'instance-prediction': 'Predizione Istanza',
+                        'synthetic-dataset': 'Dataset Sintetico'
+                    };
+                    return operationNames[operationType] || operationType;
+                }}
+                getModelDisplayName={(modelName) => {
+                    const modelNames = {
+                        'gpt-4': 'GPT-4',
+                        'gpt-3.5-turbo': 'GPT-3.5 Turbo',
+                        'claude-3-sonnet': 'Claude 3 Sonnet',
+                        'custom-ml': 'Modello ML Custom',
+                        'scikit-learn': 'Scikit-learn'
+                    };
+                    return modelNames[modelName] || modelName;
+                }}
+            />
         </div>
     );
 };

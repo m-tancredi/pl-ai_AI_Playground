@@ -336,7 +336,7 @@ Your output should start directly with the header row and be followed by the dat
 
         # --- 3. Chiama OpenAI ---
         completion = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo", # O gpt-4 se budget e necessità lo richiedono
+            model="gpt-4", # Usa GPT-4 per migliore qualità
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Generate a CSV dataset with {num_rows} data rows based on this description: {user_prompt}"}
@@ -345,7 +345,14 @@ Your output should start directly with the header row and be followed by the dat
             max_tokens=3500  # Calcola in base a num_rows e complessità attesa. 1 riga CSV ~10-50 token.
         )
         raw_csv_string = completion.choices[0].message.content
+        
+        # Estrai i token effettivi dall'API response
+        tokens_consumed_actual = completion.usage.total_tokens
+        input_tokens_actual = completion.usage.prompt_tokens
+        output_tokens_actual = completion.usage.completion_tokens
+        
         print(f"{task_id_log_prefix} OpenAI Raw Response (first 200 chars): {raw_csv_string[:200]}...")
+        print(f"{task_id_log_prefix} OpenAI Usage: {input_tokens_actual} input tokens, {output_tokens_actual} output tokens, {tokens_consumed_actual} total tokens")
 
         # --- 4. Valida e Pulisci CSV ---
         # Rimuovi eventuali ```csv ... ``` markdown wrappers o testo extra
@@ -383,6 +390,35 @@ Your output should start directly with the header row and be followed by the dat
         extracted_metadata = analyze_dataframe_for_potential_uses(df_generated)
         print(f"{task_id_log_prefix}   Analysis complete. Potential uses: {extracted_metadata.get('potential_uses')}")
         # --- FINE NUOVO ---
+
+        # --- NUOVO: Calcola e traccia il costo reale della chiamata OpenAI ---
+        print(f"{task_id_log_prefix}   Calculating actual cost for OpenAI call...")
+        from .utils import calculate_cost_for_analysis, track_analysis_usage
+        
+        # Calcola il costo reale basato sui token effettivi consumati
+        actual_tokens, actual_cost_usd, actual_cost_eur = calculate_cost_for_analysis(
+            operation_type='synthetic-dataset',
+            model_name='gpt-4',
+            input_tokens=input_tokens_actual,
+            output_tokens=output_tokens_actual
+        )
+        
+        # Traccia il costo reale della generazione del dataset sintetico
+        track_analysis_usage(
+            user_id=job.owner_id,
+            operation_type='synthetic-dataset',
+            model_used='gpt-4',
+            input_data=f"Synthetic dataset: {user_prompt[:100]}...",
+            output_summary=f"Generated {len(df_generated)} rows CSV dataset",
+            tokens_consumed=actual_tokens,
+            cost_usd=actual_cost_usd,
+            cost_eur=actual_cost_eur,
+            success=True,
+            response_time_ms=int((time.time() - start_time) * 1000)
+        )
+        
+        print(f"{task_id_log_prefix}   Tracked actual cost: ${actual_cost_usd} USD, €{actual_cost_eur} EUR for {actual_tokens} tokens")
+        # --- FINE TRACKING COSTO REALE ---
 
         # --- 5. Aggiorna stato Job ---
         with transaction.atomic():
@@ -442,6 +478,27 @@ Your output should start directly with the header row and be followed by the dat
     except Exception as exc:
         print(f"{task_id_log_prefix} FATAL Error processing SyntheticDatasetJob ID {synthetic_job_id_str}: {exc}")
         traceback.print_exc() # Stampa lo stack trace completo
+        
+        # Traccia il fallimento della generazione del dataset sintetico
+        try:
+            from .utils import track_analysis_usage
+            if job and job.user_prompt:
+                track_analysis_usage(
+                    user_id=job.owner_id,
+                    operation_type='synthetic-dataset',
+                    model_used='gpt-4',
+                    input_data=f"FAILED: Synthetic dataset: {job.user_prompt[:100]}...",
+                    output_summary=f"Generation failed: {str(exc)[:200]}...",
+                    tokens_consumed=0,
+                    cost_usd=0,
+                    cost_eur=0,
+                    success=False,
+                    response_time_ms=int((time.time() - start_time) * 1000)
+                )
+                print(f"{task_id_log_prefix}   Tracked failure for synthetic dataset generation")
+        except Exception as track_exc:
+            print(f"{task_id_log_prefix}   Could not track failure: {track_exc}")
+        
         try:
             # Assicurati che 'job' sia l'istanza corretta o ricaricala
             # Il blocco 'job = None' all'inizio e il try/except per il primo get gestiscono questo
