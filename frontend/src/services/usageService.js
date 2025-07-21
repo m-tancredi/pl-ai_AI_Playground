@@ -70,6 +70,28 @@ export const getAnalysisUsage = async (period = 'current_month', limit = 50) => 
 };
 
 /**
+ * Ottiene i dati di consumo del chatbot service
+ * @param {string} period - Periodo da filtrare ('current_month', 'last_30_days', 'all_time')
+ * @param {number} limit - Limite per i record recenti
+ * @returns {Promise<object>} Promise che risolve con i dati di consumo
+ */
+export const getChatbotUsage = async (period = 'current_month', limit = 50) => {
+    try {
+        const response = await apiClient.get('/api/chatbot/usage/', {
+            params: {
+                service: 'chatbot',
+                period,
+                limit
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("API Error fetching chatbot usage data:", error.response?.data || error.message);
+        throw error;
+    }
+};
+
+/**
  * Ottiene i nomi display per i tipi di operazione del servizio di analisi
  * @param {string} operationType - Tipo di operazione
  * @returns {string} Nome display
@@ -96,6 +118,40 @@ export const getAnalysisModelDisplayName = (modelName) => {
         'claude-3-sonnet': 'Claude 3 Sonnet',
         'custom-ml': 'Modello ML Custom',
         'scikit-learn': 'Scikit-learn'
+    };
+    return modelNames[modelName] || modelName;
+};
+
+/**
+ * Ottiene i nomi display per i tipi di operazione del chatbot
+ * @param {string} operationType - Tipo di operazione
+ * @returns {string} Nome display
+ */
+export const getChatbotOperationDisplayName = (operationType) => {
+    const operationNames = {
+        'conversation': 'Conversazione',
+        'system_message': 'Messaggio Sistema',
+        'interview': 'Intervista',
+        'interrogation': 'Interrogazione'
+    };
+    return operationNames[operationType] || operationType;
+};
+
+/**
+ * Ottiene i nomi display per i modelli del chatbot
+ * @param {string} modelName - Nome del modello
+ * @returns {string} Nome display
+ */
+export const getChatbotModelDisplayName = (modelName) => {
+    const modelNames = {
+        'gpt-3.5-turbo': 'GPT-3.5 Turbo',
+        'gpt-4': 'GPT-4',
+        'gpt-4-turbo': 'GPT-4 Turbo',
+        'claude-3-haiku-20240307': 'Claude 3 Haiku',
+        'claude-3-sonnet': 'Claude 3 Sonnet',
+        'gemini-1.5-pro-001': 'Gemini 1.5 Pro',
+        'system-response': 'Sistema',
+        'unknown': 'Sconosciuto'
     };
     return modelNames[modelName] || modelName;
 };

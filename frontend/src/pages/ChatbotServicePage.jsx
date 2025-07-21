@@ -18,12 +18,15 @@ import {
     deleteChat, 
     deleteAllChats 
 } from '../services/chatbotService';
+import { getChatbotUsage, getChatbotOperationDisplayName, getChatbotModelDisplayName } from '../services/usageService';
 
 // Componenti
 import ChatMessage from '../components/ChatMessage';
 import ChatHistoryItem from '../components/ChatHistoryItem';
 import LoadingDots from '../components/LoadingDots';
 import ChatbotTutorialModal from '../components/ChatbotTutorialModal';
+import UsageModal from '../components/UsageModal';
+import UsageWidget from '../components/UsageWidget';
 
 const ChatbotServicePage = () => {
     const { isAuthenticated } = useAuth();
@@ -58,6 +61,11 @@ const ChatbotServicePage = () => {
     // State per layout ChatGPT-like
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [showConfig, setShowConfig] = useState(!chatStarted);
+    
+    // State per tracking consumi
+    const [showUsageModal, setShowUsageModal] = useState(false);
+    const [usageData, setUsageData] = useState(null);
+    const usageWidgetRef = useRef(null);
     
     const messagesEndRef = useRef(null);
     
@@ -257,6 +265,13 @@ const ChatbotServicePage = () => {
             
             setChatStarted(true);
             setSuccess('Chat avviata con successo!');
+            
+            // Refresh usage widget dopo la prima interazione
+            if (usageWidgetRef.current) {
+                setTimeout(() => {
+                    usageWidgetRef.current.refreshUsage();
+                }, 1000);
+            }
         } catch (err) {
             console.error('Error starting chat:', err);
             setError('Errore nell\'avvio della chat: ' + (err.response?.data?.error || err.message));
@@ -307,6 +322,13 @@ const ChatbotServicePage = () => {
                 setCurrentChatId(response.chatId);
                 await loadChatHistory();
             }
+            
+            // Refresh usage widget dopo ogni messaggio
+            if (usageWidgetRef.current) {
+                setTimeout(() => {
+                    usageWidgetRef.current.refreshUsage();
+                }, 1000);
+            }
         } catch (err) {
             console.error('Error sending message:', err);
             setError('Errore nell\'invio del messaggio: ' + (err.response?.data?.error || err.message));
@@ -315,6 +337,14 @@ const ChatbotServicePage = () => {
         } finally {
             setIsSending(false);
         }
+    };
+    
+    const handleOpenUsageModal = () => {
+        setShowUsageModal(true);
+    };
+
+    const handleCloseUsageModal = () => {
+        setShowUsageModal(false);
     };
     
     const downloadChat = () => {
@@ -565,6 +595,19 @@ const ChatbotServicePage = () => {
                             </div>
                         </div>
                         
+                        {/* Usage Widget */}
+                        <div className="p-4 border-b border-gray-200">
+                            <UsageWidget 
+                                ref={usageWidgetRef}
+                                serviceName="chatbot"
+                                serviceDisplayName="Chatbot"
+                                getUsageData={getChatbotUsage}
+                                customGetOperationDisplayName={getChatbotOperationDisplayName}
+                                customGetModelDisplayName={getChatbotModelDisplayName}
+                                onOpenDetails={handleOpenUsageModal}
+                            />
+                        </div>
+                        
                         {/* Chat History List */}
                         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
                             {chatHistory.length === 0 ? (
@@ -713,6 +756,17 @@ const ChatbotServicePage = () => {
             
             {/* Tutorial Modal */}
             <ChatbotTutorialModal show={showTutorial} onClose={() => setShowTutorial(false)} />
+            
+            {/* Usage Modal */}
+            <UsageModal 
+                isOpen={showUsageModal}
+                onClose={handleCloseUsageModal}
+                serviceName="chatbot"
+                serviceDisplayName="Chatbot"
+                getUsageData={getChatbotUsage}
+                customGetOperationDisplayName={getChatbotOperationDisplayName}
+                customGetModelDisplayName={getChatbotModelDisplayName}
+            />
         </div>
     );
 };
