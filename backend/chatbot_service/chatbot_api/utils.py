@@ -3,11 +3,13 @@ import datetime
 from django.db.models import Sum, Count, Q
 from .models import ServiceUsageTracking
 
-# Configurazione prezzi per modelli Chatbot
+# Configurazione prezzi per modelli Chatbot (per 1K tokens in USD)
 CHATBOT_PRICING = {
     'gpt-3.5-turbo': {'input': 0.0015, 'output': 0.002},  # per 1K tokens
     'gpt-4': {'input': 0.03, 'output': 0.06},
     'gpt-4-turbo': {'input': 0.01, 'output': 0.03},
+    'gpt-4o-mini': {'input': 0.00015, 'output': 0.0006},  # $0.15/$0.60 per 1M = $0.00015/$0.0006 per 1K
+    'gpt-4o': {'input': 0.0025, 'output': 0.01},  # $2.50/$10.00 per 1M = $0.0025/$0.01 per 1K
     'claude-3-haiku-20240307': {'input': 0.00025, 'output': 0.00125},
     'claude-3-sonnet': {'input': 0.003, 'output': 0.015},
     'gemini-1.5-pro-001': {'input': 0.0015, 'output': 0.002},  # Stima simile a GPT-3.5
@@ -128,7 +130,7 @@ def calculate_chatbot_usage_summary(user_id, period='current_month'):
 def calculate_chatbot_usage_summary_v2(usage_records):
     """
     Calcola un riassunto dei consumi per il chatbot service.
-    Identica alla logica del data_analysis_service.
+    Separa le chiamate riuscite da quelle fallite per i calcoli di costo/token.
     
     Args:
         usage_records: QuerySet di ServiceUsageTracking
@@ -136,26 +138,34 @@ def calculate_chatbot_usage_summary_v2(usage_records):
     Returns:
         Dict con statistiche dei consumi
     """
-    from django.db.models import Sum, Count
+    from django.db.models import Sum, Count, Q
     
-    # Aggregazione totali
-    totals = usage_records.aggregate(
+    # Separa record riusciti da quelli falliti
+    successful_records = usage_records.filter(success=True)
+    failed_records = usage_records.filter(success=False)
+    
+    # Aggregazione totali (solo per chiamate riuscite)
+    successful_totals = successful_records.aggregate(
         total_tokens=Sum('tokens_consumed'),
         total_cost_usd=Sum('cost_usd'),
         total_cost_eur=Sum('cost_eur'),
         total_calls=Count('id')
     )
     
-    # Breakdown per modello
-    by_model = usage_records.values('model_used').annotate(
+    # Conta le chiamate fallite
+    failed_count = failed_records.count()
+    total_calls = usage_records.count()
+    
+    # Breakdown per modello (solo chiamate riuscite)
+    by_model = successful_records.values('model_used').annotate(
         tokens=Sum('tokens_consumed'),
         cost_usd=Sum('cost_usd'),
         cost_eur=Sum('cost_eur'),
         calls=Count('id')
     ).order_by('-tokens')
     
-    # Breakdown per tipo operazione
-    by_operation = usage_records.values('operation_type').annotate(
+    # Breakdown per tipo operazione (solo chiamate riuscite)
+    by_operation = successful_records.values('operation_type').annotate(
         tokens=Sum('tokens_consumed'),
         cost_usd=Sum('cost_usd'),
         cost_eur=Sum('cost_eur'),
@@ -163,10 +173,13 @@ def calculate_chatbot_usage_summary_v2(usage_records):
     ).order_by('-tokens')
     
     return {
-        'total_tokens': totals['total_tokens'] or 0,
-        'total_cost_usd': totals['total_cost_usd'] or Decimal('0.000000'),
-        'total_cost_eur': totals['total_cost_eur'] or Decimal('0.000000'),
-        'total_calls': totals['total_calls'] or 0,
+        'total_tokens': successful_totals['total_tokens'] or 0,
+        'total_cost_usd': successful_totals['total_cost_usd'] or Decimal('0.000000'),
+        'total_cost_eur': successful_totals['total_cost_eur'] or Decimal('0.000000'),
+        'total_calls': total_calls or 0,
+        'successful_calls': successful_totals['total_calls'] or 0,
+        'failed_calls': failed_count,
+        'success_rate': round((successful_totals['total_calls'] or 0) / total_calls * 100, 1) if total_calls > 0 else 0,
         'by_model': list(by_model),
         'by_operation': list(by_operation),
     }
@@ -208,14 +221,18 @@ def estimate_tokens_from_text(text):
     return max(1, len(text) // 3)
 
 def get_model_display_name(model_name):
-    """Restituisce il nome display per i modelli del chatbot."""
+    """Restituisce il nome user-friendly del modello."""
     model_names = {
         'gpt-3.5-turbo': 'GPT-3.5 Turbo',
         'gpt-4': 'GPT-4',
         'gpt-4-turbo': 'GPT-4 Turbo',
+        'gpt-4o-mini': 'GPT-4o Mini',
+        'gpt-4o': 'GPT-4o',
         'claude-3-haiku-20240307': 'Claude 3 Haiku',
         'claude-3-sonnet': 'Claude 3 Sonnet',
         'gemini-1.5-pro-001': 'Gemini 1.5 Pro',
+        'system-response': 'Sistema',
+        'unknown': 'Sconosciuto'
     }
     return model_names.get(model_name, model_name)
 

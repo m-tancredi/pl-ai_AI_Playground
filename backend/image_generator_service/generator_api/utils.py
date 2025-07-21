@@ -114,6 +114,7 @@ def calculate_cost_for_model(
 def calculate_monthly_usage_summary(usage_records) -> Dict:
     """
     Calcola un riassunto mensile dei consumi.
+    Separa le chiamate riuscite da quelle fallite per i calcoli di costo/token.
     
     Args:
         usage_records: QuerySet di ImageGenerationUsage
@@ -121,26 +122,34 @@ def calculate_monthly_usage_summary(usage_records) -> Dict:
     Returns:
         Dict con statistiche mensili
     """
-    from django.db.models import Sum, Count
+    from django.db.models import Sum, Count, Q
     
-    # Aggregazione
-    totals = usage_records.aggregate(
+    # Separa record riusciti da quelli falliti
+    successful_records = usage_records.filter(success=True)
+    failed_records = usage_records.filter(success=False)
+    
+    # Aggregazione (solo per chiamate riuscite)
+    successful_totals = successful_records.aggregate(
         total_tokens=Sum('tokens_consumed'),
         total_cost_usd=Sum('cost_usd'),
         total_cost_eur=Sum('cost_eur'),
         total_calls=Count('id')
     )
     
-    # Breakdown per modello
-    by_model = usage_records.values('model_used').annotate(
+    # Conta le chiamate fallite
+    failed_count = failed_records.count()
+    total_calls = usage_records.count()
+    
+    # Breakdown per modello (solo chiamate riuscite)
+    by_model = successful_records.values('model_used').annotate(
         tokens=Sum('tokens_consumed'),
         cost_usd=Sum('cost_usd'),
         cost_eur=Sum('cost_eur'),
         calls=Count('id')
     )
     
-    # Breakdown per tipo operazione
-    by_operation = usage_records.values('operation_type').annotate(
+    # Breakdown per tipo operazione (solo chiamate riuscite)
+    by_operation = successful_records.values('operation_type').annotate(
         tokens=Sum('tokens_consumed'),
         cost_usd=Sum('cost_usd'),
         cost_eur=Sum('cost_eur'),
@@ -148,10 +157,13 @@ def calculate_monthly_usage_summary(usage_records) -> Dict:
     )
     
     return {
-        'total_tokens': totals['total_tokens'] or 0,
-        'total_cost_usd': totals['total_cost_usd'] or Decimal('0.000000'),
-        'total_cost_eur': totals['total_cost_eur'] or Decimal('0.000000'),
-        'total_calls': totals['total_calls'] or 0,
+        'total_tokens': successful_totals['total_tokens'] or 0,
+        'total_cost_usd': successful_totals['total_cost_usd'] or Decimal('0.000000'),
+        'total_cost_eur': successful_totals['total_cost_eur'] or Decimal('0.000000'),
+        'total_calls': total_calls or 0,
+        'successful_calls': successful_totals['total_calls'] or 0,
+        'failed_calls': failed_count,
+        'success_rate': round((successful_totals['total_calls'] or 0) / total_calls * 100, 1) if total_calls > 0 else 0,
         'by_model': list(by_model),
         'by_operation': list(by_operation),
     } 

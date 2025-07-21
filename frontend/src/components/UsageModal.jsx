@@ -112,65 +112,54 @@ const UsageModal = ({ isOpen, onClose, serviceName, serviceDisplayName, getUsage
                 <div className="p-4 overflow-y-auto max-h-[60vh]">
                     {loading ? (
                         <div className="flex items-center justify-center py-8">
-                            <FaSpinner className={`animate-spin text-${serviceInfo.color}-500 mr-2`} />
-                            <span>Caricamento dati aggiornati...</span>
+                            <FaSpinner className="animate-spin text-blue-500 mr-2" />
+                            <span>Caricamento dati...</span>
                         </div>
                     ) : (
                         <>
                             {/* Overview Tab */}
                             {activeTab === 'overview' && (
                                 <div className="space-y-6">
-                                    {/* Summary Cards */}
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                        <div className={`bg-${serviceInfo.color}-50 rounded-lg p-4`}>
-                                            <div className="flex items-center">
-                                                <FaRobot className={`text-${serviceInfo.color}-600 mr-2`} />
-                                                <div>
-                                                    <div className={`text-2xl font-bold text-${serviceInfo.color}-600`}>{formatNumber(totalCalls)}</div>
-                                                    <div className="text-sm text-gray-600">Chiamate Totali</div>
+                                    {/* Statistiche principali */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="bg-blue-50 rounded-lg p-4">
+                                            <FaRobot className="text-blue-500 text-2xl mb-2" />
+                                            <div className="text-2xl font-bold">{formatNumber(totalCalls)}</div>
+                                            <div className="text-sm text-gray-600">Chiamate Totali</div>
+                                            {summary.failed_calls > 0 && (
+                                                <div className="text-xs text-red-500 mt-1">
+                                                    {summary.failed_calls} fallite ({(100 - summary.success_rate).toFixed(1)}%)
                                                 </div>
-                                            </div>
+                                            )}
                                         </div>
-                                        
                                         <div className="bg-green-50 rounded-lg p-4">
-                                            <div className="flex items-center">
-                                                <FaCoins className="text-green-600 mr-2" />
-                                                <div>
-                                                    <div className="text-2xl font-bold text-green-600">{formatCurrency(totalCostEur)}</div>
-                                                    <div className="text-sm text-gray-600">Costo in Euro</div>
-                                                </div>
-                                            </div>
+                                            <FaCoins className="text-green-500 text-2xl mb-2" />
+                                            <div className="text-2xl font-bold">{formatNumber(totalTokens)}</div>
+                                            <div className="text-sm text-gray-600">Token Utilizzati</div>
+                                            <div className="text-xs text-gray-500 mt-1">Solo chiamate riuscite</div>
                                         </div>
-                                        
+                                        <div className="bg-yellow-50 rounded-lg p-4">
+                                            <FaCoins className="text-yellow-500 text-2xl mb-2" />
+                                            <div className="text-2xl font-bold">{formatCurrency(totalCostEur)}</div>
+                                            <div className="text-sm text-gray-600">Costo Totale</div>
+                                            <div className="text-xs text-gray-500 mt-1">Solo chiamate riuscite</div>
+                                        </div>
                                         <div className="bg-purple-50 rounded-lg p-4">
-                                            <div className="flex items-center">
-                                                <FaChartBar className="text-purple-600 mr-2" />
-                                                <div>
-                                                    <div className="text-2xl font-bold text-purple-600">{formatNumber(totalTokens)}</div>
-                                                    <div className="text-sm text-gray-600">Token Consumati</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="bg-orange-50 rounded-lg p-4">
-                                            <div className="flex items-center">
-                                                <FaCoins className="text-orange-600 mr-2" />
-                                                <div>
-                                                    <div className="text-2xl font-bold text-orange-600">${formatNumber(totalCostUsd)}</div>
-                                                    <div className="text-sm text-gray-600">Costo in USD</div>
-                                                </div>
-                                            </div>
+                                            <FaChartBar className="text-purple-500 text-2xl mb-2" />
+                                            <div className="text-2xl font-bold">{summary.success_rate || 0}%</div>
+                                            <div className="text-sm text-gray-600">Tasso Successo</div>
+                                            <div className="text-xs text-gray-500 mt-1">{summary.successful_calls || 0} / {totalCalls}</div>
                                         </div>
                                     </div>
 
-                                    {/* By Model */}
+                                    {/* Breakdown per modello */}
                                     {byModel.length > 0 && (
                                         <div>
-                                            <h3 className="text-lg font-semibold mb-3">Consumo per Modello</h3>
+                                            <h4 className="font-semibold mb-3">Per Modello</h4>
                                             <div className="bg-gray-50 rounded-lg p-4">
-                                                <div className="space-y-2">
-                                                    {byModel.map((model, index) => (
-                                                        <div key={index} className="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0">
+                                                <div className="space-y-3">
+                                                    {byModel.map((model) => (
+                                                        <div key={model.model_used} className="flex justify-between items-center">
                                                             <div className="font-medium">
                                                                 {customGetModelDisplayName ? customGetModelDisplayName(model.model_used) : model.model_used}
                                                             </div>
@@ -189,14 +178,14 @@ const UsageModal = ({ isOpen, onClose, serviceName, serviceDisplayName, getUsage
                                         </div>
                                     )}
 
-                                    {/* By Operation */}
+                                    {/* Breakdown per operazione */}
                                     {byOperation.length > 0 && (
                                         <div>
-                                            <h3 className="text-lg font-semibold mb-3">Consumo per Operazione</h3>
+                                            <h4 className="font-semibold mb-3">Per Operazione</h4>
                                             <div className="bg-gray-50 rounded-lg p-4">
-                                                <div className="space-y-2">
-                                                    {byOperation.map((operation, index) => (
-                                                        <div key={index} className="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0">
+                                                <div className="space-y-3">
+                                                    {byOperation.map((operation) => (
+                                                        <div key={operation.operation_type} className="flex justify-between items-center">
                                                             <div className="font-medium">
                                                                 {customGetOperationDisplayName ? customGetOperationDisplayName(operation.operation_type) : operation.operation_type}
                                                             </div>
@@ -224,7 +213,7 @@ const UsageModal = ({ isOpen, onClose, serviceName, serviceDisplayName, getUsage
                                     {history.length > 0 ? (
                                         <div className="space-y-4">
                                             {history.map((item) => (
-                                                <div key={item.id} className="bg-gray-50 rounded-lg p-4">
+                                                <div key={item.id} className={`rounded-lg p-4 ${item.success ? 'bg-gray-50' : 'bg-red-50 border border-red-200'}`}>
                                                     <div className="flex items-start justify-between">
                                                         <div className="flex-1">
                                                             <div className="flex items-center mb-2">
@@ -233,8 +222,9 @@ const UsageModal = ({ isOpen, onClose, serviceName, serviceDisplayName, getUsage
                                                                 ) : (
                                                                     <FaTimesCircle className="text-red-500 mr-2" />
                                                                 )}
-                                                                <span className="font-medium">
+                                                                <span className={`font-medium ${!item.success ? 'text-red-700' : ''}`}>
                                                                     {customGetOperationDisplayName ? customGetOperationDisplayName(item.operation_type) : item.operation_type}
+                                                                    {!item.success && <span className="text-red-600 ml-2">(FALLITA)</span>}
                                                                 </span>
                                                                 <span className="text-sm text-gray-500 ml-2">
                                                                     • {customGetModelDisplayName ? customGetModelDisplayName(item.model_used) : item.model_used}
@@ -251,12 +241,28 @@ const UsageModal = ({ isOpen, onClose, serviceName, serviceDisplayName, getUsage
                                                             </div>
                                                         </div>
                                                         <div className="text-right ml-4">
-                                                            <div className="text-sm font-medium text-green-600">
-                                                                {formatCurrency(item.cost_eur)}
-                                                            </div>
-                                                            <div className="text-xs text-gray-500">
-                                                                {formatNumber(item.tokens_consumed)} token
-                                                            </div>
+                                                            {item.success ? (
+                                                                <>
+                                                                    <div className="text-sm font-medium text-green-600">
+                                                                        {formatCurrency(item.cost_eur)}
+                                                                    </div>
+                                                                    <div className="text-xs text-gray-500">
+                                                                        {formatNumber(item.tokens_consumed)} token
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <div className="text-sm font-medium text-red-500 line-through">
+                                                                        {formatCurrency(item.cost_eur)}
+                                                                    </div>
+                                                                    <div className="text-xs text-red-400 line-through">
+                                                                        {formatNumber(item.tokens_consumed)} token
+                                                                    </div>
+                                                                    <div className="text-xs text-green-600 font-medium mt-1">
+                                                                        Costo: 0 €
+                                                                    </div>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>

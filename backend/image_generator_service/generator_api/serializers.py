@@ -90,6 +90,9 @@ class UsageSummarySerializer(serializers.Serializer):
     total_cost_usd = serializers.DecimalField(max_digits=10, decimal_places=6)
     total_cost_eur = serializers.DecimalField(max_digits=10, decimal_places=6)
     total_calls = serializers.IntegerField()
+    successful_calls = serializers.IntegerField()
+    failed_calls = serializers.IntegerField()
+    success_rate = serializers.FloatField()
     by_model = serializers.ListSerializer(child=serializers.DictField())
     by_operation = serializers.ListSerializer(child=serializers.DictField())
 

@@ -123,6 +123,7 @@ def calculate_cost_for_analysis(
 def calculate_analysis_usage_summary(usage_records) -> Dict:
     """
     Calcola un riassunto dei consumi per il servizio di analisi.
+    Separa le chiamate riuscite da quelle fallite per i calcoli di costo/token.
     
     Args:
         usage_records: QuerySet di AnalysisUsageTracking
@@ -130,34 +131,42 @@ def calculate_analysis_usage_summary(usage_records) -> Dict:
     Returns:
         Dict con statistiche dei consumi
     """
-    from django.db.models import Sum, Count
+    from django.db.models import Sum, Count, Q
     
-    # Aggregazione totali
-    totals = usage_records.aggregate(
+    # Separa record riusciti da quelli falliti
+    successful_records = usage_records.filter(success=True)
+    failed_records = usage_records.filter(success=False)
+    
+    # Aggregazione totali (solo per chiamate riuscite)
+    successful_totals = successful_records.aggregate(
         total_tokens=Sum('tokens_consumed'),
         total_cost_usd=Sum('cost_usd'),
         total_cost_eur=Sum('cost_eur'),
         total_calls=Count('id')
     )
     
-    # Breakdown per modello
-    by_model = usage_records.values('model_used').annotate(
+    # Conta le chiamate fallite
+    failed_count = failed_records.count()
+    total_calls = usage_records.count()
+    
+    # Breakdown per modello (solo chiamate riuscite)
+    by_model = successful_records.values('model_used').annotate(
         tokens=Sum('tokens_consumed'),
         cost_usd=Sum('cost_usd'),
         cost_eur=Sum('cost_eur'),
         calls=Count('id')
     ).order_by('-tokens')
     
-    # Breakdown per tipo operazione
-    by_operation = usage_records.values('operation_type').annotate(
+    # Breakdown per tipo operazione (solo chiamate riuscite)
+    by_operation = successful_records.values('operation_type').annotate(
         tokens=Sum('tokens_consumed'),
         cost_usd=Sum('cost_usd'),
         cost_eur=Sum('cost_eur'),
         calls=Count('id')
     ).order_by('-tokens')
     
-    # Breakdown per algoritmo ML (se disponibile)
-    by_algorithm = usage_records.filter(
+    # Breakdown per algoritmo ML (se disponibile, solo chiamate riuscite)
+    by_algorithm = successful_records.filter(
         algorithm_used__isnull=False
     ).values('algorithm_used').annotate(
         tokens=Sum('tokens_consumed'),
@@ -167,10 +176,13 @@ def calculate_analysis_usage_summary(usage_records) -> Dict:
     ).order_by('-tokens')
     
     return {
-        'total_tokens': totals['total_tokens'] or 0,
-        'total_cost_usd': totals['total_cost_usd'] or Decimal('0.000000'),
-        'total_cost_eur': totals['total_cost_eur'] or Decimal('0.000000'),
-        'total_calls': totals['total_calls'] or 0,
+        'total_tokens': successful_totals['total_tokens'] or 0,
+        'total_cost_usd': successful_totals['total_cost_usd'] or Decimal('0.000000'),
+        'total_cost_eur': successful_totals['total_cost_eur'] or Decimal('0.000000'),
+        'total_calls': total_calls or 0,
+        'successful_calls': successful_totals['total_calls'] or 0,
+        'failed_calls': failed_count,
+        'success_rate': round((successful_totals['total_calls'] or 0) / total_calls * 100, 1) if total_calls > 0 else 0,
         'by_model': list(by_model),
         'by_operation': list(by_operation),
         'by_algorithm': list(by_algorithm),

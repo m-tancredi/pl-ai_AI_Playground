@@ -5,8 +5,15 @@ import Papa from 'papaparse'; // npm install papaparse
 import { FaUpload, FaSpinner, FaTimes, FaBrain, FaChartBar, FaTable, FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaFileCsv, FaSearch, FaRedo, FaSave, FaPlay, FaChevronRight, FaMagic, FaCheck, FaCloudDownloadAlt, FaQuestionCircle } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { listUserResources, uploadResource as uploadResourceViaRM } from '../services/resourceManagerService';
-import { suggestAlgorithm, runAnalysis, getAnalysisResults, predictInstance, createSyntheticCsvJob, getSyntheticCsvJobStatus } from '../services/dataAnalysisService';
-import { getAnalysisUsage } from '../services/usageService';
+import { 
+    suggestAlgorithm, 
+    runAnalysis, 
+    getAnalysisResults, 
+    predictInstance, 
+    createSyntheticCsvJob, 
+    getSyntheticCsvJobStatus 
+} from '../services/dataAnalysisService';
+import { getAnalysisUsage, getAnalysisOperationDisplayName, getAnalysisModelDisplayName } from '../services/usageService';
 import Plot from 'react-plotly.js';
 
 // Importa componenti figli
@@ -1470,27 +1477,9 @@ const DataAnalysisPage = () => {
                 onClose={handleCloseUsageModal}
                 serviceName="analysis"
                 serviceDisplayName="Analisi Dati"
-                usage={usageData}
                 getUsageData={getAnalysisUsage}
-                getOperationDisplayName={(operationType) => {
-                    const operationNames = {
-                        'algorithm-suggestion': 'Suggerimento Algoritmo',
-                        'data-analysis': 'Analisi Dati',
-                        'instance-prediction': 'Predizione Istanza',
-                        'synthetic-dataset': 'Dataset Sintetico'
-                    };
-                    return operationNames[operationType] || operationType;
-                }}
-                getModelDisplayName={(modelName) => {
-                    const modelNames = {
-                        'gpt-4': 'GPT-4',
-                        'gpt-3.5-turbo': 'GPT-3.5 Turbo',
-                        'claude-3-sonnet': 'Claude 3 Sonnet',
-                        'custom-ml': 'Modello ML Custom',
-                        'scikit-learn': 'Scikit-learn'
-                    };
-                    return modelNames[modelName] || modelName;
-                }}
+                customGetOperationDisplayName={getAnalysisOperationDisplayName}
+                customGetModelDisplayName={getAnalysisModelDisplayName}
             />
         </div>
     );

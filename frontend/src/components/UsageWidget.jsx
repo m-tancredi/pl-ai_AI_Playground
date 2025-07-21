@@ -84,6 +84,8 @@ const UsageWidget = forwardRef(({
     const totalCostUSD = summary.total_cost_usd || 0;
     const totalCostEUR = summary.total_cost_eur || 0;
     const totalTokens = summary.total_tokens || 0;
+    const failedCalls = summary.failed_calls || 0;
+    const successRate = summary.success_rate || 100;
 
     return (
         <div
@@ -115,9 +117,16 @@ const UsageWidget = forwardRef(({
                             {serviceName === 'analysis' ? 'Analisi' : 'Operazioni'}
                         </span>
                     </div>
-                    <span className="text-sm font-semibold text-gray-800">
-                        {formatNumber(totalCalls)}
-                    </span>
+                    <div className="text-right">
+                        <span className="text-sm font-semibold text-gray-800">
+                            {formatNumber(totalCalls)}
+                        </span>
+                        {failedCalls > 0 && (
+                            <div className="text-xs text-red-500">
+                                {failedCalls} fallite
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Costi */}
@@ -150,7 +159,11 @@ const UsageWidget = forwardRef(({
 
             <div className="mt-3 pt-2 border-t border-gray-100">
                 <p className="text-xs text-gray-500 text-center">
-                    Questo mese • Click per dettagli
+                    {failedCalls > 0 ? (
+                        <>Questo mese • Successo: {successRate.toFixed(1)}% • Click per dettagli</>
+                    ) : (
+                        <>Questo mese • Click per dettagli</>
+                    )}
                 </p>
             </div>
         </div>

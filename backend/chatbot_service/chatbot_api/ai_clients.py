@@ -132,7 +132,18 @@ def process_ai_message(message, context, chat_id, user_id):
 
         try:
             if model_name.startswith('gpt'):
-                ai_model_used = "gpt-4" if model_name == 'gpt4' else "gpt-3.5-turbo"
+                # Mappa i nomi dei modelli frontend ai nomi API OpenAI
+                if model_name == 'gpt4':
+                    ai_model_used = "gpt-4"
+                elif model_name == 'gpt4o':
+                    ai_model_used = "gpt-4o"
+                elif model_name == 'gpt4o-mini':
+                    ai_model_used = "gpt-4o-mini"
+                elif model_name == 'gpt4-turbo':
+                    ai_model_used = "gpt-4-turbo"
+                else:
+                    ai_model_used = "gpt-3.5-turbo"  # Default fallback
+                
                 completion = openai_client.chat.completions.create(
                     model=ai_model_used,
                     messages=messages,

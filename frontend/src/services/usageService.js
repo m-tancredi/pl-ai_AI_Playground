@@ -147,6 +147,8 @@ export const getChatbotModelDisplayName = (modelName) => {
         'gpt-3.5-turbo': 'GPT-3.5 Turbo',
         'gpt-4': 'GPT-4',
         'gpt-4-turbo': 'GPT-4 Turbo',
+        'gpt-4o-mini': 'GPT-4o Mini',
+        'gpt-4o': 'GPT-4o',
         'claude-3-haiku-20240307': 'Claude 3 Haiku',
         'claude-3-sonnet': 'Claude 3 Sonnet',
         'gemini-1.5-pro-001': 'Gemini 1.5 Pro',

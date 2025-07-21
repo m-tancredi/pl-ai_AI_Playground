@@ -19,6 +19,7 @@ import ImageDetailModal from '../components/ImageDetailModal';
 import ImageEditModal from '../components/ImageEditModal';
 import UsageWidget from '../components/UsageWidget';
 import UsageModal from '../components/UsageModal';
+import { getUserUsage, getModelDisplayName, getOperationDisplayName } from '../services/usageService';
 
 // --- Componenti UI Moderni ---
 const Spinner = ({ small = false }) => (
@@ -1072,7 +1073,11 @@ const ImageGeneratorPage = () => {
              <UsageModal
                 isOpen={showUsageModal}
                 onClose={() => setShowUsageModal(false)}
-                usage={usageData}
+                serviceName="generator"
+                serviceDisplayName="Generatore Immagini"
+                getUsageData={getUserUsage}
+                customGetOperationDisplayName={getOperationDisplayName}
+                customGetModelDisplayName={getModelDisplayName}
              />
             </div>
         </div>

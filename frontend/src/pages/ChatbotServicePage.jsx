@@ -481,10 +481,11 @@ const ChatbotServicePage = () => {
                                     onChange={(e) => setModelSelect(e.target.value)}
                                     className="w-full p-4 border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer transition-all duration-200"
                                 >
-                                    <option value="">Modello AI</option>
-                                    <option value="gpt4o-mini">GPT-4 O Mini</option>
-                                    <option value="o3-mini">O3 Mini</option>
-                                    <option value="gemini">Gemini Flash</option>
+                                    <option value="">Seleziona Modello AI</option>
+                                    <option value="gpt4o-mini">GPT-4o Mini (💰 Più Economico)</option>
+                                    <option value="gemini">Gemini 1.5 Pro (💸 Economico)</option>
+                                    <option value="gpt4o">GPT-4o (⭐ Bilanciato)</option>
+                                    <option value="gpt4">GPT-4 (🚀 Premium - Più Potente)</option>
                                 </select>
                                 <FaChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
                             </div>
