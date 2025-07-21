@@ -303,7 +303,7 @@ class SuggestAlgorithmView(views.APIView):
 
                 print(f"Sending prompt to OpenAI for suggestions (length {len(prompt_detail)}).")
                 completion = openai_client.chat.completions.create(
-                    model="gpt-4", messages=[ {"role": "system", "content": "You are a data science assistant providing ML algorithm suggestions in JSON format."}, {"role": "user", "content": prompt_detail} ],
+                    model="gpt-4-turbo", messages=[ {"role": "system", "content": "You are a data science assistant providing ML algorithm suggestions in JSON format."}, {"role": "user", "content": prompt_detail} ],
                     response_format={"type": "json_object"}, temperature=0.3, max_tokens=1024 )
                 ai_response_content = completion.choices[0].message.content
                 print(f"OpenAI Raw Suggestion Response: {ai_response_content}")
@@ -314,7 +314,7 @@ class SuggestAlgorithmView(views.APIView):
                 # Calcola i costi per la chiamata OpenAI
                 tokens_consumed, cost_usd, cost_eur = calculate_cost_for_analysis(
                     operation_type='algorithm-suggestion',
-                    model_name='gpt-4',
+                    model_name='gpt-4-turbo',
                     prompt_length=len(prompt_detail),
                     complexity_factor=1.0
                 )
@@ -324,7 +324,7 @@ class SuggestAlgorithmView(views.APIView):
                 track_analysis_usage(
                     user_id=user_id,
                     operation_type='algorithm-suggestion',
-                    model_used='gpt-4',
+                    model_used='gpt-4-turbo',
                     input_data=f"Dataset analysis: {len(df)} rows, {len(df.columns)} columns",
                     output_summary=f"Generated {len(suggestions)} algorithm suggestions",
                     tokens_consumed=tokens_consumed,
@@ -346,14 +346,14 @@ class SuggestAlgorithmView(views.APIView):
                 response_time_ms = int((time.time() - start_time) * 1000)
                 tokens_consumed, cost_usd, cost_eur = calculate_cost_for_analysis(
                     operation_type='algorithm-suggestion',
-                    model_name='gpt-4',
+                    model_name='gpt-4-turbo',
                     prompt_length=len(prompt_detail),
                     complexity_factor=1.0
                 )
                 track_analysis_usage(
                     user_id=user_id,
                     operation_type='algorithm-suggestion',
-                    model_used='gpt-4',
+                    model_used='gpt-4-turbo',
                     input_data=f"Dataset analysis: {len(df)} rows, {len(df.columns)} columns",
                     output_summary='',
                     tokens_consumed=0,  # Nessun token consumato in caso di fallimento

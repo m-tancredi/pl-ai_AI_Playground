@@ -41,6 +41,7 @@ const getUseTagStyle = (useType) => {
     }
     switch (useType.toLowerCase()) {
         case 'classification': return { icon: <FaListOl className="mr-1" />, color: 'bg-purple-100 text-purple-800' };
+        case 'regression': return { icon: <FaChartLine className="mr-1" />, color: 'bg-blue-100 text-blue-800' };
         case 'rag': return { icon: <FaBrain className="mr-1" />, color: 'bg-teal-100 text-teal-800' };
         case 'clustering': return { icon: <FaTags className="mr-1" />, color: 'bg-yellow-100 text-yellow-800' };
         case 'time_series': return { icon: <FaTags className="mr-1" />, color: 'bg-pink-100 text-pink-800' };

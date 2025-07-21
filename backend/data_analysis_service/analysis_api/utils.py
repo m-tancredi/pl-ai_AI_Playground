@@ -15,6 +15,10 @@ MODEL_PRICING = {
         'input_price_per_1k_tokens': Decimal('0.030'),  # $0.030 per 1K tokens input
         'output_price_per_1k_tokens': Decimal('0.060'),  # $0.060 per 1K tokens output
     },
+    'gpt-4-turbo': {
+        'input_price_per_1k_tokens': Decimal('0.010'),  # $0.010 per 1K tokens input
+        'output_price_per_1k_tokens': Decimal('0.030'),  # $0.030 per 1K tokens output
+    },
     'gpt-3.5-turbo': {
         'input_price_per_1k_tokens': Decimal('0.0015'),  # $0.0015 per 1K tokens input
         'output_price_per_1k_tokens': Decimal('0.002'),  # $0.002 per 1K tokens output
@@ -85,7 +89,7 @@ def calculate_cost_for_analysis(
     pricing = MODEL_PRICING[model_name]
     
     # Calcolo token e costo base
-    if model_name in ['gpt-4', 'gpt-3.5-turbo', 'claude-3-sonnet']:
+    if model_name in ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo', 'claude-3-sonnet']:
         # Per modelli linguistici: calcolo basato su token
         if input_tokens == 0 and prompt_length > 0:
             # Stima token da lunghezza prompt (approssimazione: 1 token = 4 caratteri)
