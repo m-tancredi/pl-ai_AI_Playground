@@ -15,6 +15,7 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
+import requests  # <-- AGGIUNGO PER CHIAMATE HTTP AL RM
 
 from .models import TrainedModel # Assumendo che il modello sia in .models
 
@@ -137,6 +138,113 @@ def build_simple_cnn(num_classes, img_height=None, img_width=None, img_channels=
 #                   metrics=['accuracy'])
 #     return model
 # --- Fine Esempio Transfer Learning ---
+
+def upload_model_to_resource_manager(model_record):
+    """
+    Carica automaticamente un modello addestrato sul Resource Manager Service.
+    Questa funzione viene chiamata dopo il completamento del training.
+    
+    Args:
+        model_record (TrainedModel): Il record del modello completato
+        
+    Returns:
+        dict: Informazioni sulla risorsa creata o None se fallita
+    """
+    try:
+        print(f"[RM Upload] Starting upload for model {model_record.id} to Resource Manager...")
+        
+        # Verifica che il modello sia completo e i file esistano
+        if model_record.status != TrainedModel.Status.COMPLETED:
+            print(f"[RM Upload] Model {model_record.id} not COMPLETED, skipping upload")
+            return None
+            
+        model_full_path = model_record.get_full_model_path()
+        if not model_full_path or not os.path.exists(model_full_path):
+            print(f"[RM Upload] Model file not found: {model_full_path}")
+            return None
+
+        # Prepara i metadati del modello
+        metadata = {
+            'model_id': str(model_record.id),
+            'class_names': model_record.class_names,
+            'accuracy': model_record.accuracy,
+            'loss': model_record.loss,
+            'training_params': model_record.training_params,
+            'training_duration': None,
+            'model_type': 'image_classifier',
+            'framework': 'tensorflow',
+            'format': 'keras'
+        }
+        
+        # Calcola durata training se disponibile
+        if model_record.training_started_at and model_record.training_finished_at:
+            duration = (model_record.training_finished_at - model_record.training_started_at).total_seconds()
+            metadata['training_duration_seconds'] = duration
+            
+        # Prepara nome e descrizione
+        model_name = f"{model_record.name}.keras"
+        description = f"Modello di classificazione immagini addestrato con {len(model_record.class_names)} classi: {', '.join(model_record.class_names[:5])}{'...' if len(model_record.class_names) > 5 else ''}"
+        if model_record.accuracy:
+            description += f". Accuratezza: {model_record.accuracy:.2%}"
+
+        # Leggi il file del modello
+        with open(model_full_path, 'rb') as model_file:
+            files = {
+                'file': (model_name, model_file, 'application/octet-stream')
+            }
+            
+            data = {
+                'owner_id': model_record.owner_id,
+                'name': model_name,
+                'description': description,
+                'metadata_json': json.dumps(metadata)
+            }
+            
+            # Endpoint interno del Resource Manager
+            rm_internal_url = getattr(settings, 'RESOURCE_MANAGER_INTERNAL_URL', 'http://pl-ai-resource-manager-service:8000')
+            upload_endpoint = f"{rm_internal_url}/api/internal/resources/upload-synthetic-content/"
+            
+            # Headers per autenticazione interna
+            headers = {
+                'X-Internal-Secret': getattr(settings, 'INTERNAL_API_SECRET', 'django-insecure-replace-me-later-!@#$%^&*()_+')
+            }
+            
+            print(f"[RM Upload] Uploading to: {upload_endpoint}")
+            
+            # Effettua la chiamata HTTP
+            response = requests.post(
+                upload_endpoint,
+                files=files,
+                data=data,
+                headers=headers,
+                timeout=30  # 30 secondi timeout
+            )
+            
+            if response.status_code == 201:
+                resource_data = response.json()
+                resource_id = resource_data.get('id')
+                print(f"[RM Upload] Successfully uploaded model {model_record.id} to Resource Manager. Resource ID: {resource_id}")
+                
+                # Salva l'ID nel record del modello
+                model_record.resource_manager_id = resource_id
+                model_record.save(update_fields=['resource_manager_id'])
+                
+                return resource_data
+            else:
+                print(f"[RM Upload] Failed to upload model {model_record.id}. Status: {response.status_code}, Response: {response.text}")
+                return None
+                
+    except requests.exceptions.Timeout:
+        print(f"[RM Upload] Timeout uploading model {model_record.id} to Resource Manager")
+        return None
+    except requests.exceptions.ConnectionError:
+        print(f"[RM Upload] Connection error uploading model {model_record.id} to Resource Manager")
+        return None
+    except Exception as e:
+        print(f"[RM Upload] Unexpected error uploading model {model_record.id} to Resource Manager: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 # --- Task Celery ---
@@ -267,6 +375,9 @@ def train_classifier_task(self, model_id, image_data_list, labels, class_names, 
             final_record.training_finished_at = timezone.now()
             final_record.error_message = None
             final_record.save()
+
+        # NOTA: Upload al Resource Manager rimosso dal training task
+        # L'upload ora avviene quando l'utente salva il modello con il nome scelto
 
         end_time = time.time()
         print(f"{task_id_str} Successfully trained and saved model {model_id_str}. Time: {end_time - start_time:.2f}s")

@@ -125,3 +125,7 @@ CELERY_TASK_SOFT_TIME_LIMIT = 1740 # Slightly less than hard limit
 IMG_HEIGHT = 180 # Example image size for model input
 IMG_WIDTH = 180
 IMG_CHANNELS = 3 # RGB
+
+# Resource Manager Integration
+RESOURCE_MANAGER_INTERNAL_URL = os.getenv('RESOURCE_MANAGER_INTERNAL_URL', 'http://pl-ai-resource-manager-service:8000')
+INTERNAL_API_SECRET = os.getenv('INTERNAL_API_SECRET', 'django-insecure-replace-me-later-!@#$%^&*()_+')

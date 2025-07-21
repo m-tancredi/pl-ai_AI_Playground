@@ -224,6 +224,37 @@ class TrainedModelViewSet(viewsets.ModelViewSet): # Assicurati sia ModelViewSet
     def get_queryset(self):
         user = self.request.user
         return TrainedModel.objects.filter(owner_id=user.id).order_by('-created_at')
+    
+    def partial_update(self, request, *args, **kwargs):
+        """
+        Override per triggerare l'upload al Resource Manager quando il modello viene salvato.
+        """
+        # Effettua l'aggiornamento normale
+        response = super().partial_update(request, *args, **kwargs)
+        
+        # Se l'aggiornamento è riuscito, prova l'upload al Resource Manager
+        if response.status_code == 200:
+            model_instance = self.get_object()
+            
+            # Upload solo se il modello è completato e non è già stato caricato
+            if (model_instance.status == TrainedModel.Status.COMPLETED and 
+                model_instance.resource_manager_id is None):
+                
+                try:
+                    from .tasks import upload_model_to_resource_manager
+                    print(f"[ViewSet] Triggering upload to Resource Manager for model {model_instance.id}")
+                    
+                    resource_data = upload_model_to_resource_manager(model_instance)
+                    if resource_data:
+                        print(f"[ViewSet] Successfully uploaded to Resource Manager. Resource ID: {resource_data.get('id')}")
+                    else:
+                        print(f"[ViewSet] Failed to upload to Resource Manager")
+                        
+                except Exception as e:
+                    print(f"[ViewSet] Error during Resource Manager upload: {e}")
+                    # Non far fallire l'aggiornamento del modello se l'upload RM fallisce
+        
+        return response
 
     @action(detail=True, methods=['get'])
     def download(self, request, id=None):

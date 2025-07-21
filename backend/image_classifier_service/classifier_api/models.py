@@ -45,6 +45,9 @@ class TrainedModel(models.Model):
     loss = models.FloatField(null=True, blank=True, help_text="Training loss")
     training_params = models.JSONField(default=dict, help_text="Parameters used for training (e.g., epochs, batch_size)")
     error_message = models.TextField(blank=True, null=True)
+    
+    # Resource Manager Integration
+    resource_manager_id = models.PositiveIntegerField(null=True, blank=True, help_text="ID della risorsa nel Resource Manager Service se caricata")
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

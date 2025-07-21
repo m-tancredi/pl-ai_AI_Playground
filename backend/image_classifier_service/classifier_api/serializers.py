@@ -117,13 +117,13 @@ class TrainedModelSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'owner_id', 'name', 'description', 'status',
             'class_names', 'accuracy', 'loss', 'training_params',
-            'error_message', 'created_at', 'training_started_at',
+            'error_message', 'resource_manager_id', 'created_at', 'training_started_at',
             'training_finished_at'
         ]
         # Campi che non devono MAI essere modificati direttamente tramite API dopo la creazione
         read_only_fields = [
             'id', 'owner_id', 'status', 'class_names', 'accuracy', 'loss',
-            'training_params', 'error_message', 'created_at',
+            'training_params', 'error_message', 'resource_manager_id', 'created_at',
             'training_started_at', 'training_finished_at'
         ]
         # 'name' e 'description' sono implicitamente scrivibili (possono essere aggiornati con PATCH)
