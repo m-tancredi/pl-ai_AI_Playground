@@ -307,6 +307,17 @@ code {
   }
 }
 
+@keyframes fade-in-scale {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 .animate-blob {
   animation: blob 7s infinite;
 }
@@ -321,6 +332,10 @@ code {
 
 .animate-fade-in {
   animation: fade-in 0.5s ease-out;
+}
+
+.animate-fade-in-scale {
+  animation: fade-in-scale 0.3s ease-out;
 }
 
 /* Chat Message Hover Effects */

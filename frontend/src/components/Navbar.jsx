@@ -5,6 +5,7 @@ import { FaTimes, FaQuestionCircle } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import UserAvatar from './UserAvatar';
 import useUserService from '../hooks/useUserService';
+import AuthModal from './AuthModal';
 
 // Import icone Flaticon
 import '@flaticon/flaticon-uicons/css/all/all.css';
@@ -54,6 +55,7 @@ const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTutorial, setActiveTutorial] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Carica il profilo utente quando l'utente è autenticato
   useEffect(() => {
@@ -396,16 +398,15 @@ const Navbar = () => {
 
             {/* Condizionale: se siamo sulla landing page (/) mostra solo auth, altrimenti navbar completa */}
             {location.pathname === '/' ? (
-              /* Landing Page - Solo Auth Links */
-              <div className="flex items-center space-x-4">
-                <Link to="/login" className="relative px-8 py-4 rounded-lg bg-gradient-to-r from-pink-500/90 to-blue-500/90 backdrop-blur-xl text-white font-medium transition-all duration-500 hover:from-pink-600/90 hover:to-blue-600/90 shadow-lg shadow-pink-500/30 border border-white/20 flex items-center gap-3 group overflow-hidden">
+              /* Landing Page - Solo Auth Button */
+              <div className="flex items-center">
+                <button 
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="relative px-8 py-4 rounded-lg bg-gradient-to-r from-pink-500/90 to-blue-500/90 backdrop-blur-xl text-white font-medium transition-all duration-500 hover:from-pink-600/90 hover:to-blue-600/90 shadow-lg shadow-pink-500/30 border border-white/20 flex items-center gap-3 group overflow-hidden"
+                >
                   <MenuIcon iconClass="fi fi-rr-sign-in-alt" size="text-sm" />
-                  <span>Login</span>
-                </Link>
-                <Link to="/register" className="relative px-6 py-4 rounded-lg bg-white/10 backdrop-blur-xl text-blue-700 font-medium transition-all duration-500 hover:bg-white/20 hover:text-blue-800 border border-white/20 flex items-center gap-3 group overflow-hidden">
-                  <MenuIcon iconClass="fi fi-rr-user-add" size="text-sm" />
-                  <span>Register</span>
-                </Link>
+                  <span>Accedi / Registrati</span>
+                </button>
               </div>
             ) : (
               /* Pagine normali - Navbar completa */
@@ -656,6 +657,12 @@ const Navbar = () => {
           content={tutorialContent[activeTutorial].content}
         />
       )}
+
+      {/* Modale Autenticazione */}
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)}
+      />
     </>
   );
 };

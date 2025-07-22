@@ -1,8 +1,41 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { FaRocket, FaGraduationCap, FaBrain, FaUsers, FaCheckCircle, FaArrowRight } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext';
+import AuthModal from '../components/AuthModal';
 
 const LandingPage = () => {
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const { isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
+
+  const handleOpenAuthModal = () => {
+    setIsAuthModalOpen(true);
+  };
+
+  const handleCloseAuthModal = () => {
+    setIsAuthModalOpen(false);
+  };
+
+  // Redirect to /home if user is already authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigate('/home', { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Caricamento...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
       {/* Hero Section */}
@@ -30,23 +63,16 @@ const LandingPage = () => {
             </div>
 
             <div className="animate-fade-in-up delay-300">
-              <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-16">
-                <Link
-                  to="/register"
-                  className="group relative inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-xl rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300"
+              <div className="flex justify-center items-center mb-16">
+                <button
+                  onClick={handleOpenAuthModal}
+                  className="group relative inline-flex items-center gap-3 px-12 py-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-xl rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300"
                 >
                   <FaRocket className="group-hover:animate-pulse" />
-                  <span>Inizia Gratis</span>
+                  <span>Accedi / Registrati</span>
                   <FaArrowRight className="group-hover:translate-x-1 transition-transform duration-300" />
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                </Link>
-                
-                <Link
-                  to="/login"
-                  className="group inline-flex items-center gap-3 px-10 py-5 bg-white/80 backdrop-blur-sm text-gray-800 font-bold text-xl rounded-2xl shadow-xl hover:shadow-2xl border border-gray-200/50 transform hover:scale-105 transition-all duration-300"
-                >
-                  <span>Accedi</span>
-                </Link>
+                </button>
               </div>
             </div>
 
@@ -237,23 +263,23 @@ const LandingPage = () => {
             Non aspettare. Inizia oggi il tuo viaggio nell'intelligenza artificiale educativa 
             e scopri un mondo di possibilità infinite
           </p>
-          <div className="flex flex-col sm:flex-row gap-6 justify-center">
-            <Link
-              to="/register"
-              className="inline-flex items-center gap-3 px-10 py-5 bg-white text-indigo-600 font-black text-xl rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300"
+          <div className="flex justify-center">
+            <button
+              onClick={handleOpenAuthModal}
+              className="inline-flex items-center gap-3 px-12 py-6 bg-white text-indigo-600 font-black text-xl rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300"
             >
               <FaRocket />
-              Registrati Gratis
-            </Link>
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-3 px-10 py-5 bg-transparent border-2 border-white text-white font-bold text-xl rounded-2xl hover:bg-white hover:text-indigo-600 transform hover:scale-105 transition-all duration-300"
-            >
-              Hai già un account?
-            </Link>
+              Accedi / Registrati
+            </button>
           </div>
         </div>
       </section>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={handleCloseAuthModal}
+      />
     </div>
   );
 };

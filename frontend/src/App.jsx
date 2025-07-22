@@ -1,6 +1,7 @@
 // src/App.jsx
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage';
@@ -54,6 +55,29 @@ function App() {
           } />
         </Routes>
       </main>
+      
+      {/* Toast Notifications */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+            borderRadius: '12px',
+          },
+          success: {
+            style: {
+              background: '#10B981',
+            },
+          },
+          error: {
+            style: {
+              background: '#EF4444',
+            },
+          },
+        }}
+      />
       
       {/* Footer with transparency effect */}
       <footer className="bg-white/90 backdrop-blur-md text-gray-700 py-0.5 w-full fixed bottom-0 border-t border-gray-200/50 z-10">
