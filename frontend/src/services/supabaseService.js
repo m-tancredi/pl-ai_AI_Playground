@@ -29,7 +29,7 @@ class SupabaseService {
             );
 
             this.initialized = true;
-            console.log('Supabase initialized successfully');
+            // Supabase initialized successfully
         } catch (error) {
             console.error('Failed to initialize Supabase:', error);
             throw new Error('Impossibile inizializzare Supabase');

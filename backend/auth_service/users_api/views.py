@@ -4,14 +4,17 @@ from rest_framework import generics, permissions, status, views
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework.parsers import MultiPartParser, FormParser
+import logging
 from .serializers import (
     RegisterSerializer, 
     UserSerializer, 
     ProfileImageUploadSerializer,
     ProfileUpdateSerializer
 )
+from .user_service_client import user_service_client
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 class RegisterView(generics.CreateAPIView):
     """
@@ -26,17 +29,53 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        # Optional: Generate tokens immediately upon registration?
-        # refresh = RefreshToken.for_user(user)
-        # data = {
-        #     'refresh': str(refresh),
-        #     'access': str(refresh.access_token),
-        #     'user': serializer.data # Return user data as well
-        # }
-        # return Response(data, status=status.HTTP_201_CREATED)
-
-        # Or just return user data (or a success message) and require separate login
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        # Crea il profilo corrispondente in user_service
+        try:
+            # Per la registrazione normale, è sempre completa (tutti i campi nel form)
+            # L'onboarding sarà solo per utenti che arrivano da login social (Google)
+            registration_completed = True
+            
+            logger.info(f"Normal registration - always completed. User data - "
+                       f"first_name: '{request.data.get('first_name', '')}', "
+                       f"last_name: '{request.data.get('last_name', '')}', "
+                       f"username: '{request.data.get('username', '')}', "
+                       f"registration_completed: {registration_completed}")
+            
+            user_profile_data = {
+                'user_id': user.id,
+                'first_name': request.data.get('first_name', ''),
+                'last_name': request.data.get('last_name', ''),
+                'username': request.data.get('username', ''),
+                'email': request.data.get('email', ''),
+                'registration_completed': registration_completed
+            }
+            
+            profile_result = user_service_client.create_user_profile(user_profile_data)
+            if profile_result:
+                # Aggiungi informazioni sul profilo alla risposta
+                response_data = serializer.data.copy()
+                response_data['profile_created'] = True
+                response_data['registration_completed'] = registration_completed
+                return Response(response_data, status=status.HTTP_201_CREATED)
+            else:
+                # Se la creazione del profilo fallisce, log dell'errore ma continua
+                # L'utente è già stato creato in auth_service
+                logger.warning(f"Failed to create user profile in user_service for user {user.id}")
+                
+                response_data = serializer.data.copy()
+                response_data['profile_created'] = False
+                response_data['registration_completed'] = False
+                return Response(response_data, status=status.HTTP_201_CREATED)
+        
+        except Exception as e:
+            # In caso di errore, log ma non bloccare la registrazione
+            logger.error(f"Error creating user profile for user {user.id}: {str(e)}")
+            
+            response_data = serializer.data.copy()
+            response_data['profile_created'] = False
+            response_data['registration_completed'] = False
+            return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):

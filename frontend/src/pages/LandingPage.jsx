@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { FaRocket, FaGraduationCap, FaBrain, FaUsers, FaCheckCircle, FaArrowRight } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import AuthModal from '../components/AuthModal';
@@ -69,7 +69,7 @@ const LandingPage = () => {
                   className="group relative inline-flex items-center gap-3 px-12 py-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-xl rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300"
                 >
                   <FaRocket className="group-hover:animate-pulse" />
-                  <span>Accedi / Registrati</span>
+                  <span>Accedi con Google</span>
                   <FaArrowRight className="group-hover:translate-x-1 transition-transform duration-300" />
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </button>
@@ -238,13 +238,13 @@ const LandingPage = () => {
                     <p className="text-gray-600 mb-6">
                       Unisciti a migliaia di studenti e educatori che stanno già trasformando il loro modo di apprendere
                     </p>
-                    <Link
-                      to="/register"
+                    <button
+                      onClick={handleOpenAuthModal}
                       className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
                     >
                       Inizia Ora
                       <FaArrowRight />
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -269,7 +269,7 @@ const LandingPage = () => {
               className="inline-flex items-center gap-3 px-12 py-6 bg-white text-indigo-600 font-black text-xl rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300"
             >
               <FaRocket />
-              Accedi / Registrati
+              Accedi con Google
             </button>
           </div>
         </div>

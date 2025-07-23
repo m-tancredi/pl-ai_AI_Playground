@@ -21,6 +21,17 @@ export const AuthProvider = ({ children }) => {
                 await supabaseService.initialize();
                 const providers = await supabaseService.getAuthProviders();
                 setSocialAuthProviders(providers);
+                
+                // Aggiungi listener per gli eventi di autenticazione di Supabase
+                const { data: { subscription } } = supabaseService.onAuthStateChange((event, session) => {
+                    // Supabase auth state listener - no action needed to avoid infinite loops
+                    // Logout is already handled by clearAuthData()
+                });
+                
+                // Cleanup function per rimuovere il listener
+                return () => {
+                    subscription?.unsubscribe();
+                };
             } catch (error) {
                 console.error('Failed to initialize social auth:', error);
                 // Non bloccare l'app se l'inizializzazione sociale fallisce
@@ -28,7 +39,7 @@ export const AuthProvider = ({ children }) => {
         };
 
         initializeSupabase();
-    }, []);
+    }, []); // Rimuovo clearAuthData dalle dipendenze
 
     const decodeToken = (token) => {
         if (!token) return null;
@@ -66,7 +77,16 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     // Nuovo metodo per impostare i dati di autenticazione dall'autenticazione sociale
-    const setAuthDataFromSocial = useCallback((access, refresh, userData) => {
+    const setAuthDataFromSocial = useCallback(async (access, refresh, userData) => {
+        // Clear existing auth data before setting social auth data (inline to avoid circular dependency)
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        sessionStorage.clear();
+        delete apiClient.defaults.headers.common['Authorization'];
+        
+        // NON chiamare supabaseService.signOut() per evitare loop infinito
+        
         localStorage.setItem('accessToken', access);
         localStorage.setItem('refreshToken', refresh);
         setAccessToken(access);
@@ -76,25 +96,40 @@ export const AuthProvider = ({ children }) => {
         // Set the Authorization header for future requests
         apiClient.defaults.headers.common['Authorization'] = `Bearer ${access}`;
         setIsLoading(false);
-    }, []);
+    }, []); // Nessuna dipendenza per evitare circolarità
 
     const clearAuthData = useCallback(async () => {
+        // Clear localStorage
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        
+        // Clear sessionStorage (important for registration data and other cached data)
+        sessionStorage.clear();
+        
+        // Clear state
         setAccessToken(null);
         setRefreshToken(null);
         setUser(null);
         setIsAuthenticated(false);
+        
         // Remove the Authorization header
         delete apiClient.defaults.headers.common['Authorization'];
         
-        // Effettua anche il logout da Supabase se possibile
+        // NON chiamare supabaseService.signOut() per evitare loop infinito
+        // Supabase viene già gestito dal suo auth state listener
+        
+        // Clear any browser cookies related to authentication
         try {
-            if (supabaseService.initialized) {
-                await supabaseService.signOut();
-            }
+            // Clear domain cookies if any
+            document.cookie.split(";").forEach((c) => {
+                const eqPos = c.indexOf("=");
+                const name = eqPos > -1 ? c.substr(0, eqPos) : c;
+                document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+                document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname;
+            });
         } catch (error) {
-            console.error('Failed to sign out from Supabase:', error);
+            console.error('Failed to clear cookies:', error);
         }
         
         setIsLoading(false); // Ensure loading stops after clearing
@@ -103,6 +138,8 @@ export const AuthProvider = ({ children }) => {
     // Effect to initialize auth state on mount
     useEffect(() => {
         const initializeAuth = async () => {
+            // Non skippare mai l'inizializzazione - i dati in localStorage sono la fonte di verità
+            
             const storedAccessToken = localStorage.getItem('accessToken');
             const storedRefreshToken = localStorage.getItem('refreshToken');
 
@@ -113,11 +150,11 @@ export const AuthProvider = ({ children }) => {
                     setAuthData(storedAccessToken, storedRefreshToken);
                 } else {
                     // Access token might be expired, try refreshing
-                    console.log("Access token expired or invalid, attempting refresh...");
+                    // Access token expired or invalid, attempting refresh
                     try {
                         const refreshResponse = await apiRefreshToken(storedRefreshToken);
                         setAuthData(refreshResponse.access, storedRefreshToken); // Use OLD refresh if rotation isn't returning new one
-                        console.log("Token refreshed successfully.");
+                        // Token refreshed successfully
                     } catch (error) {
                         console.error("Failed to refresh token on init:", error);
                         clearAuthData(); // Clear auth if refresh fails
@@ -133,11 +170,37 @@ export const AuthProvider = ({ children }) => {
 
         initializeAuth();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [clearAuthData, setAuthData]); // Add dependencies
+    }, [clearAuthData, setAuthData]); // isLoggingOut rimosso - non più necessario
+
+    // Listener globale per eventi di logout
+    useEffect(() => {
+        const handleGlobalLogout = () => {
+            // Global logout event received, clearing auth data
+            clearAuthData();
+        };
+
+        window.addEventListener('auth-logout-event', handleGlobalLogout);
+        
+        return () => {
+            window.removeEventListener('auth-logout-event', handleGlobalLogout);
+        };
+    }, [clearAuthData]);
 
 
     const login = async (credentials) => {
         setIsLoading(true);
+        
+        // Clear existing auth data inline before attempting login
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        sessionStorage.clear();
+        delete apiClient.defaults.headers.common['Authorization'];
+        setAccessToken(null);
+        setRefreshToken(null);
+        setUser(null);
+        setIsAuthenticated(false);
+        
         try {
             const response = await apiLogin(credentials);
             setAuthData(response.access, response.refresh);
@@ -203,7 +266,7 @@ export const AuthProvider = ({ children }) => {
         if (currentRefreshToken) {
             try {
                 await apiLogout(currentRefreshToken); // Call backend to blacklist the token
-                console.log("Logout successful on backend.");
+                // Logout successful on backend
             } catch (error) {
                 // Log error but don't block logout flow if backend call fails
                 console.error("Failed to blacklist token on backend:", error);

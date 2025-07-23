@@ -23,7 +23,7 @@ from .serializers import (
     UserStatusUpdateSerializer,
     UserProfileSummarySerializer
 )
-from .permissions import IsOwnerOrReadOnly, IsAdminOrOwner
+from .permissions import IsOwnerOrReadOnly, IsAdminOrOwner, InternalServicePermission
 
 logger = logging.getLogger('user_api')
 
@@ -41,6 +41,16 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     lookup_field = 'user_id'
+    
+    def get_permissions(self):
+        """
+        Restituisce i permessi appropriati per l'azione.
+        Per le operazioni di creazione, consente chiamate inter-service.
+        """
+        if self.action == 'create':
+            # Per la creazione, consenti sia autenticazione normale che inter-service
+            return [permissions.AllowAny()]
+        return super().get_permissions()
     
     def get_queryset(self):
         """

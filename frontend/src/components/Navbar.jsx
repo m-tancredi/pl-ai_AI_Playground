@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import UserAvatar from './UserAvatar';
 import useUserService from '../hooks/useUserService';
 import AuthModal from './AuthModal';
+import supabaseService from '../services/supabaseService';
 
 // Import icone Flaticon
 import '@flaticon/flaticon-uicons/css/all/all.css';
@@ -60,25 +61,22 @@ const Navbar = () => {
   // Carica il profilo utente quando l'utente è autenticato
   useEffect(() => {
     const loadUserProfile = async () => {
-      if (isAuthenticated && user && !userProfile) {
+      if (isAuthenticated && user) {
         try {
           const profile = await getMyProfile();
           setUserProfile(profile);
         } catch (error) {
           console.error('Errore caricamento profilo navbar:', error);
+          setUserProfile(null);
         }
+      } else {
+        // Reset profilo se non autenticato o user non esiste
+        setUserProfile(null);
       }
     };
 
     loadUserProfile();
-  }, [isAuthenticated, user, getMyProfile, userProfile]);
-
-  // Reset del profilo al logout
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setUserProfile(null);
-    }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id, getMyProfile]); // Usa user.id invece di user per evitare loop, rimuovi userProfile
 
   // Contenuti tutorial per ogni pagina
   const tutorialContent = {
@@ -320,12 +318,21 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     try {
+      // Prima pulisci la sessione Supabase per logout esplicito
+      if (supabaseService?.initialized) {
+        await supabaseService.signOut();
+        // Supabase logout completed
+      }
+      
       await logout();
       setIsUserMenuOpen(false);
       setIsMobileMenuOpen(false);
-      navigate('/');
+      // Forza refresh completo della pagina per eliminare qualsiasi stato persistente
+      window.location.href = '/';
     } catch (error) {
       console.error('Errore durante il logout:', error);
+      // Anche in caso di errore, forza il reload per pulire lo stato
+      window.location.href = '/';
     }
   };
 
@@ -405,7 +412,7 @@ const Navbar = () => {
                   className="relative px-8 py-4 rounded-lg bg-gradient-to-r from-pink-500/90 to-blue-500/90 backdrop-blur-xl text-white font-medium transition-all duration-500 hover:from-pink-600/90 hover:to-blue-600/90 shadow-lg shadow-pink-500/30 border border-white/20 flex items-center gap-3 group overflow-hidden"
                 >
                   <MenuIcon iconClass="fi fi-rr-sign-in-alt" size="text-sm" />
-                  <span>Accedi / Registrati</span>
+                  <span>Accedi con Google</span>
                 </button>
               </div>
             ) : (
@@ -511,15 +518,14 @@ const Navbar = () => {
                       )}
                     </div>
                   ) : (
-                    <div className="flex items-center space-x-4">
-                      <Link to="/login" className="relative px-8 py-4 rounded-lg bg-gradient-to-r from-pink-500/90 to-blue-500/90 backdrop-blur-xl text-white font-medium transition-all duration-500 hover:from-pink-600/90 hover:to-blue-600/90 shadow-lg shadow-pink-500/30 border border-white/20 flex items-center gap-3 group overflow-hidden">
+                    <div className="flex items-center">
+                      <button 
+                        onClick={() => setIsAuthModalOpen(true)}
+                        className="relative px-8 py-4 rounded-lg bg-gradient-to-r from-pink-500/90 to-blue-500/90 backdrop-blur-xl text-white font-medium transition-all duration-500 hover:from-pink-600/90 hover:to-blue-600/90 shadow-lg shadow-pink-500/30 border border-white/20 flex items-center gap-3 group overflow-hidden"
+                      >
                         <MenuIcon iconClass="fi fi-rr-sign-in-alt" size="text-sm" />
-                        <span>Login</span>
-                      </Link>
-                      <Link to="/register" className="relative px-6 py-4 rounded-lg bg-white/10 backdrop-blur-xl text-blue-700 font-medium transition-all duration-500 hover:bg-white/20 hover:text-blue-800 border border-white/20 flex items-center gap-3 group overflow-hidden">
-                        <MenuIcon iconClass="fi fi-rr-user-add" size="text-sm" />
-                        <span>Register</span>
-                      </Link>
+                        <span>Accedi con Google</span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -598,16 +604,15 @@ const Navbar = () => {
               )}
                {/* Auth Links Mobile */}
               {!isAuthenticated ? (
-                   <>
-                      <NavLink to="/login" className={({isActive}) => getMobileNavLinkClass(isActive)} onClick={closeMobileMenu}>
-                        <MenuIcon iconClass="fi fi-rr-sign-in-alt" />
-                        Login
-                      </NavLink>
-                      <NavLink to="/register" className={({isActive}) => getMobileNavLinkClass(isActive)} onClick={closeMobileMenu}>
-                        <MenuIcon iconClass="fi fi-rr-user-add" />
-                        Register
-                      </NavLink>
-                   </>
+                   <div className="pt-6 border-t border-white/20 mt-6">
+                     <button 
+                       onClick={() => {setIsAuthModalOpen(true); closeMobileMenu();}}
+                       className="w-full flex items-center gap-3 px-5 py-4 rounded-lg text-base font-medium bg-gradient-to-r from-pink-500/90 to-blue-500/90 backdrop-blur-xl text-white transition-all duration-500 hover:from-pink-600/90 hover:to-blue-600/90 shadow-lg shadow-pink-500/30 border border-white/20"
+                     >
+                       <MenuIcon iconClass="fi fi-rr-sign-in-alt" />
+                       <span>Accedi con Google</span>
+                     </button>
+                   </div>
                ) : (
                   <div className="pt-6 pb-4 border-t border-white/20 mt-6">
                       <div className="flex items-center px-5 mb-6 p-4 rounded-lg bg-white/10 backdrop-blur-xl border border-white/20">

@@ -37,12 +37,17 @@ const AuthCallbackPage = () => {
             if (authData && authData.access && authData.refresh) {
                 // Imposta i dati di autenticazione nel context
                 if (setAuthDataFromSocial) {
-                    setAuthDataFromSocial(authData.access, authData.refresh, authData.user);
+                    // Add provider info to user data for onboarding detection
+                    const userData = {
+                        ...authData.user,
+                        provider: authData.provider
+                    };
+                    await setAuthDataFromSocial(authData.access, authData.refresh, userData);
                 }
 
                 toast.success(`Accesso effettuato con ${authData.provider || 'social login'}!`);
                 
-                // Reindirizza alla home page
+                // Let ProtectedRoute handle onboarding check - redirect to home first
                 navigate('/home', { replace: true });
             } else {
                 throw new Error('Dati di autenticazione non validi ricevuti dal server');
@@ -53,9 +58,9 @@ const AuthCallbackPage = () => {
             setError(error.message || 'Errore durante l\'autenticazione');
             toast.error('Errore durante l\'autenticazione');
             
-            // Reindirizza alla pagina di login dopo un breve delay
+            // Reindirizza alla landing page dopo un breve delay
             setTimeout(() => {
-                navigate('/login', { replace: true });
+                navigate('/', { replace: true });
             }, 3000);
         } finally {
             setLoading(false);

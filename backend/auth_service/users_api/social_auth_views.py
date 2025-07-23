@@ -145,6 +145,36 @@ class SocialAuthCallbackView(APIView):
             # Crea o aggiorna l'utente
             try:
                 user = supabase_service.get_or_create_user_from_supabase(token_data)
+                
+                # Crea il profilo base in user_service per utenti social
+                from .user_service_client import user_service_client
+                
+                try:
+                    # Per l'autenticazione sociale, il profilo è sempre incompleto inizialmente
+                    user_profile_data = {
+                        'user_id': user.id,
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                        'username': user.username,
+                        'email': user.email,
+                        'registration_completed': False  # Sempre False per auth sociale
+                    }
+                    
+                    # Verifica se il profilo esiste già
+                    existing_profile = user_service_client.get_user_profile(str(user.id))
+                    if not existing_profile:
+                        profile_result = user_service_client.create_user_profile(user_profile_data)
+                        if profile_result:
+                            logger.info(f"User profile created in user_service for social user {user.id}")
+                        else:
+                            logger.warning(f"Failed to create user profile in user_service for social user {user.id}")
+                    else:
+                        logger.info(f"User profile already exists for social user {user.id}")
+                        
+                except Exception as profile_error:
+                    logger.error(f"Error handling user profile for social user {user.id}: {str(profile_error)}")
+                    # Non bloccare il flusso di autenticazione se la creazione del profilo fallisce
+                
             except Exception as e:
                 logger.error(f"Errore nella creazione utente: {str(e)}")
                 return Response({

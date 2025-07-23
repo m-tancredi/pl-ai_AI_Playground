@@ -208,19 +208,13 @@ const HomePage = () => {
                 ) : (
                   <div className="text-center">
                     <p className="text-gray-600 mb-4">Accedi per provare questa funzionalità!</p>
-                    <div className="flex gap-4">
-                      <Link
-                        to="/login"
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+                    <div className="flex justify-center">
+                      <button
+                        onClick={() => navigate('/')}
+                        className="inline-flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
                       >
-                        Accedi
-                      </Link>
-                      <Link
-                        to="/register"
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-800 font-bold rounded-xl shadow-lg hover:shadow-xl border border-gray-200 transform hover:scale-105 transition-all duration-300"
-                      >
-                        Registrati
-                      </Link>
+                        Accedi con Google
+                      </button>
                     </div>
                   </div>
                 )}
@@ -246,7 +240,7 @@ const HomePage = () => {
               {features.map((feature) => (
                 <Link
                   key={feature.id}
-                  to={isAuthenticated ? feature.route : '/login'}
+                  to={isAuthenticated ? feature.route : '/'}
                   className={`group p-4 bg-white/80 backdrop-blur-sm rounded-xl shadow-lg hover:shadow-xl border border-gray-200/50 transform hover:scale-105 transition-all duration-300 ${
                     feature.id === currentSuggestion.id ? `bg-gradient-to-br ${feature.bgColor} ring-2 ring-purple-300` : ''
                   }`}

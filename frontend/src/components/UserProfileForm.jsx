@@ -22,6 +22,7 @@ const UserProfileForm = () => {
   const [profile, setProfile] = useState({
     first_name: '',
     last_name: '',
+    username: '',
     display_name: '',
     email: '',
     phone_number: '',
@@ -264,19 +265,25 @@ const UserProfileForm = () => {
             </div>
           </div>
 
-          {/* Nome Display */}
+          {/* Username */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nome Visualizzazione
+              Username *
             </label>
                           <input
                 type="text"
-                name="display_name"
-                value={profile.display_name || ''}
+              name="username"
+              value={profile.username || ''}
                 onChange={handleInputChange}
-                placeholder="Come vuoi essere chiamato"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              placeholder="Il tuo username unico"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                validationErrors.username ? 'border-red-500' : 'border-gray-300'
+              }`}
+              required
+            />
+            {validationErrors.username && (
+              <p className="text-red-500 text-sm mt-1">{validationErrors.username}</p>
+            )}
           </div>
 
           {/* Email */}
@@ -287,15 +294,14 @@ const UserProfileForm = () => {
             <input
               type="email"
               name="email"
-              value={profile.email}
-              onChange={handleInputChange}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                validationErrors.email ? 'border-red-500' : 'border-gray-300'
-              }`}
+              value={profile.email || ''}
+              readOnly
+              className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed focus:outline-none"
+              placeholder="Email non modificabile"
             />
-            {validationErrors.email && (
-              <p className="text-red-500 text-sm mt-1">{validationErrors.email}</p>
-            )}
+            <p className="text-xs text-gray-500 mt-1">
+              L'email non può essere modificata per ragioni di sicurezza
+            </p>
           </div>
 
           {/* Telefono */}

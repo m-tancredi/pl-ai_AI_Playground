@@ -283,6 +283,12 @@ export const userService = {
       errors.last_name = 'Cognome deve essere di almeno 2 caratteri';
     }
 
+    if (!profileData.username || profileData.username.trim().length < 3) {
+      errors.username = 'Username deve essere di almeno 3 caratteri';
+    } else if (!/^[a-zA-Z0-9._-]+$/.test(profileData.username.trim())) {
+      errors.username = 'Username può contenere solo lettere, numeri, punti, trattini e underscore';
+    }
+
     if (profileData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileData.email)) {
       errors.email = 'Email non valida';
     }

@@ -12,6 +12,8 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'
 ALLOWED_HOSTS_STRING = os.getenv('ALLOWED_HOSTS', 'localhost')
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STRING.split(',') if host.strip()]
+# Add Docker container names for inter-service communication
+ALLOWED_HOSTS.extend(['user_service', 'user-service', '127.0.0.1', '*'])
 
 # Applications
 INSTALLED_APPS = [
@@ -173,6 +175,8 @@ OPENAI_API_KEY = get_docker_secret('openai_api_key_secret', default=None)
 
 # Internal Service Communication
 INTERNAL_API_SECRET = os.getenv('INTERNAL_API_SECRET')
+INTERNAL_API_SECRET_HEADER_NAME = 'X-Internal-Secret'
+INTERNAL_API_SECRET_VALUE = INTERNAL_API_SECRET
 
 # User Service specific settings
 MAX_PROFILE_PICTURE_SIZE = int(os.getenv('MAX_PROFILE_PICTURE_SIZE', 5242880))  # 5MB default

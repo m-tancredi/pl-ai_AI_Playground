@@ -61,6 +61,14 @@ class UserProfile(BaseModel):
         verbose_name=_('Cognome'),
         help_text=_('Cognome dell\'utente')
     )
+    username = models.CharField(
+        max_length=150,
+        unique=True,
+        blank=True,
+        null=True,
+        verbose_name=_('Username'),
+        help_text=_('Nome utente univoco')
+    )
     display_name = models.CharField(
         max_length=100,
         blank=True,
@@ -136,6 +144,13 @@ class UserProfile(BaseModel):
         null=True,
         verbose_name=_('Ultima attività'),
         help_text=_('Timestamp dell\'ultima attività dell\'utente')
+    )
+    
+    # Onboarding Status
+    registration_completed = models.BooleanField(
+        default=False,
+        verbose_name=_('Registrazione completata'),
+        help_text=_('Indica se l\'utente ha completato il processo di onboarding')
     )
     
     class Meta:

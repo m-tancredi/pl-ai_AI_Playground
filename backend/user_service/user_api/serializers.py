@@ -20,10 +20,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = [
-            'user_id', 'first_name', 'last_name', 'display_name',
+            'user_id', 'first_name', 'last_name', 'username', 'display_name',
             'email', 'phone_number', 'profile_picture_url', 'bio',
             'location', 'date_of_birth', 'preferences', 'status',
-            'last_activity', 'created_at', 'updated_at',
+            'last_activity', 'registration_completed', 'created_at', 'updated_at',
             'full_name', 'public_name'
         ]
         read_only_fields = [
@@ -90,8 +90,9 @@ class UserProfileCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = [
-            'user_id', 'first_name', 'last_name', 'display_name',
-            'email', 'phone_number', 'bio', 'location', 'date_of_birth'
+            'user_id', 'first_name', 'last_name', 'username', 'display_name',
+            'email', 'phone_number', 'bio', 'location', 'date_of_birth', 
+            'registration_completed'
         ]
     
     def validate_first_name(self, value):
@@ -119,8 +120,9 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = [
-            'first_name', 'last_name', 'display_name', 'email', 'phone_number',
-            'profile_picture_url', 'bio', 'location', 'date_of_birth'
+            'first_name', 'last_name', 'username', 'display_name', 'email', 'phone_number',
+            'profile_picture_url', 'bio', 'location', 'date_of_birth', 
+            'registration_completed'
         ]
     
     def validate_first_name(self, value):
@@ -267,7 +269,7 @@ class UserProfileSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = [
-            'user_id', 'full_name', 'public_name', 'email', 'status',
-            'status_display', 'last_activity', 'created_at'
+            'user_id', 'full_name', 'public_name', 'username', 'email', 'status',
+            'status_display', 'registration_completed', 'last_activity', 'created_at'
         ]
         read_only_fields = '__all__' 

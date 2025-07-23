@@ -13,15 +13,15 @@ class UserProfileAdmin(admin.ModelAdmin):
     Admin interface per UserProfile con funzionalità avanzate.
     """
     list_display = [
-        'user_id', 'full_name', 'email', 'status',
+        'user_id', 'full_name', 'email', 'status', 'registration_completed',
         'last_activity', 'created_at', 'profile_picture_preview'
     ]
     list_filter = [
-        'status', 'created_at', 'last_activity',
+        'status', 'registration_completed', 'created_at', 'last_activity',
         ('date_of_birth', admin.DateFieldListFilter),
     ]
     search_fields = [
-        'user_id', 'first_name', 'last_name', 'display_name',
+        'user_id', 'first_name', 'last_name', 'username', 'display_name',
         'email', 'location'
     ]
     readonly_fields = [
@@ -31,7 +31,7 @@ class UserProfileAdmin(admin.ModelAdmin):
     
     fieldsets = (
         (_('Informazioni Base'), {
-            'fields': ('user_id', 'first_name', 'last_name', 'display_name')
+            'fields': ('user_id', 'first_name', 'last_name', 'username', 'display_name')
         }),
         (_('Contatti'), {
             'fields': ('email', 'phone_number')
@@ -40,7 +40,7 @@ class UserProfileAdmin(admin.ModelAdmin):
             'fields': ('profile_picture_url', 'bio', 'location', 'date_of_birth')
         }),
         (_('Sistema'), {
-            'fields': ('status', 'last_activity', 'preferences_json'),
+            'fields': ('status', 'registration_completed', 'last_activity', 'preferences_json'),
             'classes': ('collapse',)
         }),
         (_('Metadata'), {
