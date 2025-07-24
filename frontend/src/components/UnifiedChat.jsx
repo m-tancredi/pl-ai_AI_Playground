@@ -22,8 +22,7 @@ const UnifiedChat = ({
     onSwitchMode,
     onClearHistory,
     stats,
-    typewriterSettings,
-    onTypewriterSettingsChange,
+
     currentSession
 }) => {
     const messagesEndRef = useRef(null);
@@ -180,16 +179,7 @@ const UnifiedChat = ({
                             )}
                         </div>
 
-                        {/* Typewriter Settings */}
-                        <div className="relative">
-                            <button
-                                onClick={() => setShowModeSelector(false)} // Chiudi altri menu
-                                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                                title="Impostazioni Typewriter"
-                            >
-                                <Cog6ToothIcon className="w-4 h-4" />
-                            </button>
-                        </div>
+
 
                         {/* Pulisci Chat */}
                         <button
@@ -256,8 +246,7 @@ const UnifiedChat = ({
                                 message={message}
                                 showSources={true}
                                 showKnowledgeBase={false} // Non mostrare più KB (sempre specifica ora)
-                                enableTypewriter={typewriterSettings?.enabled && !message.isUser}
-                                typewriterSpeed={typewriterSettings?.speed || 50}
+
                             />
                         ))}
                         <div ref={messagesEndRef} />

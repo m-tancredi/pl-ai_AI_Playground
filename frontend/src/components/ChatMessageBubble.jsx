@@ -1,14 +1,12 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import { DocumentTextIcon, LinkIcon } from '@heroicons/react/24/outline';
-import TypewriterText from './TypewriterText';
+
 
 const ChatMessageBubble = ({ 
     message, 
     showSources = false, 
-    showKnowledgeBase = false,
-    enableTypewriter = true,
-    typewriterSpeed = 50
+    showKnowledgeBase = false
 }) => {
     const isUser = message.isUser || message.sender === 'user';
     const isError = message.isError;
@@ -36,22 +34,7 @@ const ChatMessageBubble = ({
                 </div>
                 
                 <div className="prose prose-sm max-w-none">
-                    {!isUser && enableTypewriter && message.text && !message.isComplete ? (
-                        <TypewriterText
-                            text={message.text}
-                            speed={typewriterSpeed}
-                            showCursor={true}
-                            enableSkip={true}
-                            enableControls={false}
-                            cursorStyle="classic"
-                            onComplete={() => {
-                                // Marca il messaggio come completato
-                                if (message.onComplete) {
-                                    message.onComplete();
-                                }
-                            }}
-                        />
-                    ) : message.text ? (
+                    {message.text ? (
                         <ReactMarkdown>{message.text}</ReactMarkdown>
                     ) : (
                         <div className="text-gray-500 italic">Caricamento...</div>

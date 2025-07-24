@@ -219,6 +219,13 @@ class LessonGenerateSerializer(serializers.Serializer):
         max_value=50,
         help_text="Lunghezza in righe (opzionale)"
     )
+    depth_level = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=5,
+        default=3,
+        help_text="Livello di approfondimento (1-5)"
+    )
     
     def validate_topic(self, value):
         """Validazione del topic."""
@@ -237,6 +244,13 @@ class QuizGenerateSerializer(serializers.Serializer):
         max_value=20,
         help_text="Numero di domande (opzionale)"
     )
+    difficulty_level = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=5,
+        default=3,
+        help_text="Livello di difficoltà (1-5)"
+    )
     include_approfondimenti = serializers.BooleanField(
         default=True,
         help_text="Includere gli approfondimenti nel quiz"
@@ -251,6 +265,18 @@ class ApprofondimentiGenerateSerializer(serializers.Serializer):
         min_value=1,
         max_value=10,
         help_text="Numero massimo di approfondimenti"
+    )
+    depth_level = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=5,
+        default=3,
+        help_text="Livello di dettaglio (1-5, eredita dalla lezione)"
+    )
+    existing_approfondimenti = serializers.ListField(
+        required=False,
+        child=serializers.DictField(),
+        help_text="Lista approfondimenti esistenti per anti-duplicazione"
     )
 
 

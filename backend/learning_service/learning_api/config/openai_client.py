@@ -34,13 +34,14 @@ class OpenAIClient:
         self.client = openai.OpenAI(api_key=api_key)
         logger.info("OpenAI client inizializzato con successo")
     
-    def generate_lesson(self, topic, max_lines=None):
+    def generate_lesson(self, topic, max_lines=None, depth_level=3):
         """
         Genera una mini-lezione su un argomento specifico.
         
         Args:
             topic (str): Argomento della lezione
             max_lines (int): Numero massimo di righe (default da settings)
+            depth_level (int): Livello di approfondimento (1-5)
         
         Returns:
             str: Contenuto della lezione
@@ -48,7 +49,72 @@ class OpenAIClient:
         if max_lines is None:
             max_lines = settings.DEFAULT_LESSON_LENGTH
         
-        prompt = f"Scrivi una mini-lezione (max {max_lines} righe) sull'argomento: {topic}. Usa un linguaggio chiaro e didattico."
+        # Definisce il livello di approfondimento con condizionamento molto più forte
+        depth_specifications = {
+            1: {
+                "description": "🟢 LIVELLO BASE - Panoramica introduttiva per principianti assoluti",
+                "language": "Linguaggio elementare, parole comuni, frasi brevi e dirette",
+                "concepts": "Solo concetti fondamentali e essenziali, evita terminologia tecnica",
+                "examples": "Esempi della vita quotidiana, molto concreti e familiari",
+                "structure": "Massimo 3-4 concetti principali, presentazione lineare e semplice",
+                "depth": "Definizioni base, 'cosa è' senza entrare nel 'come' o 'perché' complesso"
+            },
+            2: {
+                "description": "🟡 LIVELLO ELEMENTARE - Introduzione con prime spiegazioni",
+                "language": "Linguaggio semplice ma più articolato, prime definizioni tecniche spiegate",
+                "concepts": "Concetti base + prime relazioni causa-effetto semplici",
+                "examples": "Esempi concreti con brevi spiegazioni del 'perché'",
+                "structure": "4-5 punti principali con collegamenti logici chiari",
+                "depth": "Definizioni + funzioni base + prime relazioni semplici"
+            },
+            3: {
+                "description": "🟨 LIVELLO INTERMEDIO - Spiegazione equilibrata e completa",
+                "language": "Linguaggio standard con terminologia appropriata ben spiegata",
+                "concepts": "Concetti principali + relazioni + prime applicazioni pratiche",
+                "examples": "Mix di esempi concreti e teorici con spiegazioni articolate",
+                "structure": "5-6 aspetti principali con sottopunti e collegamenti",
+                "depth": "Meccanismi, processi, relazioni causali, applicazioni pratiche"
+            },
+            4: {
+                "description": "🟠 LIVELLO AVANZATO - Analisi approfondita con aspetti tecnici",
+                "language": "Linguaggio tecnico-scientifico, terminologia specializzata spiegata in contesto",
+                "concepts": "Concetti complessi + variabili + casi particolari + eccezioni",
+                "examples": "Esempi specialistici, casi studio, situazioni complesse",
+                "structure": "Analisi multi-dimensionale con interrelazioni e sfumature",
+                "depth": "Dettagli tecnici, varianti, implicazioni, aspetti critici"
+            },
+            5: {
+                "description": "🔴 LIVELLO SPECIALISTICO - Trattazione esaustiva per esperti",
+                "language": "Linguaggio altamente tecnico, terminologia avanzata, precisione scientifica",
+                "concepts": "Tutti gli aspetti + dibattiti + frontiere della ricerca + controversie",
+                "examples": "Casi limite, ricerca recente, applicazioni innovative, problemi aperti",
+                "structure": "Analisi sistematica completa con tutti i fattori e le interconnessioni",
+                "depth": "Massima profondità: meccanismi molecolari/matematici, teorie avanzate, frontiere"
+            }
+        }
+        
+        spec = depth_specifications.get(depth_level, depth_specifications[3])
+        
+        prompt = f"""Scrivi una mini-lezione (max {max_lines} righe) sull'argomento: {topic}.
+
+🎯 {spec['description']}
+
+SPECIFICHE RIGOROSE PER QUESTO LIVELLO:
+
+📝 LINGUAGGIO: {spec['language']}
+🧠 CONCETTI: {spec['concepts']}
+💡 ESEMPI: {spec['examples']}
+🏗️ STRUTTURA: {spec['structure']}
+🔍 PROFONDITÀ: {spec['depth']}
+
+DIRETTIVE OBBLIGATORIE:
+- RISPETTA RIGOROSAMENTE il livello richiesto - non andare oltre né rimanere sotto
+- Se livello 1-2: usa solo parole comuni, evita assolutamente terminologia tecnica
+- Se livello 4-5: usa terminologia precisa e approfondimenti tecnici/scientifici
+- Calibra la complessità degli esempi ESATTAMENTE al livello richiesto
+- Mantieni coerenza nel registro linguistico per tutta la lezione
+
+Argomento: {topic}"""
         
         try:
             response = self.client.chat.completions.create(
@@ -66,7 +132,7 @@ class OpenAIClient:
             logger.error(f"Errore nella generazione della lezione: {str(e)}")
             raise Exception(f"Errore nella generazione della lezione: {str(e)}")
     
-    def generate_quiz(self, lesson_content, lesson_title="", approfondimenti=None, num_questions=None):
+    def generate_quiz(self, lesson_content, lesson_title="", approfondimenti=None, num_questions=None, difficulty_level=3):
         """
         Genera domande quiz basate sul contenuto della lezione.
         
@@ -75,6 +141,7 @@ class OpenAIClient:
             lesson_title (str): Titolo della lezione
             approfondimenti (list): Lista di approfondimenti
             num_questions (int): Numero di domande (default da settings)
+            difficulty_level (int): Livello di difficoltà (1-5)
         
         Returns:
             list: Lista di domande in formato standardizzato
@@ -82,34 +149,103 @@ class OpenAIClient:
         if num_questions is None:
             num_questions = settings.DEFAULT_QUIZ_QUESTIONS
         
-        # Prepara il contenuto completo includendo eventuali approfondimenti
+        # Prepara il contenuto completo includendo SEMPRE gli approfondimenti se disponibili
         full_content = lesson_content
+        approfondimenti_included = False
+        
         if approfondimenti:
-            full_content += "\n\nApprofondimenti:\n"
+            approfondimenti_included = True
+            full_content += "\n\n🔍 APPROFONDIMENTI (INCLUSI NEL QUIZ):\n"
             for app in approfondimenti:
                 if isinstance(app, dict) and 'title' in app:
                     app_content = app.get('text_content', app.get('content', ''))
                     # Rimuovi eventuali tag HTML residui
                     app_content = re.sub(r'<[^>]*>', ' ', app_content)
-                    full_content += f"\n{app['title']}:\n{app_content}\n"
+                    full_content += f"\n📌 {app['title']}:\n{app_content}\n"
         
-        prompt = f"""Crea {num_questions} domande a risposta multipla (con 4 opzioni ciascuna) basate sulla seguente mini-lezione e sui suoi approfondimenti. 
-        Le domande devono essere specifiche e non generiche. 
+        # Definisce il livello di difficoltà con specifiche molto più dettagliate
+        difficulty_specifications = {
+            1: {
+                "description": "🟢 QUIZ FACILE - Comprensione elementare",
+                "question_type": "Riconoscimento diretto di definizioni e fatti espliciti",
+                "language": "Linguaggio semplice nelle domande, terminologia di base",
+                "complexity": "Una sola informazione per domanda, risposta trovabile direttamente nel testo",
+                "distractors": "Opzioni errate ovviamente diverse dalla risposta corretta"
+            },
+            2: {
+                "description": "🟡 QUIZ SEMPLICE - Comprensione base con prime connessioni",
+                "question_type": "Comprensione diretta + semplici relazioni causa-effetto",
+                "language": "Linguaggio chiaro, prime definizioni tecniche se presenti nel testo",
+                "complexity": "Domande su singoli concetti + semplici 'perché' o 'come'",
+                "distractors": "Opzioni errate plausibili ma distinguibili con attenzione"
+            },
+            3: {
+                "description": "🟨 QUIZ MEDIO - Applicazione e connessioni logiche",
+                "question_type": "Applicazione di concetti + relazioni + confronti semplici",
+                "language": "Linguaggio standard, terminologia appropriata usata nel testo",
+                "complexity": "Collegamento tra concetti diversi, inferenze dirette",
+                "distractors": "Opzioni che richiedono comprensione per essere scartate"
+            },
+            4: {
+                "description": "🟠 QUIZ DIFFICILE - Analisi critica e sintesi",
+                "question_type": "Analisi di situazioni complesse + valutazioni + implicazioni",
+                "language": "Linguaggio tecnico coerente con il livello del contenuto",
+                "complexity": "Domande che richiedono sintesi di più parti + ragionamento",
+                "distractors": "Opzioni molto sottili, richiedono padronanza completa"
+            },
+            5: {
+                "description": "🔴 QUIZ ESPERTO - Valutazione critica e applicazione avanzata",
+                "question_type": "Valutazione critica + applicazione in contesti nuovi + edge cases",
+                "language": "Linguaggio altamente preciso e tecnico",
+                "complexity": "Domande che testano comprensione profonda + capacità di trasferimento",
+                "distractors": "Opzioni estremamente sottili, tutte tecnicamente corrette ma una sola è la migliore"
+            }
+        }
         
-        IMPORTANTE: Varia la posizione della risposta corretta! Non mettere sempre la risposta corretta come prima opzione. 
-        Distribuisci le risposte corrette in posizioni diverse (indici 0, 1, 2, 3) per ogni domanda.
+        spec = difficulty_specifications.get(difficulty_level, difficulty_specifications[3])
         
-        Restituisci un JSON con una lista di oggetti con questa struttura: 
-        [{{
-            "question": "Testo della domanda",
-            "options": ["Opzione 1", "Opzione 2", "Opzione 3", "Opzione 4"],
-            "correct_index": 0
-        }}]
+        approfondimenti_instruction = ""
+        if approfondimenti_included:
+            approfondimenti_instruction = f"""
+🔥 IMPORTANTE - APPROFONDIMENTI INCLUSI:
+Il contenuto include {len(approfondimenti)} approfondimenti che DEVONO essere testati nel quiz.
+- Almeno {min(2, len(approfondimenti))} domande devono riguardare gli approfondimenti
+- Bilancia le domande tra lezione base e approfondimenti
+- Indica chiaramente quando una domanda proviene da un approfondimento
+"""
         
-        Ricorda: correct_index può essere 0, 1, 2 o 3 - varia la posizione della risposta corretta!
-        
-        Lezione{f' - {lesson_title}' if lesson_title else ''}:
-        {full_content}"""
+        prompt = f"""Crea {num_questions} domande a risposta multipla (con 4 opzioni ciascuna) basate ESCLUSIVAMENTE sul contenuto fornito.
+
+🎯 {spec['description']}
+
+SPECIFICHE RIGOROSE PER QUESTO LIVELLO:
+📝 TIPO DOMANDE: {spec['question_type']}
+🧠 LINGUAGGIO: {spec['language']}  
+🔍 COMPLESSITÀ: {spec['complexity']}
+❌ DISTRATTORI: {spec['distractors']}
+
+{approfondimenti_instruction}
+
+VINCOLI ASSOLUTI:
+❗ Le domande devono testare SOLO argomenti esplicitamente trattati nel contenuto
+❗ ZERO domande su argomenti non menzionati o accennati superficialmente  
+❗ Ogni domanda deve essere verificabile dalla lettura del materiale fornito
+❗ RISPETTA il livello di difficoltà: non andare oltre né rimanere sotto
+
+FORMATO E DISTRIBUZIONE:
+✅ Varia SEMPRE la posizione della risposta corretta (indici 0,1,2,3)
+✅ Non mettere mai tutte le risposte corrette nella stessa posizione
+✅ Crea distrattori appropriati al livello di difficoltà richiesto
+
+Restituisci SOLO un JSON valido con questa struttura:
+[{{
+    "question": "Testo della domanda",
+    "options": ["Opzione 1", "Opzione 2", "Opzione 3", "Opzione 4"],
+    "correct_index": 0
+}}]
+
+CONTENUTO DA TESTARE:
+{full_content}"""
         
         try:
             response = self.client.chat.completions.create(
@@ -153,7 +289,7 @@ class OpenAIClient:
             logger.error(f"Errore nella generazione del quiz: {str(e)}")
             raise Exception(f"Errore nella generazione del quiz: {str(e)}")
     
-    def generate_approfondimenti(self, lesson_title, lesson_content, max_items=None):
+    def generate_approfondimenti(self, lesson_title, lesson_content, max_items=None, depth_level=3, existing_approfondimenti=None):
         """
         Genera approfondimenti correlati alla lezione.
         
@@ -161,6 +297,8 @@ class OpenAIClient:
             lesson_title (str): Titolo della lezione
             lesson_content (str): Contenuto della lezione
             max_items (int): Numero massimo di approfondimenti
+            depth_level (int): Livello di dettaglio (eredita dalla lezione)
+            existing_approfondimenti (list): Lista approfondimenti esistenti per anti-duplicazione
         
         Returns:
             list: Lista di approfondimenti
@@ -168,19 +306,89 @@ class OpenAIClient:
         if max_items is None:
             max_items = settings.MAX_LESSON_APPROFONDIMENTI
         
-        prompt = f"""Basandoti sulla seguente lezione dal titolo '{lesson_title}', genera {max_items} possibili approfondimenti correlati.
-        Ogni approfondimento deve avere un titolo breve (massimo 5-6 parole) e una breve descrizione (2-3 frasi).
-        Gli approfondimenti devono essere correlati al tema principale ma esplorare aspetti diversi o complementari.
+        if existing_approfondimenti is None:
+            existing_approfondimenti = []
         
-        Lezione:
-        {lesson_content}
+        # Sistema anti-duplicazione
+        existing_titles = [app.get('title', '') for app in existing_approfondimenti]
+        anti_duplication_instruction = ""
+        if existing_titles:
+            anti_duplication_instruction = f"""
+ATTENZIONE - EVITA DUPLICAZIONI:
+I seguenti approfondimenti esistono già, NON ricrearli:
+{chr(10).join(f'- {title}' for title in existing_titles)}
+
+Genera approfondimenti COMPLETAMENTE DIVERSI e UNICI.
+"""
         
-        Restituisci il risultato in formato JSON con la seguente struttura:
-        [{{
-            "title": "Titolo approfondimento",
-            "content": "Contenuto dell'approfondimento"
-        }}]
-        """
+        # Definisce il livello di dettaglio con specifiche molto più rigorose (eredita dalle lezioni)
+        depth_specifications = {
+            1: {
+                "description": "🟢 APPROFONDIMENTI BASE - Accessibili a principianti assoluti",
+                "language": "Linguaggio elementare, parole comuni, spiegazioni molto semplici",
+                "content_type": "Curiosità interessanti, esempi quotidiani, fatti divertenti",
+                "complexity": "Informazioni aggiuntive semplici, senza tecnicismi",
+                "length": "2-3 paragrafi brevi, concetti singoli e chiari"
+            },
+            2: {
+                "description": "🟡 APPROFONDIMENTI ELEMENTARI - Prime espansioni dei concetti",
+                "language": "Linguaggio semplice ma più ricco, prime definizioni specifiche",
+                "content_type": "Dettagli interessanti, confronti semplici, prime spiegazioni del 'perché'",
+                "complexity": "Approfondimenti diretti con collegamenti logici evidenti",
+                "length": "3-4 paragrafi, un concetto principale per approfondimento"
+            },
+            3: {
+                "description": "🟨 APPROFONDIMENTI INTERMEDI - Espansione equilibrata e informativa",
+                "language": "Linguaggio standard con terminologia appropriata ben contestualizzata",
+                "content_type": "Analisi più dettagliate, applicazioni pratiche, esempi articolati",
+                "complexity": "Aspetti complementari con relazioni e implicazioni",
+                "length": "4-5 paragrafi strutturati, multiple sfaccettature del tema"
+            },
+            4: {
+                "description": "🟠 APPROFONDIMENTI AVANZATI - Analisi specialistiche e tecniche",
+                "language": "Linguaggio tecnico-scientifico, terminologia specializzata precisa",
+                "content_type": "Dettagli tecnici, casi studio, meccanismi specifici, varianti complesse",
+                "complexity": "Aspetti avanzati, eccezioni, considerazioni critiche",
+                "length": "5-6 paragrafi densi, analisi multi-dimensionale"
+            },
+            5: {
+                "description": "🔴 APPROFONDIMENTI SPECIALISTICI - Livello esperto e ricerca",
+                "language": "Linguaggio altamente tecnico, precisione scientifica massima",
+                "content_type": "Frontiere della ricerca, dibattiti accademici, teorie avanzate",
+                "complexity": "Tutti gli aspetti critici, controversie, sviluppi recenti",
+                "length": "6+ paragrafi molto dettagliati, trattazione sistematica completa"
+            }
+        }
+        
+        spec = depth_specifications.get(depth_level, depth_specifications[3])
+        
+        prompt = f"""Basandoti sulla lezione '{lesson_title}', genera {max_items} approfondimenti che RISPETTINO RIGOROSAMENTE il livello richiesto.
+
+🎯 {spec['description']}
+
+SPECIFICHE OBBLIGATORIE PER QUESTO LIVELLO:
+📝 LINGUAGGIO: {spec['language']}
+📚 TIPO CONTENUTO: {spec['content_type']}
+🔍 COMPLESSITÀ: {spec['complexity']}
+📏 LUNGHEZZA: {spec['length']}
+
+DIRETTIVE ASSOLUTE:
+- RISPETTA RIGOROSAMENTE il livello di dettaglio richiesto
+- Se livello 1-2: evita assolutamente terminologia tecnica complessa
+- Se livello 4-5: usa terminologia precisa e approfondimenti scientifici/tecnici
+- Titoli: massimo 5-6 parole, chiari e pertinenti al livello
+- Mantieni PERFETTA coerenza con il registro linguistico della lezione
+
+{anti_duplication_instruction}
+
+CONTENUTO BASE:
+{lesson_content}
+
+Restituisci SOLO un JSON valido:
+[{{
+    "title": "Titolo approfondimento",
+    "content": "Contenuto dell'approfondimento"
+}}]"""
         
         try:
             response = self.client.chat.completions.create(

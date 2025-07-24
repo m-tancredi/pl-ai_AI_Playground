@@ -8,7 +8,8 @@ import {
     FaPaperPlane, 
     FaSpinner,
     FaChevronDown,
-    FaTimes
+    FaTimes,
+    FaDice
 } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -19,7 +20,148 @@ import {
     deleteAllChats 
 } from '../services/chatbotService';
 import { getChatbotUsage, getChatbotOperationDisplayName, getChatbotModelDisplayName } from '../services/usageService';
-import { useTypewriter } from '../hooks/useTypewriter';
+
+// Liste di contenuti casuali categorizzate per fascia d'età
+const RANDOM_SUBJECTS = {
+    'scuola_media': [
+        // Storia
+        'La civiltà egizia e le piramidi',
+        'L\'Impero Romano e Giulio Cesare',
+        'Il Medioevo e il feudalesimo',
+        'Le Crociate e gli scambi culturali',
+        'Il Rinascimento italiano',
+        'La Rivoluzione francese e Napoleone',
+        'L\'Unità d\'Italia e il Risorgimento',
+        'La Seconda guerra mondiale',
+        'La Guerra fredda e il mondo bipolare',
+        // Scienze
+        'Il sistema solare e i pianeti',
+        'Gli ecosistemi e la catena alimentare',
+        'Il ciclo dell\'acqua e i fenomeni atmosferici',
+        'La preistoria e l\'evoluzione umana',
+        'Gli animali vertebrati e invertebrati',
+        'La cellula e la fotosintesi clorofilliana',
+        'L\'apparato circolatorio e respiratorio',
+        'Il DNA e l\'ereditarietà genetica',
+        'Il sistema nervoso e gli organi di senso',
+        'L\'energia e le sue trasformazioni',
+        'Il movimento e le forze in fisica',
+        // Matematica
+        'Le quattro operazioni e le frazioni',
+        'Le forme geometriche e il calcolo delle aree',
+        'Le proporzioni e le percentuali',
+        'Equazioni di primo grado',
+        'Il teorema di Pitagora e la geometria',
+        'Le funzioni matematiche e i grafici',
+        // Letteratura
+        'I miti greci e le divinità dell\'Olimpo',
+        'La letteratura cavalleresca e Dante',
+        'Alessandro Manzoni e I Promessi Sposi',
+        // Geografia
+        'L\'Europa geografica e le sue regioni'
+    ],
+    'primo_biennio': [
+        'La filosofia antica: Socrate, Platone e Aristotele',
+        'Le derivate e il calcolo infinitesimale',
+        'La chimica organica e i composti del carbonio',
+        'La Prima guerra mondiale e le sue conseguenze',
+        'Leopardi e il Romanticismo italiano',
+        'Le leggi della termodinamica',
+        'L\'Illuminismo e la Rivoluzione scientifica',
+        'La geometria analitica e le coniche',
+        'La genetica mendeliana e le mutazioni',
+        'La rivoluzione industriale'
+    ],
+    'secondo_biennio': [
+        'Nietzsche e la crisi dei valori tradizionali',
+        'Gli integrali e il calcolo delle aree',
+        'La fisica quantistica e l\'atomo',
+        'Il Novecento: totalitarismi e democrazie',
+        'Il Decadentismo: D\'Annunzio e Pascoli',
+        'L\'elettromagnetismo e le onde',
+        'Marx e la critica dell\'economia politica',
+        'Le equazioni differenziali',
+        'La biologia molecolare e l\'ingegneria genetica',
+        'La decolonizzazione e il Terzo Mondo'
+    ]
+};
+
+const RANDOM_CHARACTERS = {
+    'scuola_media': [
+        // Antichità classica
+        'Cleopatra',
+        'Giulio Cesare',
+        'Alessandro Magno',
+        'Archimede',
+        'Omero',
+        'Tutankhamon',
+        'Spartaco',
+        'Marco Aurelio',
+        // Medioevo e Rinascimento
+        'Leonardo da Vinci',
+        'Marco Polo',
+        'Cristoforo Colombo',
+        'Dante Alighieri',
+        'Giovanna d\'Arco',
+        'Francesco d\'Assisi',
+        'Federico Barbarossa',
+        'Saladino',
+        'Caterina de\' Medici',
+        'William Shakespeare',
+        'Michelangelo Buonarroti',
+        'Galileo Galilei',
+        // Età moderna e contemporanea
+        'Napoleone Bonaparte',
+        'Giuseppe Garibaldi',
+        'Abraham Lincoln',
+        'Wolfgang Amadeus Mozart',
+        'Isaac Newton',
+        'Marie Curie',
+        'Winston Churchill',
+        'Mahatma Gandhi',
+        'Albert Einstein',
+        'Charles Darwin'
+    ],
+    'primo_biennio': [
+        'Socrate',
+        'Platone',
+        'Aristotele',
+        'Cicerone',
+        'Sant\'Agostino',
+        'Tommaso d\'Aquino',
+        'Niccolò Machiavelli',
+        'Martin Lutero',
+        'Voltaire',
+        'Jean-Jacques Rousseau'
+    ],
+    'secondo_biennio': [
+        'Immanuel Kant',
+        'Georg Wilhelm Friedrich Hegel',
+        'Karl Marx',
+        'Friedrich Nietzsche',
+        'Sigmund Freud',
+        'Virginia Woolf',
+        'Pablo Picasso',
+        'Nelson Mandela',
+        'John F. Kennedy',
+        'Martin Luther King Jr.'
+    ]
+};
+
+// Funzione per ottenere la categoria basata sul grado
+const getAgeCategory = (grade) => {
+    switch(grade) {
+        case 'sec1':
+            return 'scuola_media'; // Scuola Sec. I grado rappresenta la fascia media
+        case 'sec2-biennio':
+            return 'primo_biennio'; // Scuola Sec. II grado - Biennio
+        case 'sec2-triennio':
+            return 'secondo_biennio'; // Scuola Sec. II grado - Triennio
+        default:
+            return 'scuola_media'; // Default fallback
+    }
+};
+
 
 // Componenti
 import ChatMessage from '../components/ChatMessage';
@@ -65,16 +207,7 @@ const ChatbotServicePage = () => {
     const [usageData, setUsageData] = useState(null);
     const usageWidgetRef = useRef(null);
     
-    // State per modal typewriter settings
-    const [showTypewriterModal, setShowTypewriterModal] = useState(false);
-    
-    // State per typewriter effect
-    const [typewriterSettings, setTypewriterSettings] = useState({
-        enabled: true,
-        speed: 30,
-        skipAnimation: false,
-        pauseOnPunctuation: 150
-    });
+
     
     const messagesEndRef = useRef(null);
     
@@ -125,6 +258,45 @@ const ChatbotServicePage = () => {
             setError('Errore nel caricamento della cronologia delle chat');
         }
     };
+
+    // Funzioni per la selezione casuale
+    const getRandomSubject = () => {
+        if (!gradeSelect) {
+            setError('Seleziona prima una classe per ottenere argomenti appropriati');
+            return;
+        }
+        
+        const ageCategory = getAgeCategory(gradeSelect);
+        const subjects = RANDOM_SUBJECTS[ageCategory];
+        
+        if (subjects && subjects.length > 0) {
+            const randomIndex = Math.floor(Math.random() * subjects.length);
+            const randomSubject = subjects[randomIndex];
+            setContextInput(`Interrogami su: ${randomSubject}`);
+            setError('');
+            setSuccess(`🎲 Argomento casuale selezionato: ${randomSubject}`);
+            setTimeout(() => setSuccess(''), 3000);
+        }
+    };
+
+    const getRandomCharacter = () => {
+        if (!gradeSelect) {
+            setError('Seleziona prima una classe per ottenere personaggi appropriati');
+            return;
+        }
+        
+        const ageCategory = getAgeCategory(gradeSelect);
+        const characters = RANDOM_CHARACTERS[ageCategory];
+        
+        if (characters && characters.length > 0) {
+            const randomIndex = Math.floor(Math.random() * characters.length);
+            const randomCharacter = characters[randomIndex];
+            setCharacterInput(randomCharacter);
+            setError('');
+            setSuccess(`🎲 Personaggio casuale selezionato: ${randomCharacter}`);
+            setTimeout(() => setSuccess(''), 3000);
+        }
+    };
     
     const loadChat = async (chatId) => {
         try {
@@ -143,7 +315,7 @@ const ChatbotServicePage = () => {
                 return true;
             }).map(message => ({
                 ...message,
-                isTyping: false // Chat già esistente non deve avere typewriter
+
             }));
             
             setMessages(filteredMessages);
@@ -256,8 +428,7 @@ const ChatbotServicePage = () => {
                 setMessages(prev => [...prev, { 
                     role: 'assistant', 
                     content: response.response, 
-                    model: modelSelect,
-                    isTyping: true  // Flag per attivare typewriter
+                    model: modelSelect
                 }]);
             }
             
@@ -316,8 +487,7 @@ const ChatbotServicePage = () => {
                 return [...newMessages, { 
                     role: 'assistant', 
                     content: response.response, 
-                    model: modelSelect,
-                    isTyping: true  // Flag per attivare typewriter
+                    model: modelSelect
                 }];
             });
             
@@ -481,15 +651,37 @@ const ChatbotServicePage = () => {
                         <div className="space-y-4">
                             <div className="flex gap-4">
                                 {modeSelect !== 'intervista' && (
-                                    <textarea 
-                                        value={contextInput}
-                                        onChange={(e) => setContextInput(e.target.value)}
-                                        onKeyDown={handleKeyDown}
-                                        disabled={isSending}
-                                        className="flex-1 p-4 border-0 rounded-xl resize-none bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" 
-                                        rows="3" 
-                                        placeholder="Descrivi la personalità del bot e il modo in cui dovrà esserti utile..."
-                                    />
+                                    <div className="flex-1 space-y-3">
+                                        <div className="flex gap-2">
+                                            <textarea 
+                                                value={contextInput}
+                                                onChange={(e) => setContextInput(e.target.value)}
+                                                onKeyDown={handleKeyDown}
+                                                disabled={isSending}
+                                                className="flex-1 p-4 border-0 rounded-xl resize-none bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" 
+                                                rows="3" 
+                                                placeholder={modeSelect === 'interrogazione' ? 'Descrivi l\'argomento su cui vuoi essere interrogato...' : 'Descrivi la personalità del bot e il modo in cui dovrà esserti utile...'}
+                                            />
+                                            {modeSelect === 'interrogazione' && (
+                                                <button 
+                                                    onClick={getRandomSubject}
+                                                    disabled={isSending || !gradeSelect}
+                                                    className="px-4 py-2 bg-gradient-to-r from-orange-400 to-red-500 text-white rounded-xl hover:from-orange-500 hover:to-red-600 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 min-w-fit"
+                                                    title="Genera argomento casuale"
+                                                >
+                                                    <FaDice className="text-lg" />
+                                                    <span className="font-semibold text-sm">Random</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                        {modeSelect === 'interrogazione' && (
+                                            <div className="bg-blue-50/80 backdrop-blur-sm border border-blue-200 rounded-lg p-3">
+                                                <p className="text-sm text-blue-800">
+                                                    <strong>💡 Suggerimento:</strong> Usa il pulsante "🎲 Random" per ottenere un argomento casuale appropriato alla tua classe!
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                                 <button 
                                     onClick={submitContext}
@@ -514,18 +706,36 @@ const ChatbotServicePage = () => {
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                                 Quale personaggio vuoi intervistare?
                                             </label>
-                                            <input 
-                                                type="text" 
-                                                value={characterInput}
-                                                onChange={(e) => setCharacterInput(e.target.value)}
-                                                className="w-full p-3 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200"
-                                                placeholder="es. Leonardo da Vinci, Cleopatra, Einstein, Napoleone..."
-                                            />
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    value={characterInput}
+                                                    onChange={(e) => setCharacterInput(e.target.value)}
+                                                    className="flex-1 p-3 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200"
+                                                    placeholder="es. Leonardo da Vinci, Cleopatra, Einstein, Napoleone..."
+                                                />
+                                                <button 
+                                                    onClick={getRandomCharacter}
+                                                    disabled={isSending || !gradeSelect}
+                                                    className="px-4 py-3 bg-gradient-to-r from-orange-400 to-red-500 text-white rounded-xl hover:from-orange-500 hover:to-red-600 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 min-w-fit"
+                                                    title="Genera personaggio casuale"
+                                                >
+                                                    <FaDice className="text-lg" />
+                                                    <span className="font-semibold text-sm">Random</span>
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                                            <p className="text-sm text-amber-800">
-                                                <strong>💡 Esperienza immersiva:</strong> Il personaggio si presenterà autonomamente e manterrà sempre la sua identità storica durante tutta l'intervista.
-                                            </p>
+                                        <div className="space-y-3">
+                                            <div className="bg-blue-50/80 backdrop-blur-sm border border-blue-200 rounded-lg p-3">
+                                                <p className="text-sm text-blue-800">
+                                                    <strong>🎲 Suggerimento:</strong> Usa il pulsante "Random" per ottenere un personaggio storico casuale appropriato alla tua classe!
+                                                </p>
+                                            </div>
+                                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                                <p className="text-sm text-amber-800">
+                                                    <strong>💡 Esperienza immersiva:</strong> Il personaggio si presenterà autonomamente e manterrà sempre la sua identità storica durante tutta l'intervista.
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -563,14 +773,7 @@ const ChatbotServicePage = () => {
                                         Tutorial
                                     </button>
                                 </div>
-                                <div className="mt-2">
-                                    <button 
-                                        onClick={() => setShowTypewriterModal(true)}
-                                        className="w-full px-3 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 transition-all duration-200 text-sm"
-                                    >
-                                        ⚙️ Typewriter: {typewriterSettings.enabled ? 'ON' : 'OFF'}
-                                    </button>
-                                </div>
+
                             </div>
                         </div>
                         
@@ -667,18 +870,6 @@ const ChatbotServicePage = () => {
                                                     <div key={index} className="flex justify-center my-4">
                                                         <LoadingDots />
                                                     </div>
-                                                ) : message.role === 'assistant' && message.isTyping && typewriterSettings.enabled ? (
-                                                    <TypewriterMessage 
-                                                        key={index}
-                                                        message={message}
-                                                        typewriterSettings={typewriterSettings}
-                                                        onComplete={() => {
-                                                            // Al completamento, rimuovi il flag isTyping
-                                                            setMessages(prev => prev.map((msg, msgIndex) => 
-                                                                msgIndex === index ? { ...msg, isTyping: false } : msg
-                                                            ));
-                                                        }}
-                                                    />
                                                 ) : (
                                                     <div key={index} className="animate-fade-in">
                                                         <ChatMessage 
@@ -760,123 +951,11 @@ const ChatbotServicePage = () => {
                 customGetModelDisplayName={getChatbotModelDisplayName}
             />
             
-            {/* Typewriter Settings Modal */}
-            {showTypewriterModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-2xl p-6 w-96 max-w-90vw">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-semibold text-gray-900">Impostazioni Typewriter</h3>
-                            <button 
-                                onClick={() => setShowTypewriterModal(false)}
-                                className="text-gray-400 hover:text-gray-600"
-                            >
-                                <FaTimes className="w-5 h-5" />
-                            </button>
-                        </div>
-                        
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-gray-700">Abilita Typewriter</label>
-                                <button
-                                    onClick={() => setTypewriterSettings(prev => ({ ...prev, enabled: !prev.enabled }))}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                        typewriterSettings.enabled ? 'bg-purple-500' : 'bg-gray-300'
-                                    }`}
-                                >
-                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                        typewriterSettings.enabled ? 'translate-x-6' : 'translate-x-1'
-                                    }`} />
-                                </button>
-                            </div>
-                            
-                            {typewriterSettings.enabled && (
-                                <>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Velocità: {typewriterSettings.speed}ms
-                                        </label>
-                                        <input
-                                            type="range"
-                                            min="10"
-                                            max="100"
-                                            value={typewriterSettings.speed}
-                                            onChange={(e) => setTypewriterSettings(prev => ({ 
-                                                ...prev, 
-                                                speed: parseInt(e.target.value) 
-                                            }))}
-                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                        />
-                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                            <span>Veloce</span>
-                                            <span>Lento</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Pausa su punteggiatura: {typewriterSettings.pauseOnPunctuation}ms
-                                        </label>
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="500"
-                                            value={typewriterSettings.pauseOnPunctuation}
-                                            onChange={(e) => setTypewriterSettings(prev => ({ 
-                                                ...prev, 
-                                                pauseOnPunctuation: parseInt(e.target.value) 
-                                            }))}
-                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                        />
-                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                            <span>Nessuna pausa</span>
-                                            <span>Pausa lunga</span>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                        
-                        <div className="mt-6 flex justify-end">
-                            <button
-                                onClick={() => setShowTypewriterModal(false)}
-                                className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
-                            >
-                                Chiudi
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            
         </div>
     );
 };
 
-// Componente per l'effetto typewriter sui messaggi del chatbot
-const TypewriterMessage = ({ message, typewriterSettings, onComplete }) => {
-    const { displayText, isTyping, isComplete } = useTypewriter(
-        message.content,
-        {
-            speed: typewriterSettings.speed,
-            pauseOnPunctuation: typewriterSettings.pauseOnPunctuation,
-            enabled: true,
-            skipAnimation: false,
-            autoSkipLong: true,
-            maxLength: 800,
-            onComplete: () => {
-                if (onComplete) onComplete();
-            }
-        }
-    );
 
-    return (
-        <div className="animate-fade-in">
-            <ChatMessage 
-                role={message.role} 
-                content={displayText}
-                model={message.model}
-            />
-        </div>
-    );
-};
 
 export default ChatbotServicePage; 

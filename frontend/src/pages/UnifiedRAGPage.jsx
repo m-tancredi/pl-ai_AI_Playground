@@ -76,9 +76,7 @@ const UnifiedRAGPage = () => {
         setDocumentFilters,
         setError,
         
-        // Typewriter
-        typewriterSettings,
-        setTypewriterSettings,
+
 
         // New chat session
         currentSession,
@@ -97,7 +95,7 @@ const UnifiedRAGPage = () => {
 
     const [sidebarOpen, setSidebarOpen] = React.useState(true);
     const [isMobile, setIsMobile] = React.useState(false);
-    const [showTypewriterSettings, setShowTypewriterSettings] = React.useState(false);
+
     const [previewDocument, setPreviewDocument] = useState(null);
     const [showPreviewModal, setShowPreviewModal] = useState(false);
     const [processingResourceIds, setProcessingResourceIds] = useState(new Set());
@@ -279,105 +277,9 @@ const UnifiedRAGPage = () => {
                                 <span className="hidden sm:inline">Nuova KB</span>
                             </button>
                             
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowTypewriterSettings(!showTypewriterSettings)}
-                                    className={`p-2 rounded-lg transition-colors ${
-                                        typewriterSettings.enabled 
-                                            ? 'text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100' 
-                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                                    }`}
-                                    title="Impostazioni Typewriter"
-                                >
-                                    <Cog6ToothIcon className="w-5 h-5" />
-                                </button>
 
-                                {showTypewriterSettings && (
-                                    <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-4">
-                                        <h3 className="font-semibold text-gray-900 mb-3">Impostazioni Typewriter</h3>
-                                        
-                                        {/* Enable/Disable */}
-                                        <div className="flex items-center justify-between mb-3">
-                                            <span className="text-sm text-gray-700">Effetto Typewriter</span>
-                                            <button
-                                                onClick={() => setTypewriterSettings(prev => ({
-                                                    ...prev,
-                                                    enabled: !prev.enabled
-                                                }))}
-                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                                    typewriterSettings.enabled ? 'bg-green-600' : 'bg-gray-200'
-                                                }`}
-                                            >
-                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                                    typewriterSettings.enabled ? 'translate-x-6' : 'translate-x-1'
-                                                }`} />
-                                            </button>
-                                        </div>
 
-                                        {/* Speed Control */}
-                                        <div className="mb-3">
-                                            <label className="block text-sm text-gray-700 mb-2">
-                                                Velocità: {typewriterSettings.speed}ms
-                                            </label>
-                                            <input
-                                                type="range"
-                                                min="20"
-                                                max="200"
-                                                step="10"
-                                                value={typewriterSettings.speed}
-                                                onChange={(e) => setTypewriterSettings(prev => ({
-                                                    ...prev,
-                                                    speed: parseInt(e.target.value)
-                                                }))}
-                                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                                disabled={!typewriterSettings.enabled}
-                                            />
-                                            <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                                <span>Veloce</span>
-                                                <span>Lenta</span>
-                                            </div>
-                                        </div>
 
-                                        {/* Cursor */}
-                                        <div className="flex items-center justify-between mb-3">
-                                            <span className="text-sm text-gray-700">Mostra Cursore</span>
-                                            <button
-                                                onClick={() => setTypewriterSettings(prev => ({
-                                                    ...prev,
-                                                    showCursor: !prev.showCursor
-                                                }))}
-                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                                    typewriterSettings.showCursor ? 'bg-blue-600' : 'bg-gray-200'
-                                                }`}
-                                                disabled={!typewriterSettings.enabled}
-                                            >
-                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                                    typewriterSettings.showCursor ? 'translate-x-6' : 'translate-x-1'
-                                                }`} />
-                                            </button>
-                                        </div>
-
-                                        {/* Skip */}
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm text-gray-700">Abilita Skip</span>
-                                            <button
-                                                onClick={() => setTypewriterSettings(prev => ({
-                                                    ...prev,
-                                                    enableSkip: !prev.enableSkip
-                                                }))}
-                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                                    typewriterSettings.enableSkip ? 'bg-purple-600' : 'bg-gray-200'
-                                                }`}
-                                                disabled={!typewriterSettings.enabled}
-                                            >
-                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                                    typewriterSettings.enableSkip ? 'translate-x-6' : 'translate-x-1'
-                                                }`} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
                             
                             <button
                                 className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
@@ -558,8 +460,7 @@ const UnifiedRAGPage = () => {
                             onSwitchMode={switchChatMode}
                             onClearHistory={clearChatHistory}
                             stats={stats}
-                            typewriterSettings={typewriterSettings}
-                            onTypewriterSettingsChange={setTypewriterSettings}
+
                             currentSession={currentSession}
                         />
                     </div>

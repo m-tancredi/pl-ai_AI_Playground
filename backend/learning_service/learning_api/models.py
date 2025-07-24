@@ -29,6 +29,7 @@ class Lesson(BaseModel):
         default='in_progress'
     )
     lesson_length = models.IntegerField(default=15, help_text="Lunghezza in righe")
+    depth_level = models.IntegerField(default=3, help_text="Livello di approfondimento (1-5)")
     
     class Meta:
         db_table = 'lessons'

@@ -12,6 +12,7 @@ const LearningServicePage = () => {
   const [topicInput, setTopicInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState('lesson');
+  const [lessonDepthLevel, setLessonDepthLevel] = useState(3); // Livello di approfondimento (1-5)
 
   // Learning service hook
   const {
@@ -69,7 +70,10 @@ const LearningServicePage = () => {
     setIsGenerating(true);
     
     try {
-      const response = await generateLesson({ topic: topicInput.trim() });
+      const response = await generateLesson({ 
+        topic: topicInput.trim(),
+        depth_level: lessonDepthLevel
+      });
       
       if (response.success && response.lesson) {
         setCurrentLesson(response.lesson);
@@ -177,6 +181,44 @@ const LearningServicePage = () => {
           >
             Scrivi un argomento per generare una mini-lezione
           </label>
+          
+          {/* Livello di Approfondimento */}
+          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <label className="block text-sm font-medium text-blue-800 mb-3">
+              📊 Livello di Approfondimento: <span className="font-bold text-blue-900">{lessonDepthLevel}/5</span>
+            </label>
+            <div className="flex items-center space-x-4">
+              <span className="text-xs text-blue-600 font-medium">Base</span>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                value={lessonDepthLevel}
+                onChange={(e) => setLessonDepthLevel(parseInt(e.target.value))}
+                className="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer slider"
+                disabled={isGenerating}
+                style={{
+                  background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(lessonDepthLevel-1) * 25}%, #bfdbfe ${(lessonDepthLevel-1) * 25}%, #bfdbfe 100%)`
+                }}
+              />
+              <span className="text-xs text-blue-600 font-medium">Avanzato</span>
+            </div>
+            <div className="flex justify-between text-xs text-blue-600 mt-1 px-1">
+              <span>1</span>
+              <span>2</span>
+              <span>3</span>
+              <span>4</span>
+              <span>5</span>
+            </div>
+            <p className="text-xs text-blue-700 mt-2">
+              {lessonDepthLevel === 1 && "📋 Panoramica generale con concetti base"}
+              {lessonDepthLevel === 2 && "📖 Introduzione con esempi semplici"}
+              {lessonDepthLevel === 3 && "⚖️ Spiegazione bilanciata con esempi pratici"}
+              {lessonDepthLevel === 4 && "🔬 Analisi approfondita con dettagli tecnici"}
+              {lessonDepthLevel === 5 && "🎓 Trattazione esaustiva e specialistica"}
+            </p>
+          </div>
+
           <div className="flex gap-1 items-center">
             <input
               id="topic-input"

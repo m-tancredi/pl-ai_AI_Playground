@@ -139,9 +139,10 @@ class LessonViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         topic = serializer.validated_data['topic']
+        depth_level = serializer.validated_data.get('depth_level', 3)
         
         try:
-            content = openai_client.generate_lesson(topic)
+            content = openai_client.generate_lesson(topic, depth_level=depth_level)
             
             user_id = getattr(request.user, 'id', None)
             if not user_id:
@@ -154,6 +155,7 @@ class LessonViewSet(viewsets.ModelViewSet):
                 user_id=user_id,
                 title=topic,
                 content=content,
+                depth_level=depth_level,
                 status='in_progress'
             )
             
@@ -173,8 +175,25 @@ class LessonViewSet(viewsets.ModelViewSet):
         """Genera quiz per una lezione."""
         lesson = self.get_object()
         
+        # Ottieni i parametri dalla richiesta
+        difficulty_level = request.data.get('difficulty_level', 3)
+        num_questions = request.data.get('num_questions', 5)
+        include_approfondimenti = request.data.get('include_approfondimenti', True)
+        
         try:
-            questions = openai_client.generate_quiz(lesson.content, lesson.title)
+            # Ottieni approfondimenti se richiesti
+            approfondimenti = None
+            if include_approfondimenti:
+                approfondimenti = lesson.approfondimenti.filter(is_active=True).values('title', 'content')
+                approfondimenti = list(approfondimenti) if approfondimenti else None
+            
+            questions = openai_client.generate_quiz(
+                lesson.content, 
+                lesson.title,
+                approfondimenti=approfondimenti,
+                num_questions=num_questions,
+                difficulty_level=difficulty_level
+            )
             
             quiz, created = Quiz.objects.get_or_create(
                 lesson=lesson,
@@ -206,13 +225,17 @@ class LessonViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         max_items = serializer.validated_data.get('max_items')
+        depth_level = serializer.validated_data.get('depth_level', lesson.depth_level)
+        existing_approfondimenti = serializer.validated_data.get('existing_approfondimenti', [])
         
         try:
             # Genera gli approfondimenti
             approfondimenti_data = openai_client.generate_approfondimenti(
                 lesson.title,
                 lesson.content,
-                max_items
+                max_items,
+                depth_level=depth_level,
+                existing_approfondimenti=existing_approfondimenti
             )
             
             # Crea gli approfondimenti nel database
