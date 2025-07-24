@@ -17,7 +17,6 @@ class ChatSettings(models.Model):
     chat = models.OneToOneField(Chat, related_name='settings', on_delete=models.CASCADE)
     grade = models.CharField(max_length=50, null=True, blank=True)
     mode = models.CharField(max_length=50, null=True, blank=True)
-    subject = models.CharField(max_length=100, null=True, blank=True)
     model = models.CharField(max_length=100, null=True, blank=True)
     system_prompt = models.TextField(null=True, blank=True)
 

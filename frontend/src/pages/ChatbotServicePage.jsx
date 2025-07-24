@@ -19,6 +19,7 @@ import {
     deleteAllChats 
 } from '../services/chatbotService';
 import { getChatbotUsage, getChatbotOperationDisplayName, getChatbotModelDisplayName } from '../services/usageService';
+import { useTypewriter } from '../hooks/useTypewriter';
 
 // Componenti
 import ChatMessage from '../components/ChatMessage';
@@ -48,15 +49,12 @@ const ChatbotServicePage = () => {
     // State per configurazione
     const [gradeSelect, setGradeSelect] = useState('');
     const [modeSelect, setModeSelect] = useState('');
-    const [subjectSelect, setSubjectSelect] = useState('');
     const [modelSelect, setModelSelect] = useState('');
     const [chatStarted, setChatStarted] = useState(false);
     
     // State per modalità speciali
     const [showInterviewQuestions, setShowInterviewQuestions] = useState(false);
     const [characterInput, setCharacterInput] = useState('');
-    const [historicalAccuracy, setHistoricalAccuracy] = useState(false);
-    const [periodLanguage, setPeriodLanguage] = useState(false);
     
     // State per layout ChatGPT-like
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -66,6 +64,17 @@ const ChatbotServicePage = () => {
     const [showUsageModal, setShowUsageModal] = useState(false);
     const [usageData, setUsageData] = useState(null);
     const usageWidgetRef = useRef(null);
+    
+    // State per modal typewriter settings
+    const [showTypewriterModal, setShowTypewriterModal] = useState(false);
+    
+    // State per typewriter effect
+    const [typewriterSettings, setTypewriterSettings] = useState({
+        enabled: true,
+        speed: 30,
+        skipAnimation: false,
+        pauseOnPunctuation: 150
+    });
     
     const messagesEndRef = useRef(null);
     
@@ -96,11 +105,11 @@ const ChatbotServicePage = () => {
     useEffect(() => {
         if (modeSelect === 'intervista') {
             setShowInterviewQuestions(true);
-            setContextInput('Informazioni aggiuntive sul personaggio e il contesto storico (opzionale)...');
+            setContextInput(''); // Modalità intervista non usa il campo di contesto
         } else {
             setShowInterviewQuestions(false);
             if (modeSelect === 'interrogazione') {
-                setContextInput('Descrivi l\'argomento specifico su cui vuoi essere interrogato...');
+                setContextInput('Descrivi le conoscenze che vuoi far verificare durante l\'interrogazione...');
             } else {
                 setContextInput('Descrivi la personalità del bot e il modo in cui dovrà esserti utile...');
             }
@@ -132,7 +141,10 @@ const ChatbotServicePage = () => {
                     return false;
                 }
                 return true;
-            });
+            }).map(message => ({
+                ...message,
+                isTyping: false // Chat già esistente non deve avere typewriter
+            }));
             
             setMessages(filteredMessages);
             
@@ -140,7 +152,6 @@ const ChatbotServicePage = () => {
             if (chatData.settings) {
                 setGradeSelect(chatData.settings.grade || '');
                 setModeSelect(chatData.settings.mode || '');
-                setSubjectSelect(chatData.settings.subject || '');
                 setModelSelect(chatData.settings.model || '');
                 setContextInput(chatData.settings.system_prompt || '');
             }
@@ -158,12 +169,9 @@ const ChatbotServicePage = () => {
         setMessages([]);
         setGradeSelect('');
         setModeSelect('');
-        setSubjectSelect('');
         setModelSelect('');
         setContextInput('');
         setCharacterInput('');
-        setHistoricalAccuracy(false);
-        setPeriodLanguage(false);
         setChatStarted(false);
         setError('');
         setSuccess('');
@@ -203,17 +211,17 @@ const ChatbotServicePage = () => {
     
     const submitContext = async () => {
         // Validation
-        if (!gradeSelect || !modeSelect || !subjectSelect || !modelSelect) {
+        if (!gradeSelect || !modeSelect || !modelSelect) {
             setError('Seleziona tutte le opzioni prima di iniziare');
             return;
         }
         
         if (modeSelect === 'intervista' && !characterInput.trim()) {
-            setError('Per favore, specifica il personaggio da interpretare.');
+            setError('Per favore, specifica il personaggio da intervistare.');
             return;
         }
         
-        if (!contextInput.trim() && modeSelect !== 'intervista') {
+        if (modeSelect !== 'intervista' && !contextInput.trim()) {
             setError('Inserisci un contesto per il chatbot');
             return;
         }
@@ -226,16 +234,7 @@ const ChatbotServicePage = () => {
             
             // Handle interview mode
             if (modeSelect === 'intervista') {
-                finalContext = `Interpreta il personaggio storico: ${characterInput}.\n`;
-                if (historicalAccuracy) {
-                    finalContext += 'Mantieni un comportamento accurato al periodo storico.\n';
-                }
-                if (periodLanguage) {
-                    finalContext += 'Usa un linguaggio tipico dell\'epoca.\n';
-                }
-                if (contextInput.trim()) {
-                    finalContext += '\nInformazioni aggiuntive:\n' + contextInput;
-                }
+                finalContext = `PERSONAGGIO_STORICO: ${characterInput}`;
             }
             
             const payload = {
@@ -244,7 +243,6 @@ const ChatbotServicePage = () => {
                 context: {
                     grade: gradeSelect,
                     mode: modeSelect,
-                    subject: subjectSelect,
                     model: modelSelect,
                     systemPrompt: finalContext
                 },
@@ -255,7 +253,12 @@ const ChatbotServicePage = () => {
             
             // Solo mostra la risposta del bot, non il messaggio di sistema
             if (response.response) {
-                setMessages(prev => [...prev, { role: 'assistant', content: response.response, model: modelSelect }]);
+                setMessages(prev => [...prev, { 
+                    role: 'assistant', 
+                    content: response.response, 
+                    model: modelSelect,
+                    isTyping: true  // Flag per attivare typewriter
+                }]);
             }
             
             if (response.chatId) {
@@ -281,7 +284,7 @@ const ChatbotServicePage = () => {
     };
     
     const handleSendMessage = async () => {
-        if (!messageInput.trim() || !chatStarted) return;
+        if (!messageInput.trim() || !chatStarted || isSending) return;
         
         const userMessage = messageInput.trim();
         setMessageInput('');
@@ -296,7 +299,6 @@ const ChatbotServicePage = () => {
                 context: {
                     grade: gradeSelect,
                     mode: modeSelect,
-                    subject: subjectSelect,
                     model: modelSelect,
                     systemPrompt: contextInput
                 },
@@ -314,7 +316,8 @@ const ChatbotServicePage = () => {
                 return [...newMessages, { 
                     role: 'assistant', 
                     content: response.response, 
-                    model: modelSelect 
+                    model: modelSelect,
+                    isTyping: true  // Flag per attivare typewriter
                 }];
             });
             
@@ -357,7 +360,6 @@ const ChatbotServicePage = () => {
         content += `Data: ${new Date().toLocaleString('it-IT')}\n`;
         content += `Modalità: ${modeSelect || 'Standard'}\n`;
         content += `Grado: ${gradeSelect || 'Non specificato'}\n`;
-        content += `Argomento: ${subjectSelect || 'Non specificato'}\n`;
         content += `Modello: ${modelSelect || 'Non specificato'}\n\n`;
         
         // Filtra anche i messaggi di sistema dal download
@@ -390,9 +392,9 @@ const ChatbotServicePage = () => {
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (chatStarted) {
+            if (chatStarted && !isSending) {
                 handleSendMessage();
-            } else {
+            } else if (!chatStarted && !isSending) {
                 submitContext();
             }
         }
@@ -429,7 +431,7 @@ const ChatbotServicePage = () => {
                 {/* Configuration Header - Solo quando chat non è iniziata */}
                 {!chatStarted && (
                     <div className="flex-shrink-0 p-6 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-gray-200">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             <div className="relative">
                                 <select 
                                     value={gradeSelect} 
@@ -437,9 +439,9 @@ const ChatbotServicePage = () => {
                                     className="w-full p-4 border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer transition-all duration-200"
                                 >
                                     <option value="">Grado scolastico</option>
-                                    <option value="sec1">Scuola Sec. I grado</option>
-                                    <option value="sec2-biennio">Scuola Sec. II grado - Biennio</option>
-                                    <option value="sec2-triennio">Scuola Sec. II grado - Triennio</option>
+                                    <option value="sec1">Scuola Sec. I grado (11-14 anni)</option>
+                                    <option value="sec2-biennio">Scuola Sec. II grado - Biennio (15-16 anni)</option>
+                                    <option value="sec2-triennio">Scuola Sec. II grado - Triennio (17-19 anni)</option>
                                 </select>
                                 <FaChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
                             </div>
@@ -452,28 +454,12 @@ const ChatbotServicePage = () => {
                                 >
                                     <option value="">Modalità</option>
                                     <option value="interrogazione">Modalità Interrogazione</option>
-                                    <option value="interazione">Modalità Interazione</option>
                                     <option value="intervista">Modalità Intervista Impossibile</option>
                                 </select>
                                 <FaChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
                             </div>
                             
-                            <div className="relative">
-                                <select 
-                                    value={subjectSelect} 
-                                    onChange={(e) => setSubjectSelect(e.target.value)}
-                                    className="w-full p-4 border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer transition-all duration-200"
-                                >
-                                    <option value="">Argomento</option>
-                                    <option value="ai">AI</option>
-                                    <option value="scienze">Scienze</option>
-                                    <option value="storia">Storia</option>
-                                    <option value="matematica">Matematica</option>
-                                    <option value="italiano">Italiano</option>
-                                    <option value="inglese">Inglese</option>
-                                </select>
-                                <FaChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-                            </div>
+
                             
                             <div className="relative">
                                 <select 
@@ -494,21 +480,26 @@ const ChatbotServicePage = () => {
                         {/* Context Input Area */}
                         <div className="space-y-4">
                             <div className="flex gap-4">
-                                <textarea 
-                                    value={contextInput}
-                                    onChange={(e) => setContextInput(e.target.value)}
-                                    onKeyDown={handleKeyDown}
-                                    className="flex-1 p-4 border-0 rounded-xl resize-none bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200" 
-                                    rows="3" 
-                                    placeholder="Descrivi la personalità del bot e il modo in cui dovrà esserti utile..."
-                                />
+                                {modeSelect !== 'intervista' && (
+                                    <textarea 
+                                        value={contextInput}
+                                        onChange={(e) => setContextInput(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        disabled={isSending}
+                                        className="flex-1 p-4 border-0 rounded-xl resize-none bg-white/80 backdrop-blur-sm shadow-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" 
+                                        rows="3" 
+                                        placeholder="Descrivi la personalità del bot e il modo in cui dovrà esserti utile..."
+                                    />
+                                )}
                                 <button 
                                     onClick={submitContext}
                                     disabled={isSending}
-                                    className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                                    className={`px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 ${modeSelect === 'intervista' ? 'w-full justify-center' : ''}`}
                                 >
                                     {isSending ? <FaSpinner className="animate-spin" /> : null}
-                                    <span className="font-semibold">Inizia Chat</span>
+                                    <span className="font-semibold">
+                                        {modeSelect === 'intervista' ? 'Inizia Intervista' : 'Inizia Chat'}
+                                    </span>
                                 </button>
                             </div>
                             
@@ -521,41 +512,20 @@ const ChatbotServicePage = () => {
                                     <div className="space-y-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Quale personaggio vuoi che interpreti?
+                                                Quale personaggio vuoi intervistare?
                                             </label>
                                             <input 
                                                 type="text" 
                                                 value={characterInput}
                                                 onChange={(e) => setCharacterInput(e.target.value)}
                                                 className="w-full p-3 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200"
-                                                placeholder="es. Leonardo da Vinci, Cleopatra, Einstein..."
+                                                placeholder="es. Leonardo da Vinci, Cleopatra, Einstein, Napoleone..."
                                             />
                                         </div>
-                                        <div className="flex gap-8">
-                                            <div className="flex items-center">
-                                                <input 
-                                                    type="checkbox" 
-                                                    id="historical-accuracy"
-                                                    checked={historicalAccuracy}
-                                                    onChange={(e) => setHistoricalAccuracy(e.target.checked)}
-                                                    className="mr-3 text-purple-500 focus:ring-purple-500 w-4 h-4"
-                                                />
-                                                <label htmlFor="historical-accuracy" className="text-sm text-gray-700 font-medium">
-                                                    Comportamento storico accurato
-                                                </label>
-                                            </div>
-                                            <div className="flex items-center">
-                                                <input 
-                                                    type="checkbox" 
-                                                    id="period-language"
-                                                    checked={periodLanguage}
-                                                    onChange={(e) => setPeriodLanguage(e.target.checked)}
-                                                    className="mr-3 text-purple-500 focus:ring-purple-500 w-4 h-4"
-                                                />
-                                                <label htmlFor="period-language" className="text-sm text-gray-700 font-medium">
-                                                    Linguaggio d'epoca
-                                                </label>
-                                            </div>
+                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                            <p className="text-sm text-amber-800">
+                                                <strong>💡 Esperienza immersiva:</strong> Il personaggio si presenterà autonomamente e manterrà sempre la sua identità storica durante tutta l'intervista.
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -591,6 +561,14 @@ const ChatbotServicePage = () => {
                                     >
                                         <FaQuestionCircle className="w-3 h-3" />
                                         Tutorial
+                                    </button>
+                                </div>
+                                <div className="mt-2">
+                                    <button 
+                                        onClick={() => setShowTypewriterModal(true)}
+                                        className="w-full px-3 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 transition-all duration-200 text-sm"
+                                    >
+                                        ⚙️ Typewriter: {typewriterSettings.enabled ? 'ON' : 'OFF'}
                                     </button>
                                 </div>
                             </div>
@@ -689,6 +667,18 @@ const ChatbotServicePage = () => {
                                                     <div key={index} className="flex justify-center my-4">
                                                         <LoadingDots />
                                                     </div>
+                                                ) : message.role === 'assistant' && message.isTyping && typewriterSettings.enabled ? (
+                                                    <TypewriterMessage 
+                                                        key={index}
+                                                        message={message}
+                                                        typewriterSettings={typewriterSettings}
+                                                        onComplete={() => {
+                                                            // Al completamento, rimuovi il flag isTyping
+                                                            setMessages(prev => prev.map((msg, msgIndex) => 
+                                                                msgIndex === index ? { ...msg, isTyping: false } : msg
+                                                            ));
+                                                        }}
+                                                    />
                                                 ) : (
                                                     <div key={index} className="animate-fade-in">
                                                         <ChatMessage 
@@ -716,8 +706,9 @@ const ChatbotServicePage = () => {
                                                 value={messageInput}
                                                 onChange={(e) => setMessageInput(e.target.value)}
                                                 onKeyDown={handleKeyDown}
-                                                className="w-full p-4 border-0 rounded-xl resize-none bg-gray-50/50 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all duration-200 placeholder-gray-500"
-                                                placeholder="Scrivi il tuo messaggio... (Premi Enter per inviare)"
+                                                disabled={isSending}
+                                                className="w-full p-4 border-0 rounded-xl resize-none bg-gray-50/50 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all duration-200 placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
+                                                placeholder={isSending ? "Attendere la risposta..." : "Scrivi il tuo messaggio... (Premi Enter per inviare)"}
                                                 rows="1"
                                                 style={{
                                                     minHeight: '52px',
@@ -767,6 +758,122 @@ const ChatbotServicePage = () => {
                 getUsageData={getChatbotUsage}
                 customGetOperationDisplayName={getChatbotOperationDisplayName}
                 customGetModelDisplayName={getChatbotModelDisplayName}
+            />
+            
+            {/* Typewriter Settings Modal */}
+            {showTypewriterModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-96 max-w-90vw">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-semibold text-gray-900">Impostazioni Typewriter</h3>
+                            <button 
+                                onClick={() => setShowTypewriterModal(false)}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <FaTimes className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-gray-700">Abilita Typewriter</label>
+                                <button
+                                    onClick={() => setTypewriterSettings(prev => ({ ...prev, enabled: !prev.enabled }))}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                        typewriterSettings.enabled ? 'bg-purple-500' : 'bg-gray-300'
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                        typewriterSettings.enabled ? 'translate-x-6' : 'translate-x-1'
+                                    }`} />
+                                </button>
+                            </div>
+                            
+                            {typewriterSettings.enabled && (
+                                <>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Velocità: {typewriterSettings.speed}ms
+                                        </label>
+                                        <input
+                                            type="range"
+                                            min="10"
+                                            max="100"
+                                            value={typewriterSettings.speed}
+                                            onChange={(e) => setTypewriterSettings(prev => ({ 
+                                                ...prev, 
+                                                speed: parseInt(e.target.value) 
+                                            }))}
+                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                            <span>Veloce</span>
+                                            <span>Lento</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Pausa su punteggiatura: {typewriterSettings.pauseOnPunctuation}ms
+                                        </label>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="500"
+                                            value={typewriterSettings.pauseOnPunctuation}
+                                            onChange={(e) => setTypewriterSettings(prev => ({ 
+                                                ...prev, 
+                                                pauseOnPunctuation: parseInt(e.target.value) 
+                                            }))}
+                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                            <span>Nessuna pausa</span>
+                                            <span>Pausa lunga</span>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                onClick={() => setShowTypewriterModal(false)}
+                                className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                            >
+                                Chiudi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Componente per l'effetto typewriter sui messaggi del chatbot
+const TypewriterMessage = ({ message, typewriterSettings, onComplete }) => {
+    const { displayText, isTyping, isComplete } = useTypewriter(
+        message.content,
+        {
+            speed: typewriterSettings.speed,
+            pauseOnPunctuation: typewriterSettings.pauseOnPunctuation,
+            enabled: true,
+            skipAnimation: false,
+            autoSkipLong: true,
+            maxLength: 800,
+            onComplete: () => {
+                if (onComplete) onComplete();
+            }
+        }
+    );
+
+    return (
+        <div className="animate-fade-in">
+            <ChatMessage 
+                role={message.role} 
+                content={displayText}
+                model={message.model}
             />
         </div>
     );

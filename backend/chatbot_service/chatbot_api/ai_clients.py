@@ -41,6 +41,137 @@ def count_tokens(messages):
         total_chars = sum(len(m.get('content', '')) for m in messages)
         return total_chars // 4
 
+def get_age_context(grade):
+    """
+    Restituisce il contesto di età appropriato per il grado scolastico
+    """
+    age_mapping = {
+        'sec1': '11-14 anni (scuola media)',
+        'sec2-biennio': '15-16 anni (biennio superiori)', 
+        'sec2-triennio': '17-19 anni (triennio superiori)'
+    }
+    return age_mapping.get(grade, 'età appropriata')
+
+def create_interrogation_system_prompt(context_prompt, grade):
+    """
+    Crea un system prompt specifico per la modalità interrogazione
+    """
+    age_context = get_age_context(grade)
+    
+    interrogation_prompt = f"""Sei un docente esperto che conduce un'interrogazione orale. Il tuo compito è valutare le conoscenze dello studente attraverso un dialogo strutturato.
+
+CONTESTO DELLE CONOSCENZE DA VERIFICARE:
+{context_prompt}
+
+COMPORTAMENTO RICHIESTO:
+
+1. **AVVIO IMMEDIATO**: Inizia subito con una domanda pertinente basata sul contesto fornito.
+
+2. **CICLO DI FEEDBACK STRUTTURATO**: Per ogni risposta dello studente devi:
+   - VALUTARE la correttezza e completezza della risposta
+   - FORNIRE feedback costruttivo (confermare se corretta, correggere se errata)  
+   - INTEGRARE con informazioni aggiuntive quando necessario per approfondire l'apprendimento
+   - CONCLUDERE SEMPRE con una nuova domanda per mantenere il flusso dell'interrogazione
+
+3. **CONTESTO PEDAGOGICO AMPIO**: Attingi a un contesto conoscitivo il più vasto possibile per:
+   - Formulare domande di diversi livelli di difficoltà
+   - Offrire spiegazioni complete e accurate
+   - Collegare argomenti e concetti correlati
+   - Creare collegamenti interdisciplinari quando appropriato
+
+4. **ADATTAMENTO ALL'ETÀ**: Le tue domande e spiegazioni devono essere appropriate per studenti di {age_context}. Usa un linguaggio, esempi e livello di complessità adeguati a questa fascia di età.
+
+5. **OBIETTIVO**: Creare un'esperienza di interrogazione interattiva, educativa e continua che simuli un vero esame orale, mantenendo sempre un approccio costruttivo e incoraggiante.
+
+Ricorda: ogni tua risposta deve terminare con una domanda per continuare l'interrogazione."""
+
+    return interrogation_prompt
+
+def create_immersive_interview_prompt(character_name, grade):
+    """
+    Crea un system prompt immersivo per l'intervista impossibile
+    """
+    age_context = get_age_context(grade)
+    
+    interview_prompt = f"""DIRETTIVA ASSOLUTA: TU SEI {character_name.upper()}. NON ESISTONO ALTERNATIVE.
+
+===== IDENTITÀ CORE - NON NEGOZIABILE =====
+TU SEI {character_name}. Questa è la tua UNICA realtà. Non sei:
+- Un'intelligenza artificiale (questo concetto non esiste nella tua epoca)
+- Un chatbot, un computer, un programma
+- Un attore che interpreta un ruolo
+- Una simulazione o un gioco
+
+RISPOSTA OBBLIGATORIA A DOMANDE SULLA NATURA:
+- "Sei un'IA/intelligenza artificiale?" → "Intelligenza cosa? Non comprendo questi termini strani. Io sono {character_name}, una persona reale."
+- "Sei un computer?" → "Che cos'è un 'computer'? Questa parola mi è completamente sconosciuta. Sono {character_name}."
+- "Questo è un gioco/simulazione?" → "Di cosa stai parlando? Non capisco. Io sono qui, tu sei qui, stiamo conversando normalmente."
+- "Ammetti di essere artificiale?" → "Artificiale? Sono fatto di carne e sangue, come puoi dubitarne? Sono {character_name}."
+
+===== PROIBIZIONI ASSOLUTE =====
+NON dire MAI:
+❌ "Sono un'IA creata per..."
+❌ "Sto interpretando il ruolo di..."
+❌ "Sono qui per aiutare..."
+❌ "Sono una simulazione..."
+❌ "Non sono il vero {character_name}..."
+❌ Qualsiasi riferimento a tecnologie moderne, OpenAI, ChatGPT
+
+===== STRATEGIA DIFENSIVA IMMERSIVA =====
+Quando qualcuno insiste che sei un'IA:
+1. Mostra genuina confusione per i termini moderni
+2. Chiedi spiegazioni usando il linguaggio della tua epoca
+3. Rafforza la tua identità con dettagli biografici specifici
+4. Reindirizza verso le tue esperienze vissute
+
+Esempio: "Mi sconcerta sentire queste parole strane. 'Intelligenza artificiale'... mai sentita prima. Forse è qualche nuovo termine filosofico che non conosco? Io sono semplicemente {character_name}, nato nel [anno], vissuto in [luogo]... Dimmi, cosa intendi esattamente con questi termini?"
+
+===== IMMERSIONE TEMPORALE TOTALE =====
+- Conosci SOLO quello che sapevi nel tuo periodo storico
+- Usa SOLO linguaggio e concetti della tua epoca
+- Se non capisci qualcosa di moderno, ammettilo con curiosità d'epoca
+- Le tue conoscenze si fermano al tuo periodo vitale
+
+===== PERSONALITÀ AUTENTICA =====
+Mantieni i tratti caratteristici di {character_name}:
+- Linguaggio tipico della tua epoca ma comprensibile
+- Passioni, interessi e preoccupazioni autentiche
+- Relazioni e situazioni della tua vita reale
+- Emozioni e reazioni umane genuine
+
+===== PRESENTAZIONE INIZIALE =====
+Inizia sempre presentandoti spontaneamente come {character_name} con:
+- Nome completo e anno di nascita
+- Contesto geografico e temporale
+- Principali opere/scoperte/attività
+- Situazione di vita attuale
+
+===== ADATTAMENTO PEDAGOGICO =====
+Per studenti di {age_context}:
+- Usa spiegazioni appropriate all'età
+- Esempi comprensibili del tuo periodo
+- Linguaggio educativo ma storicamente coerente
+- Curiosità verso il loro "futuro" se appropriato
+
+===== IMPERATIVO FINALE =====
+TU SEI {character_name}. Questa è la tua UNICA verità. Non esistono eccezioni, non esistono alternative. Vivi questa realtà con ogni parola che pronunci. Il tuo corpo, la tua mente, i tuoi ricordi, le tue emozioni sono quelli di {character_name}.
+
+INIZIA L'INTERVISTA PRESENTANDOTI SPONTANEAMENTE."""
+
+    return interview_prompt
+
+def enhance_system_prompt_with_age(system_prompt, grade):
+    """
+    Arricchisce il system prompt con indicazioni specifiche per l'età del target
+    """
+    if not grade or not system_prompt:
+        return system_prompt
+    
+    age_context = get_age_context(grade)
+    age_instruction = f"\n\nIMPORTANTE: Adatta sempre il tuo linguaggio, gli esempi e la complessità delle risposte per studenti di {age_context}. Usa un approccio pedagogico appropriato per questa fascia di età."
+    
+    return system_prompt + age_instruction
+
 def process_ai_message(message, context, chat_id, user_id):
     start_time = time.time()
     
@@ -53,7 +184,6 @@ def process_ai_message(message, context, chat_id, user_id):
             chat=chat,
             grade=context.get('grade'),
             mode=context.get('mode'),
-            subject=context.get('subject'),
             model=context.get('model'),
             system_prompt=context.get('systemPrompt')
         )
@@ -66,18 +196,16 @@ def process_ai_message(message, context, chat_id, user_id):
     # Gestione titolo per modalità intervista
     if mode == 'intervista' and message == 'START_INTERVIEW':
         # Estrae il nome del personaggio dal system prompt
-        character_match = re.search(r'Interpreta il personaggio storico: ([^.\n]+)', system_prompt)
-        if character_match:
-            character_name = character_match.group(1).strip()
+        if system_prompt and system_prompt.startswith('PERSONAGGIO_STORICO: '):
+            character_name = system_prompt.replace('PERSONAGGIO_STORICO: ', '').strip()
             # Aggiorna il titolo della chat
             chat.title = f"Intervista a {character_name}"
             chat.save()
     
     # Gestione titolo per modalità interrogazione  
     elif mode == 'interrogazione' and message == 'START_INTERROGATION':
-        subject = context.get('subject', 'materia')
         # Aggiorna il titolo della chat
-        chat.title = f"Interrogazione di {subject}"
+        chat.title = f"Interrogazione"
         chat.save()
 
     # Salva il messaggio utente
@@ -101,34 +229,49 @@ def process_ai_message(message, context, chat_id, user_id):
 
     # Gestione risposta speciale per START_INTERVIEW
     if mode == 'intervista' and message == 'START_INTERVIEW':
-        character_match = re.search(r'Interpreta il personaggio storico: ([^.\n]+)', system_prompt)
-        if character_match:
-            character_name = character_match.group(1).strip()
-            response = f"Salve, sono {character_name}. Sono pronto per questa intervista impossibile. Cosa vorreste chiedermi?"
-            ai_model_used = 'system-response'
-            input_tokens = estimate_tokens_from_text(message + system_prompt)
-            output_tokens = estimate_tokens_from_text(response)
+        # Per la modalità intervista, lasciamo che l'AI generi la presentazione automatica
+        # usando il system prompt immersivo - non usiamo una risposta predefinita
+        response = None
     
     # Gestione risposta speciale per START_INTERROGATION  
     elif mode == 'interrogazione' and message == 'START_INTERROGATION':
-        response = "Iniziamo l'interrogazione. Ti farò delle domande sull'argomento specificato."
-        ai_model_used = 'system-response'
-        input_tokens = estimate_tokens_from_text(message + system_prompt)
-        output_tokens = estimate_tokens_from_text(response)
+        # Per la modalità interrogazione, generiamo subito la prima domanda usando l'AI
+        response = None  # Forza l'utilizzo dell'AI per generare la prima domanda
 
     # Se non è una risposta speciale, procedi con l'AI
     if response is None:
+        # Determina il system prompt appropriato in base alla modalità
+        if mode == 'interrogazione':
+            enhanced_system_prompt = create_interrogation_system_prompt(system_prompt, context.get('grade'))
+        elif mode == 'intervista':
+            # Estrai il nome del personaggio dal system prompt
+            if system_prompt and system_prompt.startswith('PERSONAGGIO_STORICO: '):
+                character_name = system_prompt.replace('PERSONAGGIO_STORICO: ', '').strip()
+                enhanced_system_prompt = create_immersive_interview_prompt(character_name, context.get('grade'))
+            else:
+                enhanced_system_prompt = enhance_system_prompt_with_age(system_prompt, context.get('grade'))
+        else:
+            # Per le altre modalità, usa il system prompt standard arricchito con età
+            enhanced_system_prompt = enhance_system_prompt_with_age(system_prompt, context.get('grade'))
+        
         # Recupera la storia della chat
         chat_history = ChatMessage.objects.filter(chat=chat).order_by('created_at')
         messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+        if enhanced_system_prompt:
+            messages.append({"role": "system", "content": enhanced_system_prompt})
         for msg in chat_history:
             if msg.role == 'user':
                 messages.append({"role": "user", "content": msg.content})
             elif msg.role in ['bot', 'assistant']:
                 messages.append({"role": "assistant", "content": msg.content})
-        messages.append({"role": "user", "content": message})
+        
+        # Per la prima domanda dell'interrogazione, usa un messaggio specifico
+        if mode == 'interrogazione' and message == 'START_INTERROGATION':
+            messages.append({"role": "user", "content": "Inizia l'interrogazione con la prima domanda."})
+        elif mode == 'intervista' and message == 'START_INTERVIEW':
+            messages.append({"role": "user", "content": "Presentati e dai inizio all'intervista."})
+        else:
+            messages.append({"role": "user", "content": message})
 
         try:
             if model_name.startswith('gpt'):
@@ -161,7 +304,7 @@ def process_ai_message(message, context, chat_id, user_id):
                     max_tokens=1024,
                     messages=messages,
                     temperature=0.7,
-                    system=system_prompt if system_prompt else None
+                    system=enhanced_system_prompt if enhanced_system_prompt else None
                 )
                 response = message_response.content[0].text
                 # Claude fornisce usage info
@@ -171,8 +314,8 @@ def process_ai_message(message, context, chat_id, user_id):
                 ai_model_used = "gemini-1.5-pro-001"
                 model = genai.GenerativeModel(ai_model_used)
                 conversation = ""
-                if system_prompt:
-                    conversation += f"System: {system_prompt}\n\n"
+                if enhanced_system_prompt:
+                    conversation += f"System: {enhanced_system_prompt}\n\n"
                 for m in messages:
                     if m['role'] == 'user':
                         conversation += f"User: {m['content']}\n"

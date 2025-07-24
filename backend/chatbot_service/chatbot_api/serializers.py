@@ -9,7 +9,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
 class ChatSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatSettings
-        fields = ['grade', 'mode', 'subject', 'model', 'system_prompt']
+        fields = ['grade', 'mode', 'model', 'system_prompt']
 
 class ChatSerializer(serializers.ModelSerializer):
     messages = ChatMessageSerializer(many=True, read_only=True)

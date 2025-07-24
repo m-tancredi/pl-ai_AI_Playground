@@ -241,7 +241,7 @@ def get_operation_display_name(operation_type):
     operation_names = {
         'conversation': 'Conversazione',
         'system_message': 'Messaggio Sistema',
-        'interview': 'Intervista',
+        'interview': 'Intervista Impossibile',
         'interrogation': 'Interrogazione',
     }
     return operation_names.get(operation_type, operation_type) 
