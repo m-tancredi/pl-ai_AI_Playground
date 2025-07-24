@@ -3,7 +3,7 @@ import { toast } from 'react-hot-toast';
 import useLearningService from '../../hooks/useLearningService';
 import LoadingSpinner from '../LoadingSpinner';
 
-const ApprofondimentiSection = ({ approfondimenti, lessonId, onUpdate }) => {
+const ApprofondimentiSection = ({ approfondimenti, lessonId, onUpdate, onUsageUpdate, selectedModel }) => {
   const [expandedItems, setExpandedItems] = useState({});
   const [detailedContent, setDetailedContent] = useState({});
   const [loadingDetails, setLoadingDetails] = useState({});
@@ -29,7 +29,7 @@ const ApprofondimentiSection = ({ approfondimenti, lessonId, onUpdate }) => {
     setLoadingDetails(prev => ({ ...prev, [item.id]: true }));
     
     try {
-      const response = await generateDetailedApprofondimento(item.id);
+      const response = await generateDetailedApprofondimento(item.id, selectedModel);
       
       if (response.success && response.approfondimento && response.approfondimento.detailed_content) {
         setDetailedContent(prev => ({
@@ -41,12 +41,22 @@ const ApprofondimentiSection = ({ approfondimenti, lessonId, onUpdate }) => {
           [item.id]: true
         }));
         toast.success('Approfondimento dettagliato generato!');
+        
+        // ⚠️ Aggiorna widget consumi dopo approfondimento dettagliato riuscito
+        if (onUsageUpdate) {
+          onUsageUpdate();
+        }
       } else {
         throw new Error(response.error || 'Errore nella generazione');
       }
     } catch (error) {
       console.error('Error generating detailed approfondimento:', error);
       toast.error('Errore nella generazione dell\approfondimento dettagliato');
+      
+      // ⚠️ Aggiorna widget anche per fallimenti approfondimento dettagliato
+      if (onUsageUpdate) {
+        onUsageUpdate();
+      }
     } finally {
       setLoadingDetails(prev => ({ ...prev, [item.id]: false }));
     }

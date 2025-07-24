@@ -2,6 +2,7 @@ from django.db import models
 from django.utils import timezone
 import uuid
 import json
+from decimal import Decimal
 
 
 class BaseModel(models.Model):
@@ -193,4 +194,67 @@ class UserProgress(BaseModel):
         """Percentuale di accuratezza nei quiz."""
         if self.total_quiz_questions == 0:
             return 0
-        return (self.correct_quiz_answers / self.total_quiz_questions) * 100 
+        return (self.correct_quiz_answers / self.total_quiz_questions) * 100
+
+
+class ServiceUsageTracking(BaseModel):
+    """Modello per tracking consumi del Learning Service."""
+    
+    # Informazioni utente
+    user_id = models.PositiveBigIntegerField(db_index=True, help_text="ID utente dal servizio auth")
+    
+    # Informazioni operazione
+    operation_type = models.CharField(
+        max_length=50, 
+        help_text="Tipo di operazione (lesson_generation, quiz_generation, approfondimenti_generation)"
+    )
+    service_name = models.CharField(
+        max_length=50, 
+        default='learning',
+        help_text="Nome del servizio"
+    )
+    model_used = models.CharField(max_length=100, help_text="Modello AI utilizzato")
+    
+    # Input/Output
+    input_data = models.TextField(blank=True, help_text="Dati di input (topic, prompt, etc.)")
+    output_summary = models.TextField(blank=True, help_text="Riassunto dell'output generato")
+    
+    # Metriche
+    tokens_consumed = models.PositiveIntegerField(default=0, help_text="Token utilizzati")
+    cost_usd = models.DecimalField(
+        max_digits=10, 
+        decimal_places=6, 
+        default=Decimal('0.000000'),
+        help_text="Costo in USD"
+    )
+    cost_eur = models.DecimalField(
+        max_digits=10, 
+        decimal_places=6, 
+        default=Decimal('0.000000'),
+        help_text="Costo in EUR"
+    )
+    
+    # Metadata (CAMPO CRITICO PER ANTI-FRODE)
+    success = models.BooleanField(
+        default=True, 
+        help_text="Se l'operazione è riuscita. Le chiamate fallite non vengono addebitate."
+    )
+    response_time_ms = models.PositiveIntegerField(
+        help_text="Tempo di risposta in millisecondi"
+    )
+    
+    class Meta:
+        db_table = 'learning_service_usage_tracking'
+        verbose_name = 'Tracking Utilizzo Servizio'
+        verbose_name_plural = 'Tracking Utilizzi Servizi'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user_id', 'service_name']),
+            models.Index(fields=['user_id', 'success']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['operation_type']),
+        ]
+    
+    def __str__(self):
+        status = "✓" if self.success else "✗"
+        return f"{status} {self.operation_type} - User {self.user_id} - {self.cost_eur}€" 

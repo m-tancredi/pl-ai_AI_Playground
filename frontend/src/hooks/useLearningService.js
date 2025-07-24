@@ -65,9 +65,9 @@ const useLearningService = () => {
     handleRequest(() => learningService.generateApprofondimenti(lessonId, data), 'Errore nella generazione degli approfondimenti')
   , [handleRequest]);
 
-  const generateDetailedApprofondimento = useCallback((approfondimentoId) => 
-    handleRequest(() => learningService.generateDetailedApprofondimento(approfondimentoId), 'Errore nella generazione dell\'approfondimento dettagliato')
-  , [handleRequest]);
+      const generateDetailedApprofondimento = useCallback((approfondimentoId, model) =>
+        handleRequest(() => learningService.generateDetailedApprofondimento(approfondimentoId, model), 'Errore nella generazione dell\'approfondimento dettagliato')
+    , [handleRequest]);
 
   const getApprofondimenti = useCallback((lessonId) => 
     handleRequest(() => learningService.getApprofondimenti(lessonId), 'Errore nel caricamento degli approfondimenti')

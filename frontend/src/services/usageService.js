@@ -21,6 +21,33 @@ export const getUserUsage = async (period = 'current_month', limit = 50) => {
     }
 };
 
+// ⚠️ NUOVO: Funzione per Learning Service
+export const getLearningUsage = async (period = 'current_month') => {
+    try {
+        const response = await apiClient.get('/api/learning-service/usage/', {
+            params: { period }
+        });
+        
+        // Log solo se il summary è mancante o se ci sono errori evidenti
+        if (!response.data?.summary) {
+            console.warn('⚠️ Learning Usage: summary mancante nella risposta:', {
+                dataKeys: Object.keys(response.data || {}),
+                responseType: typeof response.data,
+                endpoint: '/api/learning-service/usage/'
+            });
+        }
+        
+        return response.data;
+    } catch (error) {
+        console.error(`❌ Errore Learning Usage:`, {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data
+        });
+        throw error;
+    }
+};
+
 /**
  * Formatta i costi per la visualizzazione
  * @param {number} amount - Importo da formattare
@@ -174,6 +201,31 @@ export const getModelDisplayName = (modelKey) => {
         'stability': 'Stability AI'
     };
     return modelNames[modelKey] || modelKey;
+};
+
+// ⚠️ NUOVO: Learning Service display functions
+export const getLearningOperationDisplayName = (operationType) => {
+    const operationNames = {
+        'lesson_generation': 'Generazione Lezione',
+        'quiz_generation': 'Generazione Quiz',
+        'approfondimenti_generation': 'Generazione Approfondimenti',
+        'detailed_approfondimento_generation': 'Approfondimento Dettagliato'
+    };
+    return operationNames[operationType] || operationType;
+};
+
+export const getLearningModelDisplayName = (modelName) => {
+    const modelNames = {
+        'gpt-3.5-turbo': 'GPT-3.5 Turbo',
+        'gpt-4': 'GPT-4',
+        'gpt-4-turbo': 'GPT-4 Turbo',
+        'gpt-4o-mini': 'GPT-4o Mini',
+        'gpt-4o': 'GPT-4o',
+        'claude-3-haiku-20240307': 'Claude 3 Haiku',
+        'claude-3-sonnet': 'Claude 3 Sonnet',
+        'gemini-1.5-pro-001': 'Gemini 1.5 Pro'
+    };
+    return modelNames[modelName] || modelName;
 };
 
 /**

@@ -122,10 +122,11 @@ export const learningService = {
   },
 
   // POST Genera approfondimento dettagliato
-  generateDetailedApprofondimento: async (approfondimentoId) => {
+  generateDetailedApprofondimento: async (approfondimentoId, model = 'gpt-3.5-turbo') => {
     try {
       const response = await apiClient.post(
-        LEARNING_ENDPOINTS.generateDetailedApprofondimento.replace('{id}', approfondimentoId)
+        LEARNING_ENDPOINTS.generateDetailedApprofondimento.replace('{id}', approfondimentoId),
+        { model }
       );
       return response.data;
     } catch (error) {

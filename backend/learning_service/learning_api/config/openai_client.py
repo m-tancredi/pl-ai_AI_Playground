@@ -4,6 +4,17 @@ from django.conf import settings
 import json
 import re
 import logging
+import time
+from decimal import Decimal
+
+# Importi relativi per il tracking (condizionali per evitare import circolari)
+try:
+    from ..utils.usage_tracking import calculate_learning_service_cost, track_learning_service_usage, estimate_tokens_from_text
+except ImportError:
+    # Fallback se ci sono problemi di import circolari
+    calculate_learning_service_cost = None
+    track_learning_service_usage = None
+    estimate_tokens_from_text = None
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +45,7 @@ class OpenAIClient:
         self.client = openai.OpenAI(api_key=api_key)
         logger.info("OpenAI client inizializzato con successo")
     
-    def generate_lesson(self, topic, max_lines=None, depth_level=3):
+    def generate_lesson(self, topic, max_lines=None, depth_level=3, user_id=None, model='gpt-3.5-turbo'):
         """
         Genera una mini-lezione su un argomento specifico.
         
@@ -42,6 +53,7 @@ class OpenAIClient:
             topic (str): Argomento della lezione
             max_lines (int): Numero massimo di righe (default da settings)
             depth_level (int): Livello di approfondimento (1-5)
+            user_id (int): ID utente per tracking (opzionale)
         
         Returns:
             str: Contenuto della lezione
@@ -116,23 +128,86 @@ DIRETTIVE OBBLIGATORIE:
 
 Argomento: {topic}"""
         
+        start_time = time.time()
+        
+        # Mappa i nomi dei modelli frontend ai nomi API OpenAI
+        model_mapping = {
+            'gpt4': 'gpt-4',
+            'gpt4o': 'gpt-4o',
+            'gpt4o-mini': 'gpt-4o-mini',
+            'gpt4-turbo': 'gpt-4-turbo',
+            'gpt-3.5-turbo': 'gpt-3.5-turbo'  # Default
+        }
+        
+        model_used = model_mapping.get(model, 'gpt-3.5-turbo')
+        
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=model_used,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=1500
             )
             
             content = response.choices[0].message.content.strip()
+            response_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Tracking per chiamate riuscite
+            if user_id and track_learning_service_usage and calculate_learning_service_cost:
+                try:
+                    # Stima token (usa i valori effettivi se disponibili)
+                    input_tokens = estimate_tokens_from_text(prompt) if estimate_tokens_from_text else len(prompt.split()) * 1.3
+                    output_tokens = estimate_tokens_from_text(content) if estimate_tokens_from_text else len(content.split()) * 1.3
+                    
+                    # Calcola costi
+                    total_tokens, cost_usd, cost_eur = calculate_learning_service_cost(
+                        model_used, int(input_tokens), int(output_tokens)
+                    )
+                    
+                    # Traccia l'utilizzo RIUSCITO
+                    track_learning_service_usage(
+                        user_id=user_id,
+                        operation_type='lesson_generation',
+                        model_used=model_used,
+                        input_data=f"Topic: {topic}, Depth: {depth_level}",
+                        output_summary=content[:200] + '...' if len(content) > 200 else content,
+                        tokens_consumed=total_tokens,
+                        cost_usd=cost_usd,
+                        cost_eur=cost_eur,
+                        success=True,  # ⚠️ CHIAMATA RIUSCITA
+                        response_time_ms=response_time_ms
+                    )
+                except Exception as tracking_error:
+                    logger.error(f"Errore nel tracking della lezione: {tracking_error}")
+            
             logger.info(f"Lezione generata per argomento: {topic}")
             return content
             
         except Exception as e:
+            response_time_ms = int((time.time() - start_time) * 1000)
+            
+            # ⚠️ IMPORTANTE: Traccia anche i fallimenti con success=False
+            if user_id and track_learning_service_usage:
+                try:
+                    track_learning_service_usage(
+                        user_id=user_id,
+                        operation_type='lesson_generation',
+                        model_used=model_used,
+                        input_data=f"Topic: {topic}, Depth: {depth_level}",
+                        output_summary='',
+                        tokens_consumed=0,        # ⚠️ ZERO per fallimenti
+                        cost_usd=Decimal('0.000000'),  # ⚠️ ZERO per fallimenti
+                        cost_eur=Decimal('0.000000'),  # ⚠️ ZERO per fallimenti
+                        success=False,            # ⚠️ CHIAMATA FALLITA
+                        response_time_ms=response_time_ms
+                    )
+                except Exception as tracking_error:
+                    logger.error(f"Errore nel tracking del fallimento: {tracking_error}")
+            
             logger.error(f"Errore nella generazione della lezione: {str(e)}")
             raise Exception(f"Errore nella generazione della lezione: {str(e)}")
     
-    def generate_quiz(self, lesson_content, lesson_title="", approfondimenti=None, num_questions=None, difficulty_level=3):
+    def generate_quiz(self, lesson_content, lesson_title="", approfondimenti=None, num_questions=None, difficulty_level=3, user_id=None, model='gpt-3.5-turbo'):
         """
         Genera domande quiz basate sul contenuto della lezione.
         
@@ -247,15 +322,19 @@ Restituisci SOLO un JSON valido con questa struttura:
 CONTENUTO DA TESTARE:
 {full_content}"""
         
+        start_time = time.time()
+        model_used = "gpt-3.5-turbo"
+        
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=model_used,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.5,
                 max_tokens=2000
             )
             
             quiz_content = response.choices[0].message.content
+            response_time_ms = int((time.time() - start_time) * 1000)
             
             # Estrai e valida il JSON dalle risposte
             quiz_json = re.search(r'\{.*\}|\[.*\]', quiz_content, re.DOTALL)
@@ -275,6 +354,34 @@ CONTENUTO DA TESTARE:
                         validated_questions.append(q)
                 
                 if validated_questions:
+                    # Tracking per chiamate riuscite
+                    if user_id and track_learning_service_usage and calculate_learning_service_cost:
+                        try:
+                            # Stima token
+                            input_tokens = estimate_tokens_from_text(prompt) if estimate_tokens_from_text else len(prompt.split()) * 1.3
+                            output_tokens = estimate_tokens_from_text(quiz_content) if estimate_tokens_from_text else len(quiz_content.split()) * 1.3
+                            
+                            # Calcola costi
+                            total_tokens, cost_usd, cost_eur = calculate_learning_service_cost(
+                                model_used, int(input_tokens), int(output_tokens)
+                            )
+                            
+                            # Traccia l'utilizzo RIUSCITO
+                            track_learning_service_usage(
+                                user_id=user_id,
+                                operation_type='quiz_generation',
+                                model_used=model_used,
+                                input_data=f"Lesson: {lesson_title}, Difficulty: {difficulty_level}, Questions: {num_questions}",
+                                output_summary=f"{len(validated_questions)} domande generate",
+                                tokens_consumed=total_tokens,
+                                cost_usd=cost_usd,
+                                cost_eur=cost_eur,
+                                success=True,  # ⚠️ CHIAMATA RIUSCITA
+                                response_time_ms=response_time_ms
+                            )
+                        except Exception as tracking_error:
+                            logger.error(f"Errore nel tracking del quiz: {tracking_error}")
+                    
                     logger.info(f"Quiz generato con {len(validated_questions)} domande")
                     return validated_questions
                 else:
@@ -283,13 +390,53 @@ CONTENUTO DA TESTARE:
                 raise ValueError("Formato JSON non valido nella risposta")
                 
         except json.JSONDecodeError as e:
+            response_time_ms = int((time.time() - start_time) * 1000)
+            
+            # ⚠️ IMPORTANTE: Traccia anche i fallimenti con success=False
+            if user_id and track_learning_service_usage:
+                try:
+                    track_learning_service_usage(
+                        user_id=user_id,
+                        operation_type='quiz_generation',
+                        model_used=model_used,
+                        input_data=f"Lesson: {lesson_title}, Difficulty: {difficulty_level}",
+                        output_summary='',
+                        tokens_consumed=0,        # ⚠️ ZERO per fallimenti
+                        cost_usd=Decimal('0.000000'),  # ⚠️ ZERO per fallimenti
+                        cost_eur=Decimal('0.000000'),  # ⚠️ ZERO per fallimenti
+                        success=False,            # ⚠️ CHIAMATA FALLITA
+                        response_time_ms=response_time_ms
+                    )
+                except Exception as tracking_error:
+                    logger.error(f"Errore nel tracking del fallimento quiz: {tracking_error}")
+            
             logger.error(f"Errore nel parsing JSON del quiz: {str(e)}")
             raise Exception("Errore nel parsing delle domande del quiz")
         except Exception as e:
+            response_time_ms = int((time.time() - start_time) * 1000)
+            
+            # ⚠️ IMPORTANTE: Traccia anche i fallimenti con success=False
+            if user_id and track_learning_service_usage:
+                try:
+                    track_learning_service_usage(
+                        user_id=user_id,
+                        operation_type='quiz_generation',
+                        model_used=model_used,
+                        input_data=f"Lesson: {lesson_title}, Difficulty: {difficulty_level}",
+                        output_summary='',
+                        tokens_consumed=0,        # ⚠️ ZERO per fallimenti
+                        cost_usd=Decimal('0.000000'),  # ⚠️ ZERO per fallimenti
+                        cost_eur=Decimal('0.000000'),  # ⚠️ ZERO per fallimenti
+                        success=False,            # ⚠️ CHIAMATA FALLITA
+                        response_time_ms=response_time_ms
+                    )
+                except Exception as tracking_error:
+                    logger.error(f"Errore nel tracking del fallimento quiz: {tracking_error}")
+            
             logger.error(f"Errore nella generazione del quiz: {str(e)}")
             raise Exception(f"Errore nella generazione del quiz: {str(e)}")
     
-    def generate_approfondimenti(self, lesson_title, lesson_content, max_items=None, depth_level=3, existing_approfondimenti=None):
+    def generate_approfondimenti(self, lesson_title, lesson_content, max_items=None, depth_level=3, existing_approfondimenti=None, user_id=None, model='gpt-3.5-turbo'):
         """
         Genera approfondimenti correlati alla lezione.
         
@@ -390,31 +537,116 @@ Restituisci SOLO un JSON valido:
     "content": "Contenuto dell'approfondimento"
 }}]"""
         
+        start_time = time.time()
+        
+        # Mappa i nomi dei modelli frontend ai nomi API OpenAI
+        model_mapping = {
+            'gpt4': 'gpt-4',
+            'gpt4o': 'gpt-4o',
+            'gpt4o-mini': 'gpt-4o-mini',
+            'gpt4-turbo': 'gpt-4-turbo',
+            'gpt-3.5-turbo': 'gpt-3.5-turbo'  # Default
+        }
+        
+        model_used = model_mapping.get(model, 'gpt-3.5-turbo')
+        
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=model_used,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=1500
             )
             
+            response_time_ms = int((time.time() - start_time) * 1000)
+            content = response.choices[0].message.content
+            
             # Estrai il JSON dalla risposta
-            json_match = re.search(r'\[\s*\{.*\}\s*\]', response.choices[0].message.content, re.DOTALL)
+            json_match = re.search(r'\[\s*\{.*\}\s*\]', content, re.DOTALL)
             if json_match:
                 approfondimenti = json.loads(json_match.group())
+                
+                # Tracking per chiamate riuscite
+                if user_id and track_learning_service_usage and calculate_learning_service_cost:
+                    try:
+                        # Stima token
+                        input_tokens = estimate_tokens_from_text(prompt) if estimate_tokens_from_text else len(prompt.split()) * 1.3
+                        output_tokens = estimate_tokens_from_text(content) if estimate_tokens_from_text else len(content.split()) * 1.3
+                        
+                        # Calcola costi
+                        total_tokens, cost_usd, cost_eur = calculate_learning_service_cost(
+                            model_used, int(input_tokens), int(output_tokens)
+                        )
+                        
+                        # Traccia l'utilizzo RIUSCITO
+                        track_learning_service_usage(
+                            user_id=user_id,
+                            operation_type='approfondimenti_generation',
+                            model_used=model_used,
+                            input_data=f"Lesson: {lesson_title}, Depth: {depth_level}, Items: {max_items}",
+                            output_summary=f"{len(approfondimenti)} approfondimenti generati",
+                            tokens_consumed=total_tokens,
+                            cost_usd=cost_usd,
+                            cost_eur=cost_eur,
+                            success=True,  # ⚠️ CHIAMATA RIUSCITA
+                            response_time_ms=response_time_ms
+                        )
+                    except Exception as tracking_error:
+                        logger.error(f"Errore nel tracking degli approfondimenti: {tracking_error}")
+                
                 logger.info(f"Generati {len(approfondimenti)} approfondimenti per {lesson_title}")
                 return approfondimenti
             else:
                 raise ValueError("Formato JSON non valido nella risposta")
                 
         except json.JSONDecodeError as e:
+            response_time_ms = int((time.time() - start_time) * 1000)
+            
+            # ⚠️ IMPORTANTE: Traccia anche i fallimenti con success=False
+            if user_id and track_learning_service_usage:
+                try:
+                    track_learning_service_usage(
+                        user_id=user_id,
+                        operation_type='approfondimenti_generation',
+                        model_used=model_used,
+                        input_data=f"Lesson: {lesson_title}, Depth: {depth_level}",
+                        output_summary='',
+                        tokens_consumed=0,        # ⚠️ ZERO per fallimenti
+                        cost_usd=Decimal('0.000000'),  # ⚠️ ZERO per fallimenti
+                        cost_eur=Decimal('0.000000'),  # ⚠️ ZERO per fallimenti
+                        success=False,            # ⚠️ CHIAMATA FALLITA
+                        response_time_ms=response_time_ms
+                    )
+                except Exception as tracking_error:
+                    logger.error(f"Errore nel tracking del fallimento approfondimenti: {tracking_error}")
+            
             logger.error(f"Errore nel parsing JSON degli approfondimenti: {str(e)}")
             raise Exception("Errore nel parsing degli approfondimenti")
         except Exception as e:
+            response_time_ms = int((time.time() - start_time) * 1000)
+            
+            # ⚠️ IMPORTANTE: Traccia anche i fallimenti con success=False
+            if user_id and track_learning_service_usage:
+                try:
+                    track_learning_service_usage(
+                        user_id=user_id,
+                        operation_type='approfondimenti_generation',
+                        model_used=model_used,
+                        input_data=f"Lesson: {lesson_title}, Depth: {depth_level}",
+                        output_summary='',
+                        tokens_consumed=0,        # ⚠️ ZERO per fallimenti
+                        cost_usd=Decimal('0.000000'),  # ⚠️ ZERO per fallimenti
+                        cost_eur=Decimal('0.000000'),  # ⚠️ ZERO per fallimenti
+                        success=False,            # ⚠️ CHIAMATA FALLITA
+                        response_time_ms=response_time_ms
+                    )
+                except Exception as tracking_error:
+                    logger.error(f"Errore nel tracking del fallimento approfondimenti: {tracking_error}")
+            
             logger.error(f"Errore nella generazione degli approfondimenti: {str(e)}")
             raise Exception(f"Errore nella generazione degli approfondimenti: {str(e)}")
     
-    def generate_detailed_approfondimento(self, title, lesson_title, lesson_content):
+    def generate_detailed_approfondimento(self, title, lesson_title, lesson_content, user_id=None, model='gpt-3.5-turbo'):
         """
         Genera un approfondimento dettagliato in HTML.
         
@@ -422,6 +654,7 @@ Restituisci SOLO un JSON valido:
             title (str): Titolo dell'approfondimento
             lesson_title (str): Titolo della lezione originale
             lesson_content (str): Contenuto della lezione originale
+            user_id (int): ID utente per tracking usage
         
         Returns:
             str: Contenuto HTML dell'approfondimento dettagliato
@@ -438,19 +671,82 @@ Restituisci SOLO un JSON valido:
         Fornisci un approfondimento completo e ben strutturato in formato HTML con paragrafi (<p>), titoli (<h3>, <h4>) e liste (<ul>, <li>) dove appropriato.
         """
         
+        start_time = time.time()
+        
+        # Mappa i nomi dei modelli frontend ai nomi API OpenAI
+        model_mapping = {
+            'gpt4': 'gpt-4',
+            'gpt4o': 'gpt-4o',
+            'gpt4o-mini': 'gpt-4o-mini',
+            'gpt4-turbo': 'gpt-4-turbo',
+            'gpt-3.5-turbo': 'gpt-3.5-turbo'  # Default
+        }
+        
+        model_used = model_mapping.get(model, 'gpt-3.5-turbo')
+        
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=model_used,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.6,
                 max_tokens=2000
             )
             
             detailed_content = response.choices[0].message.content
+            response_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Tracking per chiamate riuscite
+            if user_id and track_learning_service_usage and calculate_learning_service_cost:
+                try:
+                    # Stima token
+                    input_tokens = estimate_tokens_from_text(prompt) if estimate_tokens_from_text else len(prompt.split()) * 1.3
+                    output_tokens = estimate_tokens_from_text(detailed_content) if estimate_tokens_from_text else len(detailed_content.split()) * 1.3
+                    
+                    # Calcola costi
+                    total_tokens, cost_usd, cost_eur = calculate_learning_service_cost(
+                        model_used, int(input_tokens), int(output_tokens)
+                    )
+                    
+                    # Traccia l'utilizzo RIUSCITO
+                    track_learning_service_usage(
+                        user_id=user_id,
+                        operation_type='detailed_approfondimento_generation',
+                        model_used=model_used,
+                        input_data=f"Title: {title}, Lesson: {lesson_title}",
+                        output_summary=f"Detailed content generated ({len(detailed_content)} chars)",
+                        tokens_consumed=total_tokens,
+                        cost_usd=cost_usd,
+                        cost_eur=cost_eur,
+                        success=True,  # ⚠️ CHIAMATA RIUSCITA
+                        response_time_ms=response_time_ms
+                    )
+                except Exception as tracking_error:
+                    logger.error(f"Errore nel tracking dell'approfondimento dettagliato: {tracking_error}")
+            
             logger.info(f"Approfondimento dettagliato generato per: {title}")
             return detailed_content
             
         except Exception as e:
+            response_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Tracking per chiamate FALLITE
+            if user_id and track_learning_service_usage:
+                try:
+                    track_learning_service_usage(
+                        user_id=user_id,
+                        operation_type='detailed_approfondimento_generation',
+                        model_used=model_used,
+                        input_data=f"Title: {title}, Lesson: {lesson_title}",
+                        output_summary=f"ERROR: {str(e)}",
+                        tokens_consumed=0,  # ⚠️ ZERO token per chiamate fallite
+                        cost_usd=Decimal('0.00'),
+                        cost_eur=Decimal('0.00'),
+                        success=False,  # ⚠️ CHIAMATA FALLITA
+                        response_time_ms=response_time_ms
+                    )
+                except Exception as tracking_error:
+                    logger.error(f"Errore nel tracking dell'approfondimento dettagliato fallito: {tracking_error}")
+            
             logger.error(f"Errore nella generazione dell'approfondimento dettagliato: {str(e)}")
             raise Exception(f"Errore nella generazione dell'approfondimento dettagliato: {str(e)}")
 

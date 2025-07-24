@@ -226,6 +226,12 @@ class LessonGenerateSerializer(serializers.Serializer):
         default=3,
         help_text="Livello di approfondimento (1-5)"
     )
+    model = serializers.CharField(
+        required=False,
+        max_length=50,
+        default='gpt-3.5-turbo',
+        help_text="Modello AI da utilizzare"
+    )
     
     def validate_topic(self, value):
         """Validazione del topic."""
@@ -255,6 +261,12 @@ class QuizGenerateSerializer(serializers.Serializer):
         default=True,
         help_text="Includere gli approfondimenti nel quiz"
     )
+    model = serializers.CharField(
+        required=False,
+        max_length=50,
+        default='gpt-3.5-turbo',
+        help_text="Modello AI da utilizzare"
+    )
 
 
 class ApprofondimentiGenerateSerializer(serializers.Serializer):
@@ -278,11 +290,23 @@ class ApprofondimentiGenerateSerializer(serializers.Serializer):
         child=serializers.DictField(),
         help_text="Lista approfondimenti esistenti per anti-duplicazione"
     )
+    model = serializers.CharField(
+        required=False,
+        max_length=50,
+        default='gpt-3.5-turbo',
+        help_text="Modello AI da utilizzare"
+    )
 
 
 class DetailedApprofondimentoGenerateSerializer(serializers.Serializer):
     """Serializer per la richiesta di generazione approfondimento dettagliato."""
     approfondimento_id = serializers.UUIDField(help_text="ID dell'approfondimento")
+    model = serializers.CharField(
+        required=False,
+        max_length=50,
+        default='gpt-3.5-turbo',
+        help_text="Modello AI da utilizzare"
+    )
 
 
 class LessonWithRelatedSerializer(serializers.ModelSerializer):

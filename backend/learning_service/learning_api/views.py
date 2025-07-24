@@ -42,6 +42,7 @@ from .permissions import (
     CanSubmitQuizAnswers
 )
 from .config.openai_client import openai_client
+from .utils.usage_tracking import calculate_learning_usage_summary
 import logging
 
 logger = logging.getLogger(__name__)
@@ -140,9 +141,10 @@ class LessonViewSet(viewsets.ModelViewSet):
         
         topic = serializer.validated_data['topic']
         depth_level = serializer.validated_data.get('depth_level', 3)
+        model = serializer.validated_data.get('model', 'gpt-3.5-turbo')
         
         try:
-            content = openai_client.generate_lesson(topic, depth_level=depth_level)
+            content = openai_client.generate_lesson(topic, depth_level=depth_level, user_id=request.user.id, model=model)
             
             user_id = getattr(request.user, 'id', None)
             if not user_id:
@@ -179,6 +181,7 @@ class LessonViewSet(viewsets.ModelViewSet):
         difficulty_level = request.data.get('difficulty_level', 3)
         num_questions = request.data.get('num_questions', 5)
         include_approfondimenti = request.data.get('include_approfondimenti', True)
+        model = request.data.get('model', 'gpt-3.5-turbo')
         
         try:
             # Ottieni approfondimenti se richiesti
@@ -192,7 +195,9 @@ class LessonViewSet(viewsets.ModelViewSet):
                 lesson.title,
                 approfondimenti=approfondimenti,
                 num_questions=num_questions,
-                difficulty_level=difficulty_level
+                difficulty_level=difficulty_level,
+                user_id=request.user.id,  # ⚠️ Passa user_id per tracking
+                model=model
             )
             
             quiz, created = Quiz.objects.get_or_create(
@@ -227,6 +232,7 @@ class LessonViewSet(viewsets.ModelViewSet):
         max_items = serializer.validated_data.get('max_items')
         depth_level = serializer.validated_data.get('depth_level', lesson.depth_level)
         existing_approfondimenti = serializer.validated_data.get('existing_approfondimenti', [])
+        model = serializer.validated_data.get('model', 'gpt-3.5-turbo')
         
         try:
             # Genera gli approfondimenti
@@ -235,7 +241,9 @@ class LessonViewSet(viewsets.ModelViewSet):
                 lesson.content,
                 max_items,
                 depth_level=depth_level,
-                existing_approfondimenti=existing_approfondimenti
+                existing_approfondimenti=existing_approfondimenti,
+                user_id=request.user.id,  # ⚠️ Passa user_id per tracking
+                model=model
             )
             
             # Crea gli approfondimenti nel database
@@ -311,6 +319,96 @@ class LessonViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             logger.error(f"Errore nell'aggiornamento del progresso utente: {str(e)}")
+    
+    @action(detail=True, methods=['get'], url_path='export/pdf')
+    def export_pdf(self, request, pk=None):
+        """
+        Esporta una lezione in formato PDF.
+        
+        Query parameters:
+        - include_approfondimenti (bool): Include approfondimenti nel PDF (default: true)
+        - include_quiz (bool): Include quiz nel PDF (default: true)
+        """
+        try:
+            from .utils.pdf_generator import pdf_generator
+            
+            lesson = self.get_object()
+            
+            # Parametri opzionali
+            include_approfondimenti = request.query_params.get('include_approfondimenti', 'true').lower() == 'true'
+            include_quiz = request.query_params.get('include_quiz', 'true').lower() == 'true'
+            
+            # Genera PDF
+            pdf_response = pdf_generator.generate_single_lesson_pdf(
+                lesson=lesson,
+                include_approfondimenti=include_approfondimenti,
+                include_quiz=include_quiz
+            )
+            
+            # Log attività
+            self._log_activity(
+                lesson_id=lesson.id,
+                action='pdf_export',
+                details={'include_approfondimenti': include_approfondimenti, 'include_quiz': include_quiz}
+            )
+            
+            return pdf_response
+            
+        except Exception as e:
+            logger.error(f"Errore nell'export PDF per lezione {pk}: {str(e)}")
+            return Response({
+                'error': f'Errore nella generazione del PDF: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'], url_path='export/bulk-pdf')
+    def export_bulk_pdf(self, request):
+        """
+        Esporta multiple lezioni in un singolo PDF.
+        
+        Body parameters:
+        - lesson_ids (list): Lista degli ID delle lezioni da esportare
+        - filename_prefix (str): Prefisso per il nome del file (optional)
+        """
+        try:
+            from .utils.pdf_generator import pdf_generator
+            
+            lesson_ids = request.data.get('lesson_ids', [])
+            filename_prefix = request.data.get('filename_prefix', 'lezioni')
+            
+            if not lesson_ids:
+                return Response({
+                    'error': 'Nessuna lezione specificata per l\'export'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Recupera le lezioni (solo quelle dell'utente)
+            lessons = self.get_queryset().filter(id__in=lesson_ids)
+            
+            if not lessons.exists():
+                return Response({
+                    'error': 'Nessuna lezione valida trovata'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Genera PDF
+            pdf_response = pdf_generator.generate_bulk_lessons_pdf(
+                lessons=lessons,
+                filename_prefix=filename_prefix
+            )
+            
+            # Log attività per ogni lezione
+            for lesson in lessons:
+                self._log_activity(
+                    lesson_id=lesson.id,
+                    action='bulk_pdf_export',
+                    details={'total_lessons': len(lessons), 'filename_prefix': filename_prefix}
+                )
+            
+            return pdf_response
+            
+        except Exception as e:
+            logger.error(f"Errore nell'export PDF bulk: {str(e)}")
+            return Response({
+                'error': f'Errore nella generazione del PDF: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def _get_client_ip(self):
         """Ottiene IP del client."""
@@ -434,12 +532,15 @@ class ApprofondimentoViewSet(viewsets.ModelViewSet):
     def generate_detailed(self, request, pk=None):
         """Genera contenuto dettagliato per un approfondimento."""
         approfondimento = self.get_object()
+        model = request.data.get('model', 'gpt-3.5-turbo')
         
         try:
             detailed_content = openai_client.generate_detailed_approfondimento(
                 approfondimento.title,
                 approfondimento.lesson.title,
-                approfondimento.lesson.content
+                approfondimento.lesson.content,
+                user_id=request.user.id,  # ⚠️ Passa user_id per tracking
+                model=model
             )
             
             approfondimento.detailed_content = detailed_content
@@ -550,4 +651,102 @@ class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
         """Attività recenti dell'utente."""
         recent_activities = self.get_queryset()[:10]
         serializer = ActivityLogSerializer(recent_activities, many=True)
-        return Response(serializer.data) 
+        return Response(serializer.data)
+
+
+class LearningUsageTrackingView(viewsets.ViewSet):
+    """API per recuperare i dati di utilizzo del Learning Service."""
+    permission_classes = [IsAuthenticated]
+    
+    def list(self, request):
+        """
+        Recupera i dati di utilizzo per l'utente corrente.
+        
+        Query params:
+        - period: Periodo ('current_month', 'last_30_days', 'all_time')
+        """
+        period = request.query_params.get('period', 'current_month')
+        
+        try:
+            user_id = request.user.id
+            
+            # 🔧 Calcola summary con error handling robusto
+            try:
+                summary = calculate_learning_usage_summary(user_id, period)
+                
+                # 🔧 CRITICAL: Converti Decimal a float per serializzazione JSON
+                def convert_decimals(obj):
+                    """Converte ricorsivamente Decimal objects in float per JSON serialization"""
+                    if isinstance(obj, dict):
+                        return {k: convert_decimals(v) for k, v in obj.items()}
+                    elif isinstance(obj, list):
+                        return [convert_decimals(item) for item in obj]
+                    elif hasattr(obj, '__class__') and obj.__class__.__name__ == 'Decimal':
+                        return float(obj)
+                    else:
+                        return obj
+                
+                summary = convert_decimals(summary)
+                logger.info(f"✅ Summary calcolato e convertito per user {user_id}")
+                
+            except Exception as summary_error:
+                logger.error(f"❌ Errore calcolo summary per user {user_id}: {summary_error}")
+                import traceback
+                logger.error(f"❌ Traceback: {traceback.format_exc()}")
+                # Fallback con dati vuoti
+                summary = {
+                    'total_tokens': 0,
+                    'total_cost_usd': 0.0,
+                    'total_cost_eur': 0.0,
+                    'total_calls': 0,
+                    'successful_calls': 0,
+                    'failed_calls': 0,
+                    'success_rate': 100.0,
+                    'by_model': [],
+                    'by_operation': [],
+                }
+            
+            # Aggiungi cronologia recente
+            from .models import ServiceUsageTracking
+            try:
+                recent_history = ServiceUsageTracking.objects.filter(
+                    user_id=user_id,
+                    service_name='learning'
+                ).order_by('-created_at')[:10]
+                
+                recent_records = [
+                    {
+                        'id': usage.id,
+                        'operation_type': usage.operation_type,
+                        'model_used': usage.model_used,
+                        'tokens_consumed': usage.tokens_consumed,
+                        'cost_usd': float(usage.cost_usd) if usage.cost_usd else 0.0,
+                        'cost_eur': float(usage.cost_eur) if usage.cost_eur else 0.0,
+                        'success': usage.success,  # Campo critico per frontend
+                        'response_time_ms': usage.response_time_ms,
+                        'created_at': usage.created_at.isoformat(),
+                        'input_data': usage.input_data[:100] + '...' if len(usage.input_data or '') > 100 else (usage.input_data or ''),
+                    }
+                    for usage in recent_history
+                ]
+                logger.info(f"✅ Recuperati {len(recent_records)} record recenti per user {user_id}")
+            except Exception as history_error:
+                logger.error(f"❌ Errore recupero cronologia per user {user_id}: {history_error}")
+                recent_records = []
+            
+            response_data = {
+                'summary': summary,
+                'recent_records': recent_records,
+                'period': period,
+                'user_id': user_id
+            }
+            
+            logger.info(f"🔄 Restituendo dati usage per user {user_id}: summary_keys={list(summary.keys())}, records_count={len(recent_records)}")
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error fetching learning usage data: {str(e)}")
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            ) 

@@ -9,13 +9,16 @@ const LessonContent = ({
   lesson, 
   activeTab, 
   onTabChange, 
-  onLessonUpdate 
+  onLessonUpdate,
+  onUsageUpdate,
+  selectedModel
 }) => {
   const [approfondimenti, setApprofondimenti] = useState([]);
   const [quiz, setQuiz] = useState(null);
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
   const [isGeneratingApprofondimenti, setIsGeneratingApprofondimenti] = useState(false);
   const [quizDifficultyLevel, setQuizDifficultyLevel] = useState(3); // Livello difficoltà quiz (1-5)
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
 
   const {
     generateQuiz,
@@ -58,19 +61,30 @@ const LessonContent = ({
       const response = await generateQuiz(lesson.id, {
         num_questions: 5,
         difficulty_level: quizDifficultyLevel,
-        include_approfondimenti: approfondimenti.length > 0
+        include_approfondimenti: approfondimenti.length > 0,
+        model: selectedModel
       });
 
       if (response.success && response.quiz) {
         setQuiz(response.quiz);
         onTabChange('quiz');
         toast.success('Quiz generato con successo!');
+        
+        // ⚠️ Aggiorna widget consumi dopo generazione quiz riuscita
+        if (onUsageUpdate) {
+          onUsageUpdate();
+        }
       } else {
         throw new Error(response.error || 'Errore nella generazione del quiz');
       }
     } catch (error) {
       console.error('Error generating quiz:', error);
       toast.error('Errore nella generazione del quiz');
+      
+      // ⚠️ Aggiorna widget anche per fallimenti quiz
+      if (onUsageUpdate) {
+        onUsageUpdate();
+      }
     } finally {
       setIsGeneratingQuiz(false);
     }
@@ -85,7 +99,8 @@ const LessonContent = ({
       const response = await generateApprofondimenti(lesson.id, {
         max_items: 4,
         depth_level: lesson.depth_level || 3, // Eredita il livello dalla lezione
-        existing_approfondimenti: approfondimenti.map(a => ({ title: a.title, content: a.content })) // Anti-duplicazione
+        existing_approfondimenti: approfondimenti.map(a => ({ title: a.title, content: a.content })), // Anti-duplicazione
+        model: selectedModel
       });
 
       if (response.success && response.approfondimenti) {
@@ -106,6 +121,11 @@ const LessonContent = ({
         
         toast.success('Approfondimenti generati con successo!');
         
+        // ⚠️ Aggiorna widget consumi dopo generazione approfondimenti riuscita
+        if (onUsageUpdate) {
+          onUsageUpdate();
+        }
+        
         // Ricarica la lezione per aggiornare i dati dal backend (con un piccolo delay)
         if (onLessonUpdate) {
           setTimeout(() => {
@@ -118,8 +138,73 @@ const LessonContent = ({
     } catch (error) {
       console.error('Error generating approfondimenti:', error);
       toast.error('Errore nella generazione degli approfondimenti');
+      
+      // ⚠️ Aggiorna widget anche per fallimenti approfondimenti
+      if (onUsageUpdate) {
+        onUsageUpdate();
+      }
     } finally {
       setIsGeneratingApprofondimenti(false);
+    }
+  };
+
+  // Export lesson as PDF
+  const handleExportPDF = async (options = {}) => {
+    if (!lesson) return;
+
+    const {
+      includeApprofondimenti = true,
+      includeQuiz = true
+    } = options;
+
+    setIsExportingPDF(true);
+    try {
+      const params = new URLSearchParams({
+        include_approfondimenti: includeApprofondimenti,
+        include_quiz: includeQuiz
+      });
+
+      const response = await fetch(`/api/learning/lessons/${lesson.id}/export/pdf/?${params}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Errore nel download del PDF');
+      }
+
+      // Download del file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Nome file dal header o fallback
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const safeTitle = (lesson.title || lesson.topic || `lezione_${lesson.id}`).replace(/[^a-zA-Z0-9]/g, '_');
+      let filename = `lezione_${lesson.id}_${safeTitle}.pdf`;
+      
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match) {
+          filename = match[1];
+        }
+      }
+      
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('PDF scaricato con successo!');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast.error('Errore nel download del PDF');
+    } finally {
+      setIsExportingPDF(false);
     }
   };
 
@@ -285,6 +370,27 @@ const LessonContent = ({
                   </>
                 )}
               </button>
+
+              {/* Export PDF Button */}
+              <button
+                onClick={() => handleExportPDF()}
+                disabled={isExportingPDF}
+                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+              >
+                {isExportingPDF ? (
+                  <>
+                    <LoadingSpinner size="small" color="white" />
+                    Generando PDF...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    Scarica PDF
+                  </>
+                )}
+              </button>
             </div>
 
             {/* Debug Info */}
@@ -301,6 +407,8 @@ const LessonContent = ({
                 approfondimenti={approfondimenti}
                 lessonId={lesson.id}
                 onUpdate={setApprofondimenti}
+                onUsageUpdate={onUsageUpdate}
+                selectedModel={selectedModel}
               />
             )}
           </div>

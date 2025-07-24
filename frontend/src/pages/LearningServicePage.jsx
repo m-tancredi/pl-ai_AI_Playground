@@ -1,18 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import useLearningService from '../hooks/useLearningService';
 import LessonsSidebar from '../components/learning/LessonsSidebar';
 import LessonContent from '../components/learning/LessonContent';
 import LoadingSpinner from '../components/LoadingSpinner';
+import UsageWidget from '../components/UsageWidget';
+import UsageModal from '../components/UsageModal';
+import { getLearningUsage, getLearningOperationDisplayName, getLearningModelDisplayName } from '../services/usageService';
 
 const LearningServicePage = () => {
   // States
   const [lessons, setLessons] = useState([]);
   const [currentLesson, setCurrentLesson] = useState(null);
-  const [topicInput, setTopicInput] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState('lesson');
-  const [lessonDepthLevel, setLessonDepthLevel] = useState(3); // Livello di approfondimento (1-5)
+  
+  // Usage tracking states
+  const [showUsageModal, setShowUsageModal] = useState(false);
+  const [usageData, setUsageData] = useState(null);
+  const usageWidgetRef = useRef(null);
+  const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo');
 
   // Learning service hook
   const {
@@ -60,28 +66,43 @@ const LearningServicePage = () => {
     }
   }, [getLessonWithRelated]);
 
-  // Generate new lesson
-  const handleGenerateLesson = async () => {
-    if (!topicInput.trim()) {
-      toast.error('Inserisci un argomento per la lezione');
-      return;
-    }
-
-    setIsGenerating(true);
-    
+  // Usage tracking handlers
+  const handleOpenUsageModal = async () => {
     try {
-      const response = await generateLesson({ 
-        topic: topicInput.trim(),
-        depth_level: lessonDepthLevel
-      });
+      const freshData = await getLearningUsage('current_month');
+      setUsageData(freshData);
+      setShowUsageModal(true);
+    } catch (error) {
+      console.error('Error fetching usage data:', error);
+      setShowUsageModal(true); // Apri comunque il modale
+    }
+  };
+
+  const handleCloseUsageModal = () => {
+    setShowUsageModal(false);
+    setUsageData(null);
+  };
+
+  // Generate new lesson
+  const handleGenerateLesson = async (lessonData) => {
+    try {
+      const response = await generateLesson(lessonData);
       
       if (response.success && response.lesson) {
         setCurrentLesson(response.lesson);
-        setTopicInput('');
         setActiveTab('lesson');
         
         // Reload lessons list
         await loadLessons();
+        
+        // ⚠️ IMPORTANTE: Aggiorna widget consumi dopo generazione
+        if (usageWidgetRef.current) {
+          try {
+            await usageWidgetRef.current.refreshUsage();
+          } catch (error) {
+            console.error('❌ Errore refresh widget dopo generazione:', error);
+          }
+        }
         
         toast.success('Lezione generata con successo!');
       } else {
@@ -90,8 +111,17 @@ const LearningServicePage = () => {
     } catch (error) {
       console.error('Error generating lesson:', error);
       toast.error('Errore nella generazione della lezione');
-    } finally {
-      setIsGenerating(false);
+      
+      // ⚠️ Aggiorna anche in caso di errore per mostrare il fallimento
+      if (usageWidgetRef.current) {
+        try {
+          await usageWidgetRef.current.refreshUsage();
+        } catch (refreshError) {
+          console.error('❌ Errore refresh widget dopo errore generazione:', refreshError);
+        }
+      }
+      
+      throw error; // Re-throw to let sidebar handle loading state
     }
   };
 
@@ -144,14 +174,7 @@ const LearningServicePage = () => {
     loadLessonDetails(lesson.id);
   };
 
-  // Handle Enter key in topic input
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleGenerateLesson();
-    }
-  };
-
-  if (loading && !isGenerating && !currentLesson) {
+  if (loading && !currentLesson) {
     return (
       <div className="flex h-screen items-center justify-center">
         <LoadingSpinner size="large" />
@@ -159,95 +182,65 @@ const LearningServicePage = () => {
     );
   }
 
-  return (
-    <div className="learning-page-container flex h-auto min-h-[80vh] w-full max-w-full mx-4 my-8 rounded-xl shadow-lg overflow-hidden bg-white">
-      {/* Sidebar */}
-      <LessonsSidebar
-        lessons={lessons}
-        currentLesson={currentLesson}
-        onSelectLesson={handleSelectLesson}
-        onDeleteLesson={handleDeleteLesson}
-        onDeleteAllLessons={handleDeleteAllLessons}
-        loading={loading}
-      />
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col justify-start px-6">
-        {/* Topic Input Section */}
-        <div className="w-full mt-4 mb-2">
-          <label 
-            htmlFor="topic-input" 
-            className="block text-lg font-medium text-gray-700 mb-2 text-left"
-          >
-            Scrivi un argomento per generare una mini-lezione
-          </label>
-          
-          {/* Livello di Approfondimento */}
-          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <label className="block text-sm font-medium text-blue-800 mb-3">
-              📊 Livello di Approfondimento: <span className="font-bold text-blue-900">{lessonDepthLevel}/5</span>
-            </label>
-            <div className="flex items-center space-x-4">
-              <span className="text-xs text-blue-600 font-medium">Base</span>
-              <input
-                type="range"
-                min="1"
-                max="5"
-                value={lessonDepthLevel}
-                onChange={(e) => setLessonDepthLevel(parseInt(e.target.value))}
-                className="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer slider"
-                disabled={isGenerating}
-                style={{
-                  background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(lessonDepthLevel-1) * 25}%, #bfdbfe ${(lessonDepthLevel-1) * 25}%, #bfdbfe 100%)`
-                }}
-              />
-              <span className="text-xs text-blue-600 font-medium">Avanzato</span>
-            </div>
-            <div className="flex justify-between text-xs text-blue-600 mt-1 px-1">
-              <span>1</span>
-              <span>2</span>
-              <span>3</span>
-              <span>4</span>
-              <span>5</span>
-            </div>
-            <p className="text-xs text-blue-700 mt-2">
-              {lessonDepthLevel === 1 && "📋 Panoramica generale con concetti base"}
-              {lessonDepthLevel === 2 && "📖 Introduzione con esempi semplici"}
-              {lessonDepthLevel === 3 && "⚖️ Spiegazione bilanciata con esempi pratici"}
-              {lessonDepthLevel === 4 && "🔬 Analisi approfondita con dettagli tecnici"}
-              {lessonDepthLevel === 5 && "🎓 Trattazione esaustiva e specialistica"}
-            </p>
-          </div>
-
-          <div className="flex gap-1 items-center">
-            <input
-              id="topic-input"
-              type="text"
-              value={topicInput}
-              onChange={(e) => setTopicInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Es: La fotosintesi clorofilliana"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-[#ff1649] text-lg shadow-sm"
-              disabled={isGenerating}
+  // Loading iniziale - mantiene la pagina visibile
+  if (loading && lessons.length === 0 && !currentLesson) {
+    return (
+      <div className="learning-page-container">
+        {/* Header sempre visibile */}
+        <div className="mb-6 flex justify-between items-center px-4">
+          <h1 className="text-2xl font-bold text-gray-800">Learning Service</h1>
+          <div className="w-full max-w-xs">
+            <UsageWidget 
+              ref={usageWidgetRef}
+              serviceName="learning"
+              serviceDisplayName="Learning"
+              getUsageData={getLearningUsage}
+              onOpenDetails={handleOpenUsageModal}
             />
-            <button
-              onClick={handleGenerateLesson}
-              disabled={isGenerating || !topicInput.trim()}
-              className="bg-[#ff1649] hover:bg-[#e01440] disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-r-lg px-5 py-3 flex items-center gap-2 transition-all shadow-md"
-            >
-              <span className="font-medium">
-                {isGenerating ? 'Generazione...' : 'Genera'}
-              </span>
-              {isGenerating ? (
-                <LoadingSpinner size="small" color="white" />
-              ) : (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-                </svg>
-              )}
-            </button>
           </div>
         </div>
+        
+        <div className="flex h-auto min-h-[80vh] w-full max-w-full mx-4 my-2 rounded-xl shadow-lg overflow-hidden bg-white">
+          <div className="flex-1 flex items-center justify-center">
+            <LoadingSpinner size="large" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="learning-page-container">
+      {/* Header con widget consumi */}
+      <div className="mb-6 flex justify-between items-center px-4">
+        <h1 className="text-2xl font-bold text-gray-800">Learning Service</h1>
+        <div className="w-full max-w-xs">
+          <UsageWidget 
+            ref={usageWidgetRef}
+            serviceName="learning"
+            serviceDisplayName="Learning"
+            getUsageData={getLearningUsage}
+            onOpenDetails={handleOpenUsageModal}
+          />
+        </div>
+      </div>
+
+      <div className="flex h-auto min-h-[80vh] w-full max-w-full mx-4 my-2 rounded-xl shadow-lg overflow-hidden bg-white">
+        {/* Sidebar */}
+        <LessonsSidebar
+          lessons={lessons}
+          currentLesson={currentLesson}
+          onSelectLesson={handleSelectLesson}
+          onDeleteLesson={handleDeleteLesson}
+          onDeleteAllLessons={handleDeleteAllLessons}
+          onGenerateLesson={handleGenerateLesson}
+          loading={loading}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+        />
+
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col justify-start px-6 py-6">
 
         {/* Lesson Content */}
         {currentLesson ? (
@@ -256,6 +249,12 @@ const LearningServicePage = () => {
             activeTab={activeTab}
             onTabChange={setActiveTab}
             onLessonUpdate={loadLessonDetails}
+            onUsageUpdate={() => {
+              if (usageWidgetRef.current) {
+                usageWidgetRef.current.refreshUsage();
+              }
+            }}
+            selectedModel={selectedModel}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center">
@@ -274,17 +273,19 @@ const LearningServicePage = () => {
             </div>
           </div>
         )}
-
-        {/* Loading Message */}
-        {isGenerating && (
-          <div className="mt-8 text-center text-base text-[#ff1649]">
-            <div className="flex items-center justify-center gap-2">
-              <LoadingSpinner size="small" color="#ff1649" />
-              <span>Generazione in corso, attendi...</span>
-            </div>
-          </div>
-        )}
       </main>
+      </div>
+      
+      {/* Modale consumi CON ANTI-FRODE */}
+      <UsageModal
+        isOpen={showUsageModal}
+        onClose={handleCloseUsageModal}
+        serviceName="learning"
+        serviceDisplayName="Learning Service"
+        getUsageData={getLearningUsage}
+        customGetOperationDisplayName={getLearningOperationDisplayName}
+        customGetModelDisplayName={getLearningModelDisplayName}
+      />
     </div>
   );
 };
